@@ -79,7 +79,7 @@ public class FetchCommand implements Callable<Integer> {
             return 1;
         }
 
-        String effectivePath2 = resolveAdtPath(urlOrPath);
+        String adtPath = resolveAdtPath(urlOrPath);
         Map<String, String> headerMap = parseHeaders(this.headers);
         byte[] requestBody = resolveBody(body);
 
@@ -87,7 +87,7 @@ public class FetchCommand implements Callable<Integer> {
             Path.of(config.getRuntime().getJcoJar()));
         AdtRestRfcClient rfcClient = new AdtRestRfcClient(factory);
 
-        ProxyRequest request = new ProxyRequest(method, effectivePath2, "HTTP/1.1", headerMap, requestBody);
+        ProxyRequest request = new ProxyRequest(method, adtPath, "HTTP/1.1", headerMap, requestBody);
         ProxyResponse response = rfcClient.execute(system, request);
 
         writeOutput(response);

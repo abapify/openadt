@@ -33,6 +33,3 @@ target/
 .settings/
 .classpath
 .project
-
-# Maven build output
-target/
