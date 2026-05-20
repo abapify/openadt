@@ -28,12 +28,12 @@ public class JCoDestinationFactory {
         String destName = system.getAlias() != null ? system.getAlias() : "openadt_dest";
 
         Class<?> destManagerClass = Class.forName(JCO_DEST_MANAGER, true, jcoClassLoader);
-        Class<?> inMemProviderClass = Class.forName(
+        Class<?> jcoEnvironmentClass = Class.forName(
             "com.sap.conn.jco.ext.Environment", true, jcoClassLoader);
 
         // Register an in-memory destination provider
         Object provider = createInMemoryProvider(destName, props);
-        Method registerMethod = inMemProviderClass.getMethod("registerDestinationDataProvider",
+        Method registerMethod = jcoEnvironmentClass.getMethod("registerDestinationDataProvider",
             Class.forName(JCO_DEST_DATA_PROVIDER, true, jcoClassLoader));
         registerMethod.invoke(null, provider);
 

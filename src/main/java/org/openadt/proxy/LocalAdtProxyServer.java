@@ -28,8 +28,10 @@ public class LocalAdtProxyServer {
         if (config.getProxy() != null && "basic".equalsIgnoreCase(config.getProxy().getAuth())) {
             String username = config.getProxy().getUsername() != null
                 ? config.getProxy().getUsername() : "openadt";
-            // Password would come from a secure source in production
-            context.getFilters().add(new ProxyAuthFilter(username, ""));
+            // Read password from environment variable; proxy auth is disabled if not set
+            String password = System.getenv("OPENADT_PROXY_PASSWORD");
+            if (password == null) password = "";
+            context.getFilters().add(new ProxyAuthFilter(username, password));
         }
 
         server.setExecutor(Executors.newCachedThreadPool());

@@ -20,8 +20,10 @@ public class SecureLoginDetector implements SystemDetector {
             conn.setConnectTimeout(TIMEOUT_MS);
             conn.setReadTimeout(TIMEOUT_MS);
             conn.setRequestMethod("GET");
-            conn.getResponseCode();
-            return new DetectionResult(true, SLC_HUB_URL);
+            int code = conn.getResponseCode();
+            // Any HTTP response (including 4xx) means the service is reachable
+            boolean available = code > 0;
+            return new DetectionResult(available, SLC_HUB_URL);
         } catch (IOException e) {
             return new DetectionResult(false, SLC_HUB_URL);
         }

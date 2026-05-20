@@ -65,7 +65,7 @@ public class FetchCommand implements Callable<Integer> {
         response.headers().forEach((k, v) -> System.out.printf("%s: %s%n", k, v));
         System.out.println();
         if (response.body() != null && response.body().length > 0) {
-            System.out.print(new String(response.body()));
+            System.out.print(new String(response.body(), java.nio.charset.StandardCharsets.UTF_8));
         }
 
         return 0;

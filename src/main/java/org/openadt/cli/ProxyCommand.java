@@ -53,7 +53,12 @@ public class ProxyCommand implements Callable<Integer> {
 
         System.out.println("Press Ctrl+C to stop.");
         Runtime.getRuntime().addShutdownHook(new Thread(proxyServer::stop));
-        Thread.currentThread().join();
+        // Keep the main thread alive until the JVM is interrupted
+        try {
+            Thread.sleep(Long.MAX_VALUE);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
 
         return 0;
     }
