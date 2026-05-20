@@ -22,8 +22,17 @@ public class ProxyCommand implements Callable<Integer> {
     @Parameters(index = "0", description = "System alias to proxy", arity = "0..1")
     private String systemAlias;
 
-    @Option(names = {"--port", "-p"}, description = "Port to listen on (default: 8080)", defaultValue = "8080")
-    private int port;
+    @Option(names = {"--listen"}, description = "Bind address:port (default: 127.0.0.1:0)", defaultValue = "127.0.0.1:0")
+    private String listen;
+
+    @Option(names = {"--local-auth"}, description = "Local auth type (basic)")
+    private String localAuth;
+
+    @Option(names = {"--local-username"}, description = "Local proxy username (default: openadt)")
+    private String localUsername;
+
+    @Option(names = {"--local-password"}, description = "Local proxy password (default: OPENADT_PROXY_PASSWORD env var)")
+    private String localPassword;
 
     @Option(names = {"--config", "-c"}, description = "Config file path")
     private Path configPath;
@@ -45,12 +54,28 @@ public class ProxyCommand implements Callable<Integer> {
             return 1;
         }
 
+        // Resolve effective auth settings: CLI flags override config file
+        String effectiveAuth = localAuth != null ? localAuth
+            : (config.getProxy() != null ? config.getProxy().getAuth() : null);
+        String effectiveUsername = localUsername != null ? localUsername
+            : (config.getProxy() != null && config.getProxy().getUsername() != null
+                ? config.getProxy().getUsername() : "openadt");
+        String effectivePassword = localPassword != null ? localPassword
+            : System.getenv("OPENADT_PROXY_PASSWORD");
+
+        if ("basic".equalsIgnoreCase(effectiveAuth) && (effectivePassword == null || effectivePassword.isBlank())) {
+            System.err.println("Local proxy password required for basic auth. " +
+                "Use --local-password or set OPENADT_PROXY_PASSWORD environment variable.");
+            return 1;
+        }
+
         JCoDestinationFactory factory = JCoDestinationFactory.fromJarPath(
             Path.of(config.getRuntime().getJcoJar()));
         AdtRestRfcClient rfcClient = new AdtRestRfcClient(factory);
-        LocalAdtProxyServer proxyServer = new LocalAdtProxyServer(config, rfcClient);
-        proxyServer.start(system, port);
+        LocalAdtProxyServer proxyServer = new LocalAdtProxyServer(rfcClient);
+        int port = proxyServer.start(system, listen, effectiveAuth, effectiveUsername, effectivePassword);
 
+        System.out.printf("OpenADT proxy for system '%s' listening on %s%n", system.getAlias(), listen.replace(":0", ":" + port));
         System.out.println("Press Ctrl+C to stop.");
         Object lock = new Object();
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {

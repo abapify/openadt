@@ -19,8 +19,8 @@ public class SetupCommand implements Callable<Integer> {
     @Option(names = {"--config", "-c"}, description = "Config file path")
     private Path configPath;
 
-    @Option(names = {"--dry-run"}, description = "Show detected systems without saving")
-    private boolean dryRun;
+    @Option(names = {"--check"}, description = "Show detected systems and validate without saving config")
+    private boolean check;
 
     @Override
     public Integer call() throws Exception {
@@ -46,7 +46,7 @@ public class SetupCommand implements Callable<Integer> {
             result.warnings().forEach(w -> System.out.println("  ! " + w));
         }
 
-        if (!dryRun && !result.systems().isEmpty()) {
+        if (!check && !result.systems().isEmpty()) {
             OpenAdtConfig config = loader.load(effectivePath);
             config.setSystems(result.systems());
             loader.save(config, effectivePath);

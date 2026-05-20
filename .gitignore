@@ -25,3 +25,14 @@ replay_pid*
 
 # Maven build output
 target/
+
+# IDE files
+.idea/
+*.iml
+.eclipse/
+.settings/
+.classpath
+.project
+
+# Maven build output
+target/
