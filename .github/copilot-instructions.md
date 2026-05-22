@@ -8,23 +8,33 @@ OpenADT: Java CLI (`apps/openadt-cli`) — local SAP ADT bridge (`setup`, `fetch
 
 ## Agent skills (read before specialized work)
 
-Skills live under **`.agents/skills/<name>/SKILL.md`**. Index: [`.agents/skills/README.md`](../.agents/skills/README.md).
+| Skill                               | Path                                                                                                                           | When                                  |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------- |
+| `act`                               | [`.github/skills/act/SKILL.md`](skills/act/SKILL.md) (same as [`.agents/skills/act/SKILL.md`](../.agents/skills/act/SKILL.md)) | **`/act`** or `@copilot /act` on a PR |
+| `openadt-local-sap-runtime`         | `.agents/skills/openadt-local-sap-runtime/SKILL.md`                                                                            | Setup, fetch, proxy, JCo/SNC          |
+| `openadt-devcontainer-host-runtime` | `.agents/skills/openadt-devcontainer-host-runtime/SKILL.md`                                                                    | Devcontainer / WSL vs host            |
 
-| Skill                               | When to read                                                   |
-| ----------------------------------- | -------------------------------------------------------------- |
-| `act`                               | User says **`/act`** or PR follow-up (CI, review, merge-ready) |
-| `openadt-local-sap-runtime`         | Setup, fetch, proxy, JCo/SNC, Eclipse ADT                      |
-| `openadt-devcontainer-host-runtime` | Devcontainer / WSL vs host SAP natives                         |
+Index: [`.agents/skills/README.md`](../.agents/skills/README.md).
 
-Invocation: read the matching `SKILL.md` **first**, then act. Skills are also listed in root `AGENTS.md`.
+**On `/act`:** load the **`act` skill file first** (full body), then execute it. Do not use a generic built-in `act` shortcut without reading this repo’s skill.
 
-## PR / review workflow
+## Copilot coding agent — GitHub API access
 
-On pull requests, follow **`.agents/skills/act/SKILL.md`**:
+The SWE agent runs behind a **firewall**. Bash/`gh` calls to `api.github.com` / GraphQL return **403** (`Blocked by DNS monitoring proxy`).
+
+- **Do not** use `gh api`, `gh api graphql`, or `gh pr view --json`.
+- **Do not** add `api.github.com` to the custom firewall allowlist to work around this.
+- **Do** use the **`github-mcp-server`** tools (`pull_request_read`, `pull_request_review_write`, `actions_*`, `reply_to_comment`).
+- **Resolve conversation** via MCP `pull_request_review_write` → `resolve_thread` with `threadId` from `get_review_comments` (`PRRT_…`), or **Playwright** on the PR page if thread `id` is unavailable.
+
+## PR / review workflow (`/act`)
+
+Follow [`.github/skills/act/SKILL.md`](skills/act/SKILL.md):
 
 - Priority: CI (HEAD) → blocking review → nits/suggestions
-- **Resolve conversation** on GitHub for every addressed thread (mandatory)
+- **Resolve conversation** on GitHub for every handled thread (mandatory)
 - Minimal fixes; idempotent re-runs (no duplicate commits or summaries)
+- Before pushing TS under `tools/`: `bunx nx format:write`
 
 ## Build and validate
 

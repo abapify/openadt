@@ -22,7 +22,7 @@ Read specs first, prefer TDD, keep SAP binaries external, never commit private S
 
 ## Skills
 
-Reusable workflows: **`.agents/skills/<name>/SKILL.md`** (index: `.agents/skills/README.md`).
+Reusable workflows: **`.agents/skills/<name>/SKILL.md`** (index: `.agents/skills/README.md`). Copilot also reads **`.github/skills/<name>/SKILL.md`** (e.g. `act` — keep copies in sync).
 
 | Skill                               | Trigger                                                        |
 | ----------------------------------- | -------------------------------------------------------------- |

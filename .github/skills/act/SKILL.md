@@ -24,13 +24,13 @@ Flags narrow scope; default `/act` runs the full sequence below.
 
 Work top → bottom. Do not skip a tier while a higher tier still blocks merge or has **unresolved** required feedback.
 
-| P | Tier | Includes | Done when |
-|---|------|----------|-----------|
-| 0 | **Merge blockers** | Failing required CI, merge conflicts, broken build/test on HEAD | Required checks green (or platform confirms pass) on latest commit |
-| 1 | **Blocking review** | “Must fix”, changes requested, security/correctness threads | Fix on branch + reply + **Resolve conversation** |
-| 2 | **Non-blocking review** | Questions, nits, style, optional improvements | Code or **explicit PR reply** + **Resolve conversation** |
-| 3 | **Inline suggestions** | GitHub “Apply suggestion” / equivalent | Apply/decline + **Resolve conversation** |
-| 4 | **Hygiene** | Stale bot comments, label/check noise | Only if still blocking perception of readiness |
+| P   | Tier                    | Includes                                                        | Done when                                                          |
+| --- | ----------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------ |
+| 0   | **Merge blockers**      | Failing required CI, merge conflicts, broken build/test on HEAD | Required checks green (or platform confirms pass) on latest commit |
+| 1   | **Blocking review**     | “Must fix”, changes requested, security/correctness threads     | Fix on branch + reply + **Resolve conversation**                   |
+| 2   | **Non-blocking review** | Questions, nits, style, optional improvements                   | Code or **explicit PR reply** + **Resolve conversation**           |
+| 3   | **Inline suggestions**  | GitHub “Apply suggestion” / equivalent                          | Apply/decline + **Resolve conversation**                           |
+| 4   | **Hygiene**             | Stale bot comments, label/check noise                           | Only if still blocking perception of readiness                     |
 
 **Flags:** `--ci` → P0 only. `--comments` → P1–P2. `--apply-suggestions` → P3. `--resolve-threads` → resolve threads whose fix/reply is already on branch (P1–P3 after the fact).
 
@@ -51,14 +51,14 @@ If something cannot be fixed in-repo (needs product decision, external dependenc
 
 ## Idempotency
 
-| Action | Skip when |
-|--------|-----------|
-| Code fix | Already on branch |
-| Commit | Clean tree / same fix in HEAD |
-| Suggestion | Hunk already matches |
-| Resolve | Already resolved |
+| Action     | Skip when                                                                          |
+| ---------- | ---------------------------------------------------------------------------------- |
+| Code fix   | Already on branch                                                                  |
+| Commit     | Clean tree / same fix in HEAD                                                      |
+| Suggestion | Hunk already matches                                                               |
+| Resolve    | Already resolved                                                                   |
 | PR summary | Post **delta** vs last agent summary; “merge-ready” only if completion rule passes |
-| CI work | HEAD already green |
+| CI work    | HEAD already green                                                                 |
 
 No empty commits. No duplicate summaries. Use latest workflow run for HEAD.
 
@@ -93,11 +93,11 @@ This runtime runs in **GitHub Actions** with a **firewall**. Direct calls from B
 
 Use MCP tools for all GitHub reads/writes:
 
-| Task | MCP approach |
-|------|----------------|
-| PR comments / reviews | `pull_request_read` — `get_comments`, `get_reviews`, `get_review_comments` |
-| CI / Actions | `pull_request_read` — `get_check_runs`; `actions_list` / `actions_get` |
-| Reply in thread | `reply_to_comment` or `add_reply_to_pull_request_comment` |
+| Task                     | MCP approach                                                                                   |
+| ------------------------ | ---------------------------------------------------------------------------------------------- |
+| PR comments / reviews    | `pull_request_read` — `get_comments`, `get_reviews`, `get_review_comments`                     |
+| CI / Actions             | `pull_request_read` — `get_check_runs`; `actions_list` / `actions_get`                         |
+| Reply in thread          | `reply_to_comment` or `add_reply_to_pull_request_comment`                                      |
 | **Resolve conversation** | `pull_request_review_write` — method **`resolve_thread`**, `threadId` = thread `id` (`PRRT_…`) |
 
 **List threads:** `pull_request_read` → `get_review_comments` → `review_threads[]` with `is_resolved`, `path`, and **`id`** (GraphQL node id). Count unresolved before claiming done.
