@@ -1,0 +1,122 @@
+package org.openadt.core;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+
+/**
+ * Starts {@code com.sap.conn.jco.eclipse} outside the Eclipse workbench so ADT SDK
+ * {@link com.sap.adt.communication.internal.jco.JCoDestinationRegistry} can use
+ * {@code Registry.getDestinationDataRegistry()}.
+ */
+public final class JCoEclipseBootstrap {
+    private static final String ACTIVATOR_CLASS = "com.sap.mw.jco3.eclipse.internal.Activator";
+    private static final String ENVIRONMENT_CLASS = "com.sap.conn.jco.ext.Environment";
+    private static volatile boolean prepared;
+
+    private JCoEclipseBootstrap() {
+    }
+
+    public static synchronized void prepare() {
+        if (prepared) {
+            return;
+        }
+        try {
+            Class<?> activatorClass = Class.forName(ACTIVATOR_CLASS);
+            if (getPluginInstance(activatorClass) != null) {
+                prepared = true;
+                return;
+            }
+            Object activator = activatorClass.getDeclaredConstructor().newInstance();
+            registerJcoEnvironment(activator);
+            markJcoRegistrationSuccessful(activator);
+            setPluginInstance(activatorClass, activator);
+            prepared = true;
+            log("com.sap.conn.jco.eclipse initialized for headless ADT SDK");
+        } catch (ReflectiveOperationException error) {
+            throw new IllegalStateException(
+                "Failed to initialize SAP JCo Eclipse bridge (com.sap.conn.jco.eclipse): "
+                    + error.getMessage(),
+                error
+            );
+        }
+    }
+
+    private static void registerJcoEnvironment(Object activator) throws ReflectiveOperationException {
+        Class<?> environmentClass = Class.forName(ENVIRONMENT_CLASS);
+        registerProvider(
+            environmentClass,
+            "registerDestinationDataProvider",
+            "com.sap.conn.jco.ext.DestinationDataProvider",
+            activator,
+            "destinationDataProvider"
+        );
+        registerProvider(
+            environmentClass,
+            "registerSessionReferenceProvider",
+            "com.sap.conn.jco.ext.SessionReferenceProvider",
+            activator,
+            "sessionReferenceProvider"
+        );
+        registerProvider(
+            environmentClass,
+            "registerClientPassportManager",
+            "com.sap.conn.jco.ext.ClientPassportManager",
+            activator,
+            "clientPassportManager"
+        );
+    }
+
+    private static void registerProvider(
+        Class<?> environmentClass,
+        String registerMethod,
+        String providerInterface,
+        Object activator,
+        String activatorField
+    ) throws ReflectiveOperationException {
+        Object provider = readField(activator, activatorField);
+        Class<?> providerClass = Class.forName(providerInterface);
+        Method method = environmentClass.getMethod(registerMethod, providerClass);
+        try {
+            method.invoke(null, provider);
+        } catch (ReflectiveOperationException error) {
+            Throwable cause = error.getCause();
+            if (cause instanceof IllegalStateException) {
+                log("JCo Environment." + registerMethod + " already registered (continuing)");
+            } else {
+                throw error;
+            }
+        }
+    }
+
+    private static void markJcoRegistrationSuccessful(Object activator) throws ReflectiveOperationException {
+        Field flag = activator.getClass().getDeclaredField("successfullJCORegistration");
+        flag.setAccessible(true);
+        flag.setBoolean(activator, true);
+    }
+
+    private static Object readField(Object target, String fieldName) throws ReflectiveOperationException {
+        Field field = target.getClass().getDeclaredField(fieldName);
+        field.setAccessible(true);
+        return field.get(target);
+    }
+
+    private static Object getPluginInstance(Class<?> activatorClass) throws ReflectiveOperationException {
+        Field plugin = activatorClass.getDeclaredField("plugin");
+        plugin.setAccessible(true);
+        return plugin.get(null);
+    }
+
+    private static void setPluginInstance(Class<?> activatorClass, Object activator) throws ReflectiveOperationException {
+        Field plugin = activatorClass.getDeclaredField("plugin");
+        plugin.setAccessible(true);
+        plugin.set(null, activator);
+    }
+
+    private static void log(String message) {
+        if (!Boolean.parseBoolean(System.getenv().getOrDefault("OPENADT_VERBOSE", "true"))) {
+            return;
+        }
+        System.err.println("[openadt sdk] " + message);
+        System.err.flush();
+    }
+}

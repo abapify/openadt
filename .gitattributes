@@ -1,0 +1,8 @@
+* text=auto eol=lf
+
+*.jar binary
+*.dll binary
+*.so binary
+*.exe binary
+*.pse binary
+*.p12 binary

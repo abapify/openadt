@@ -22,3 +22,33 @@
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 replay_pid*
+
+# Maven build output
+target/
+
+# IDE files
+.idea/
+*.iml
+.eclipse/
+.settings/
+.classpath
+.project
+node_modules/
+package-lock.json
+bun.lock
+bun.lockb
+pnpm-lock.yaml
+yarn.lock
+
+# Local OpenADT runtime and config
+.openadt/
+.devcontainer/dist/
+.devcontainer/sec/
+.devcontainer/openadt-config.toml
+.devcontainer/*.openadt.toml
+tmp/
+
+.nx/installation
+.nx/cache
+.nx/workspace-data
+.nx/self-healing

@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+set -e
+
+if command -v bun >/dev/null 2>&1; then
+  bun run precommit:format
+else
+  npm run precommit:format
+fi

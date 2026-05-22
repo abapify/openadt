@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+REPO_ROOT=$(cd "${SCRIPT_DIR}/.." && pwd)
+
+DIST_ROOT="${REPO_ROOT}/.devcontainer/dist"
+JCO_DIR="${DIST_ROOT}/jco"
+SNC_DIR="${DIST_ROOT}/snc"
+SEC_DIR="${OPENADT_SEC_DIR:-${HOME}/.openadt/sec}"
+SNC_SHIM_DIR="${REPO_ROOT}/tmp/snc-shim"
+SNC_SHIM="${SNC_SHIM_DIR}/sncgss.so"
+
+if [[ ! -f "${JCO_DIR}/sapjco3.jar" ]]; then
+  echo "missing staged JCo jar: ${JCO_DIR}/sapjco3.jar" >&2
+  exit 1
+fi
+
+if [[ ! -f "${JCO_DIR}/libsapjco3.so" ]]; then
+  echo "missing staged JCo native library: ${JCO_DIR}/libsapjco3.so" >&2
+  exit 1
+fi
+
+if [[ ! -f "${SNC_DIR}/libsapcrypto.so" ]]; then
+  echo "missing staged SNC library: ${SNC_DIR}/libsapcrypto.so" >&2
+  exit 1
+fi
+
+mkdir -p "${SEC_DIR}" "${SNC_SHIM_DIR}"
+ln -sfn "${SNC_DIR}/libsapcrypto.so" "${SNC_SHIM}"
+
+export SECUDIR="${SEC_DIR}"
+export SNC_LIB="${SNC_SHIM}"
+
+LD_PATH_ENTRIES=("${SNC_SHIM_DIR}" "${SNC_DIR}" "${JCO_DIR}")
+if [[ -n "${LD_LIBRARY_PATH:-}" ]]; then
+  LD_PATH_ENTRIES+=("${LD_LIBRARY_PATH}")
+fi
+export LD_LIBRARY_PATH
+LD_LIBRARY_PATH=$(IFS=:; printf '%s' "${LD_PATH_ENTRIES[*]}")
+
+if [[ "${1:-}" == "--print-env" ]]; then
+  printf 'SECUDIR=%s\n' "${SECUDIR}"
+  printf 'SNC_LIB=%s\n' "${SNC_LIB}"
+  printf 'LD_LIBRARY_PATH=%s\n' "${LD_LIBRARY_PATH}"
+  exit 0
+fi
+
+if [[ "$#" -eq 0 ]]; then
+  echo "usage: $0 [--print-env] <command> [args...]" >&2
+  exit 1
+fi
+
+exec "$@"

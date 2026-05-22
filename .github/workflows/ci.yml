@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: tree:0
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: 1.3.11
+
+      # Connect with `bunx nx connect` and uncomment for Nx Agents + distributed CI.
+      # - run: bunx nx start-ci-run --distribute-on="3 linux-medium-js" --stop-agents-after="test"
+
+      - run: bun install --frozen-lockfile
+      - uses: nrwl/nx-set-shas@v5
+
+      - run: bunx nx format:check
+      - run: bunx nx affected -t lint typecheck
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: microsoft
+          java-version: "21"
+
+      - name: Java unit tests (optional SAP runtime)
+        run: bash scripts/ci-java-test.sh
+
+      - run: bunx nx fix-ci
+        if: always()

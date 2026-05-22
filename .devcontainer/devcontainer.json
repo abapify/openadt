@@ -1,0 +1,26 @@
+{
+  "name": "openadt",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "workspaceFolder": "/workspaces/openadt",
+  "remoteEnv": {
+    "OPENADT_CONFIG": "/workspaces/openadt/.devcontainer/openadt-config.toml",
+    "SECUDIR": "/workspaces/openadt/.devcontainer/sec",
+    "LD_LIBRARY_PATH": "/workspaces/openadt/.devcontainer/dist/jco:/workspaces/openadt/.devcontainer/dist/snc"
+  },
+  "initializeCommand": "bun install && bun run bootstrap:devcontainer -- --non-interactive --container-workspace /workspaces/openadt",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "java.configuration.updateBuildConfiguration": "interactive"
+      },
+      "extensions": [
+        "vscjava.vscode-java-pack",
+        "redhat.java",
+        "vscjava.vscode-maven"
+      ]
+    }
+  }
+}
