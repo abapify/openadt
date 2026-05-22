@@ -143,5 +143,7 @@ After merging detector results, `SetupAnalyzer` applies conservative defaults fo
 - `user = <current OS username in uppercase>` when missing
 - `language = "EN"` when missing
 - `jco.sticky = "1"` and `jco.deny_initial_password = "1"` when SNC SSO is enabled
-- `adt.transport = "sdk"` when `runtime.adt_plugins_dir` is detected; otherwise `adt.transport = "rest-rfc"` when `runtime.jco_jar` is detected; otherwise `adt.transport = "sdk"`
+- `adt.transport = "sdk"` when `runtime.adt_plugins_dir` is detected
+- `adt.transport = "rest-rfc"` when `runtime.adt_plugins_dir` is missing and `runtime.jco_jar` is detected
+- `adt.transport = "sdk"` when neither runtime prerequisite is detected yet
 - `adt.authentication_kind = "sso"` when SNC SSO is enabled
