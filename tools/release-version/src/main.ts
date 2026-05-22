@@ -1,5 +1,4 @@
 import {
-  cpSync,
   existsSync,
   mkdirSync,
   readdirSync,
@@ -162,6 +161,16 @@ function latestGitTag(): string | null {
   return tag?.trim() ?? null;
 }
 
+function readPomBaselineVersion(): SemVer {
+  const pomPath = join(root, "apps/openadt-cli/pom.xml");
+  const pom = readFileSync(pomPath, "utf8");
+  const match = /<version>([^<]+)<\/version>/.exec(pom);
+  if (!match) {
+    throw new Error(`Could not read version from ${pomPath}`);
+  }
+  return parseVersion(match[1].trim().replace(/-SNAPSHOT$/, ""));
+}
+
 function writePomVersion(version: string): void {
   const pomPath = join(root, "apps/openadt-cli/pom.xml");
   const pom = readFileSync(pomPath, "utf8");
@@ -234,7 +243,7 @@ function writeGithubOutput(version: string): void {
 }
 
 const latestTag = latestGitTag();
-const baseVersion = latestTag ? parseVersion(latestTag) : parseVersion("0.0.0");
+const baseVersion = latestTag ? parseVersion(latestTag) : readPomBaselineVersion();
 
 const nextVersion = formatVersion(
   bumpVersion(baseVersion, bumpArg, prereleaseId),
@@ -243,7 +252,7 @@ const nextVersion = formatVersion(
 writePomVersion(nextVersion);
 
 const wingetVersions = listWingetVersionDirs();
-const wingetTemplate = wingetVersions.at(-1) ?? "1.0.0";
+const wingetTemplate = wingetVersions.at(0) ?? "1.0.0";
 if (wingetTemplate !== nextVersion) {
   syncWingetManifests(nextVersion, wingetTemplate);
 }

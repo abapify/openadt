@@ -131,6 +131,10 @@ function updateWingetInstaller(sha256: string): void {
     /InstallerUrl:\s*.+/,
     `InstallerUrl: https://github.com/abapify/openadt/releases/download/v${version}/${zipName}`,
   );
+  yaml = yaml.replace(
+    /ReleaseDate:\s*.+/,
+    `ReleaseDate: ${new Date().toISOString().slice(0, 10)}`,
+  );
   writeFileSync(installerPath, yaml);
 }
 

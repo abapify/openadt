@@ -20,7 +20,10 @@ class Openadt < Formula
     else
       cd "apps/openadt-cli" do
         system Formula["maven"].bin/"mvn", "-q", "-Pdistribution", "package", "-DskipTests"
-        libexec.install "target/openadt-1.0.0-SNAPSHOT.jar" => "openadt.jar"
+        built_jar = Dir["target/openadt-*.jar"]
+          .find { |path| !path.end_with?("-sources.jar", "-javadoc.jar") }
+        odie "Could not find built OpenADT jar in target/" if built_jar.nil?
+        libexec.install built_jar => "openadt.jar"
       end
     end
     (bin/"openadt").write <<~SH

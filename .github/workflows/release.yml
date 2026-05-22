@@ -40,6 +40,7 @@ jobs:
     outputs:
       version: ${{ steps.bump.outputs.version }}
       tag: ${{ steps.bump.outputs.tag }}
+      bump_sha: ${{ steps.bump_commit.outputs.sha }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -58,6 +59,7 @@ jobs:
             --prerelease-id="${{ inputs.prerelease_id }}"
 
       - name: Commit version bump (no tag yet)
+        id: bump_commit
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -68,6 +70,7 @@ jobs:
           fi
           git commit -m "chore(release): prepare ${{ steps.bump.outputs.tag }}"
           git push origin HEAD
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
   publish:
     name: Build, tag, and publish release
@@ -77,6 +80,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          ref: ${{ needs.bump.outputs.bump_sha }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: oven-sh/setup-bun@v2

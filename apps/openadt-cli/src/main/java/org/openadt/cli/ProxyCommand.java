@@ -111,8 +111,11 @@ public class ProxyCommand implements Callable<Integer> {
             Method warmUp = sdkClass.getMethod("warmUp", SystemProfile.class);
             warmUp.invoke(transportClient, system);
             System.err.println("ADT SDK logon ready.");
-        } catch (ReflectiveOperationException ignored) {
+        } catch (ClassNotFoundException ignored) {
             // Distribution build without ADT SDK classes.
+        } catch (ReflectiveOperationException e) {
+            Throwable cause = e.getCause() != null ? e.getCause() : e;
+            System.err.println("ADT SDK warmup failed: " + cause.getMessage());
         }
     }
 }
