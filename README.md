@@ -1,8 +1,18 @@
 # OpenADT
 
-OpenADT is an open-source Java CLI that bridges SAP ABAP Development Tools (ADT) access for systems that authenticate through SAP ADT SDK / JCo + SNC + SAP Secure Login Client.
+OpenADT is an open-source Java CLI that bridges SAP ABAP Development Tools (ADT) access on **Windows, Linux, and macOS**.
 
-OpenADT is not a full ADT client. It is a **local credential bridge** with a minimal CLI that lets ADT-aware tools work with SAP systems that use JCo/SNC authentication.
+OpenADT is not a full ADT client. It is a **local credential bridge** with a minimal CLI that lets ADT-aware tools reach SAP ADT endpoints through a localhost proxy or `openadt fetch`.
+
+For **SNC SSO** (Eclipse ADT / SAP GUI parity), use SAP JCo, CryptoLib (`sapcrypto`), and optionally SAP Secure Login Client on the OS where runtime commands execute. That stack is **supported and auto-detected**, but **not required** for every setup — for example, HTTP transport with a ticket, password-based JCo destinations, or proxy `--local-auth basic` for localhost protection are valid workflows too.
+
+## Install
+
+**Windows:** `winget install --id OpenADT.OpenADT` (or local manifest — see [packaging/README.md](packaging/README.md)).
+
+**Linux / macOS:** `brew install --HEAD --formula packaging/homebrew/openadt.rb`
+
+Build from source: [Usage guide — Install OpenADT Today](docs/usage.md#install-openadt-today).
 
 ## Quick Start
 
@@ -17,7 +27,7 @@ openadt proxy DEV --listen 127.0.0.1:8080
 openadt fetch DEV /sap/bc/adt/core/http/systeminformation --json
 ```
 
-For installation, Windows setup, winget packaging direction, WSL/devcontainer limits, proxy configuration, and troubleshooting, see the full [OpenADT Usage Guide](docs/usage.md).
+For installation (winget on Windows, Homebrew on Linux/macOS), optional SAP runtime, WSL/devcontainer limits, proxy configuration, and troubleshooting, see the full [OpenADT Usage Guide](docs/usage.md).
 
 ## Local Setup Doctor
 
@@ -29,7 +39,7 @@ For machine-local checks that should stay outside the OpenADT CLI surface, use:
 
 This standalone command checks local SAP GUI / NWBC / JCo / Secure Login prerequisites and reports what still needs to be installed or started before `openadt fetch` / `openadt proxy` can work.
 
-The local Security Hub (`https://127.0.0.1:34443`) is reported as optional. OpenADT JCo/SNC calls can still work when the hub is unavailable, as long as JCo, the native library, `sapcrypto`, and the SAP logon data are present.
+The local Security Hub (`https://127.0.0.1:34443`) is optional. SNC SSO needs JCo, the native library, and `sapcrypto` on the host OS; Secure Login is only required when your landscape uses that client for credentials.
 
 ## WSL Runtime Envelope
 
@@ -203,13 +213,16 @@ java -jar target/openadt-1.0.0-SNAPSHOT.jar setup
 
 ## Prerequisites (not included)
 
-OpenADT requires the following SAP components, which must be obtained separately:
+OpenADT does not bundle SAP software. What you need depends on the transport and authentication you use:
 
-- **SAP JCo** (`com.sap.conn.jco` jar and native library)
-- **sapcrypto** native library (`sapcrypto.dll` / `libsapcrypto.so`)
-- **SAP Secure Login Client** (optional; required for SNC SSO)
+| Goal                                  | Typical SAP pieces                                           |
+| ------------------------------------- | ------------------------------------------------------------ |
+| SNC SSO / SDK parity with Eclipse ADT | JCo jar + native lib, `sapcrypto`, often Secure Login Client |
+| RFC bridge (`rest-rfc`)               | JCo jar + native lib, `sapcrypto` when SNC is enabled        |
+| HTTP transport with ticket            | Valid `discovery_url` and `MYSAPSSO2` source — no JCo        |
+| Localhost proxy hardening only        | No SAP runtime — use `--local-auth basic`                    |
 
-Configure paths in `config.toml` after running `openadt setup`.
+Obtain licensed SAP artifacts from SAP or your organization. Run `openadt setup` on the host OS to detect paths and write `config.toml` fragments.
 
 ## Contributing
 

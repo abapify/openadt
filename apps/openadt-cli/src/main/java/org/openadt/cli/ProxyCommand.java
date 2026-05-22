@@ -1,6 +1,5 @@
 package org.openadt.cli;
 
-import org.openadt.core.AdtSdkTransportClient;
 import org.openadt.core.AdtTransportClient;
 import org.openadt.core.AdtTransportFactory;
 import org.openadt.core.ConfigLoader;
@@ -11,6 +10,7 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
+import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
 
@@ -72,11 +72,7 @@ public class ProxyCommand implements Callable<Integer> {
             System.err.println(e.getMessage());
             return 1;
         }
-        if (transportClient instanceof AdtSdkTransportClient sdkClient) {
-            System.err.println("Warming up ADT SDK logon (first request may take 20-40s)...");
-            sdkClient.warmUp(system);
-            System.err.println("ADT SDK logon ready.");
-        }
+        warmUpSdkTransportIfPresent(transportClient, system);
         LocalAdtProxyServer proxyServer = new LocalAdtProxyServer(transportClient);
         int port = proxyServer.start(system, listen, effectiveAuth, effectiveUsername, effectivePassword);
 
@@ -103,5 +99,20 @@ public class ProxyCommand implements Callable<Integer> {
             .filter(s -> alias.equals(s.getAlias()))
             .findFirst()
             .orElse(null);
+    }
+
+    private static void warmUpSdkTransportIfPresent(AdtTransportClient transportClient, SystemProfile system) {
+        try {
+            Class<?> sdkClass = Class.forName("org.openadt.core.AdtSdkTransportClient");
+            if (!sdkClass.isInstance(transportClient)) {
+                return;
+            }
+            System.err.println("Warming up ADT SDK logon (first request may take 20-40s)...");
+            Method warmUp = sdkClass.getMethod("warmUp", SystemProfile.class);
+            warmUp.invoke(transportClient, system);
+            System.err.println("ADT SDK logon ready.");
+        } catch (ReflectiveOperationException ignored) {
+            // Distribution build without ADT SDK classes.
+        }
     }
 }

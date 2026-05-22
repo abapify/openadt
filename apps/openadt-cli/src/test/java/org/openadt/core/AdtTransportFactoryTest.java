@@ -22,6 +22,11 @@ class AdtTransportFactoryTest {
 
     @Test
     void prefersSdkTransportWhenAdtPluginsAreConfigured() throws Exception {
+        try {
+            Class.forName("org.openadt.core.AdtSdkTransportClient");
+        } catch (ClassNotFoundException e) {
+            return;
+        }
         OpenAdtConfig config = new OpenAdtConfig();
         OpenAdtConfig.RuntimeConfig runtime = new OpenAdtConfig.RuntimeConfig();
         runtime.setAdtPluginsDir("/tmp/eclipse/plugins");

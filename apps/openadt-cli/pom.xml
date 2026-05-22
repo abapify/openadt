@@ -49,6 +49,9 @@
             <id>sap-sdk</id>
             <activation>
                 <activeByDefault>true</activeByDefault>
+                <property>
+                    <name>!openadt.distribution</name>
+                </property>
             </activation>
             <properties>
                 <sap.lib.dir>${project.build.directory}/sap-lib</sap.lib.dir>
@@ -123,7 +126,10 @@
             </build>
         </profile>
         <profile>
-            <id>no-sap-sdk</id>
+            <id>distribution</id>
+            <properties>
+                <openadt.distribution>true</openadt.distribution>
+            </properties>
             <build>
                 <plugins>
                     <plugin>
@@ -132,7 +138,35 @@
                         <configuration>
                             <excludes>
                                 <exclude>org/openadt/core/AdtSdkTransportClient.java</exclude>
+                                <exclude>org/openadt/core/AdtSdkClassLoaderFactory.java</exclude>
+                                <exclude>org/openadt/core/AdtCommunicationBootstrap.java</exclude>
+                                <exclude>org/openadt/core/JCoEclipseBootstrap.java</exclude>
+                                <exclude>org/openadt/core/EclipseDestinationLoader.java</exclude>
+                                <exclude>org/openadt/core/SapDestinationResolver.java</exclude>
+                                <exclude>org/openadt/core/SapSdkRuntime.java</exclude>
                             </excludes>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-dependency-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>copy-sap-bundles</id>
+                                <phase>none</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-jar-plugin</artifactId>
+                        <configuration>
+                            <archive>
+                                <manifest>
+                                    <mainClass>org.openadt.cli.OpenAdtCommand</mainClass>
+                                    <addClasspath>false</addClasspath>
+                                </manifest>
+                            </archive>
                         </configuration>
                     </plugin>
                 </plugins>

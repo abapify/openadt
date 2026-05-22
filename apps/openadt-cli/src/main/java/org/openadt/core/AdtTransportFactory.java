@@ -20,7 +20,7 @@ public final class AdtTransportFactory {
         if (sdkExplicit
             && !"rest-rfc".equalsIgnoreCase(transport)
             && hasAdtPluginsDir(config)) {
-            return new AdtSdkTransportClient(config);
+            return createSdkTransportClient(config);
         }
 
         if (config.getRuntime() == null || config.getRuntime().getJcoJar() == null) {
@@ -39,5 +39,17 @@ public final class AdtTransportFactory {
         return config.getRuntime() != null
             && config.getRuntime().getAdtPluginsDir() != null
             && !config.getRuntime().getAdtPluginsDir().isBlank();
+    }
+
+    private static AdtTransportClient createSdkTransportClient(OpenAdtConfig config) throws Exception {
+        try {
+            Class<?> sdkClass = Class.forName("org.openadt.core.AdtSdkTransportClient");
+            return (AdtTransportClient) sdkClass.getConstructor(OpenAdtConfig.class).newInstance(config);
+        } catch (ClassNotFoundException e) {
+            throw new IllegalStateException(
+                "ADT SDK transport is not available in this OpenADT build. "
+                    + "Use transport = \"rest-rfc\" or \"http\", or run with scripts/openadt-sdk.ps1 and Eclipse ADT plugins."
+            );
+        }
     }
 }

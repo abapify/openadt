@@ -44,7 +44,7 @@ Supported fragment areas:
 | ----------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `jco_jar`         | string | Absolute path to the SAP JCo Java archive. Setup stores a **canonical** path (`com.sap.conn.jco-<version>.jar`); Eclipse p2 names like `com.sap.conn.jco_3.1.13.jar` are copied via `JCoJarCanonicalizer` |
 | `jco_native_dir`  | string | Directory containing JCo native libraries                                                                                                                                                                 |
-| `sapcrypto`       | string | Absolute path to sapcrypto.dll / libsapcrypto.so                                                                                                                                                          |
+| `sapcrypto`       | string | Absolute path to sapcrypto.dll, libsapcrypto.so, or libsapcrypto.dylib                                                                                                                                    |
 | `adt_plugins_dir` | string | Eclipse/ADT plugin directory, typically `~/.p2/pool/plugins`                                                                                                                                              |
 
 ## [secure_login] section

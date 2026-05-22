@@ -1,0 +1,176 @@
+import AdmZip from "adm-zip";
+import { createHash } from "node:crypto";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { spawnSync } from "node:child_process";
+
+const root = resolve(import.meta.dir, "../../..");
+const cliDir = join(root, "apps/openadt-cli");
+
+const versionArg = process.argv
+  .find((a) => a.startsWith("--version="))
+  ?.split("=")[1];
+const version = versionArg ?? process.env.OPENADT_VERSION ?? readPomVersion();
+
+function readPomVersion(): string {
+  const pom = readFileSync(join(cliDir, "pom.xml"), "utf8");
+  const match = /<version>([^<]+)<\/version>/.exec(pom);
+  if (!match) {
+    throw new Error("Could not read version from pom.xml");
+  }
+  return match[1].trim().replace(/-SNAPSHOT$/, "");
+}
+
+const jarFile = (() => {
+  const pomVersion = readFileSync(join(cliDir, "pom.xml"), "utf8")
+    .match(/<version>([^<]+)<\/version>/)?.[1]
+    ?.trim();
+  const name = pomVersion
+    ? `openadt-${pomVersion}.jar`
+    : `openadt-${version}.jar`;
+  return join(cliDir, "target", name);
+})();
+const jarPath = jarFile;
+const distDir = join(root, "packaging/dist");
+const stageDir = join(distDir, `openadt-${version}`);
+const zipName = `openadt-${version}.zip`;
+const zipPath = join(distDir, zipName);
+
+function sha256File(path: string): string {
+  return createHash("sha256")
+    .update(readFileSync(path))
+    .digest("hex")
+    .toUpperCase();
+}
+
+function buildWindowsExe(target: string): void {
+  const launcherDir = join(root, "packaging/windows/launcher");
+  const go = spawnSync("go", ["build", "-o", target, "."], {
+    cwd: launcherDir,
+    stdio: "pipe",
+  });
+  if (go.status === 0) {
+    return;
+  }
+
+  const dotnet = spawnSync(
+    "dotnet",
+    [
+      "publish",
+      join(root, "packaging/windows/launcher/OpenAdtLauncher.csproj"),
+      "-c",
+      "Release",
+      "-o",
+      dirname(target),
+      "/p:AssemblyName=openadt",
+    ],
+    { stdio: "inherit" },
+  );
+  if (dotnet.status !== 0) {
+    throw new Error(
+      "Failed to build openadt.exe. Install Go or .NET SDK (dotnet) on PATH.",
+    );
+  }
+}
+
+function writeLaunchers(base: string): void {
+  mkdirSync(join(base, "bin"), { recursive: true });
+
+  writeFileSync(
+    join(base, "bin/openadt.cmd"),
+    `@echo off\r\nsetlocal\r\nset "OPENADT_HOME=%~dp0.."\r\njava -jar "%OPENADT_HOME%\\openadt.jar" %*\r\nexit /b %ERRORLEVEL%\r\n`,
+  );
+
+  writeFileSync(
+    join(base, "bin/openadt.ps1"),
+    `param(
+  [Parameter(ValueFromRemainingArguments = $true)]
+  [string[]] $OpenAdtArgs
+)
+$OpenAdtHome = Split-Path -Parent $PSScriptRoot
+java -jar (Join-Path $OpenAdtHome 'openadt.jar') @OpenAdtArgs
+exit $LASTEXITCODE
+`,
+  );
+
+  writeFileSync(
+    join(base, "bin/openadt"),
+    `#!/usr/bin/env bash
+set -euo pipefail
+OPENADT_HOME="$(cd "$(dirname "$0")/.." && pwd)"
+exec java -jar "$OPENADT_HOME/openadt.jar" "$@"
+`,
+    { mode: 0o755 },
+  );
+}
+
+function updateHomebrewSha256(sha256: string): void {
+  const formulaPath = join(root, "packaging/homebrew/openadt.rb");
+  let ruby = readFileSync(formulaPath, "utf8");
+  ruby = ruby.replace(/sha256 "[^"]+"/, `sha256 "${sha256.toLowerCase()}"`);
+  writeFileSync(formulaPath, ruby);
+}
+
+function updateWingetInstaller(sha256: string): void {
+  const installerPath = join(
+    root,
+    "packaging/winget/manifests/o/OpenADT/OpenADT",
+    version,
+    "OpenADT.OpenADT.installer.yaml",
+  );
+  let yaml = readFileSync(installerPath, "utf8");
+  yaml = yaml.replace(/InstallerSha256:\s*.+/, `InstallerSha256: ${sha256}`);
+  yaml = yaml.replace(
+    /InstallerUrl:\s*.+/,
+    `InstallerUrl: https://github.com/abapify/openadt/releases/download/v${version}/${zipName}`,
+  );
+  writeFileSync(installerPath, yaml);
+}
+
+rmSync(stageDir, { recursive: true, force: true });
+mkdirSync(stageDir, { recursive: true });
+
+if (!existsSync(jarPath)) {
+  throw new Error(
+    `Missing jar. Run: cd apps/openadt-cli && mvnw -Pdistribution package -DskipTests`,
+  );
+}
+
+cpSync(jarPath, join(stageDir, "openadt.jar"));
+cpSync(join(root, "LICENSE"), join(stageDir, "LICENSE"));
+writeLaunchers(stageDir);
+if (
+  process.platform === "win32" ||
+  process.env.OPENADT_PACKAGE_WIN_EXE === "1"
+) {
+  buildWindowsExe(join(stageDir, "openadt.exe"));
+  for (const extra of [
+    "openadt.pdb",
+    "openadt.deps.json",
+    "openadt.runtimeconfig.json",
+  ]) {
+    const path = join(stageDir, extra);
+    if (existsSync(path)) {
+      rmSync(path);
+    }
+  }
+}
+
+const zip = new AdmZip();
+zip.addLocalFolder(stageDir, `openadt-${version}`);
+zip.writeZip(zipPath);
+
+const sha256 = sha256File(zipPath);
+writeFileSync(`${zipPath}.sha256`, `${sha256}  ${zipName}\n`);
+updateWingetInstaller(sha256);
+updateHomebrewSha256(sha256);
+
+console.log(`Packaged ${zipPath}`);
+console.log(`SHA256 ${sha256}`);

@@ -40,7 +40,11 @@ Detectors (in order):
 
 Platform behavior:
 
+- Supported host OS families: Windows, Linux, macOS
+- On macOS, SAP GUI landscape XML is read from `~/Library/Application Support/SAP/Common/`
 - On WSL, Windows-side SAP tooling is detected from `/mnt/c/Users/...` and `/mnt/c/Program Files/...`
+- Runtime detection looks for `sapjco3.dll`, `libsapjco3.so`, or `libsapjco3.dylib` and matching `sapcrypto` libraries
+- Detected JCo, `sapcrypto`, and Secure Login hub settings are optional prerequisites; destinations without SNC or transports that do not need JCo may omit them
 - SAP GUI load-balanced entries are converted into JCo message-server settings (`mshost`, `msserv`, `r3name`, `group`)
 - NWBC recents can fill missing `client` values for detected systems
 - `saprules.xml` can fill missing `adt.ashost` values from previously used local ADT URLs
