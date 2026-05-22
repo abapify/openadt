@@ -8,6 +8,8 @@ This directory contains reusable agent skills for common OpenADT development tas
   - **Knowledge base** for SDK+JCo transport: Eclipse destinations, JCo jar canonical names, classpath order, Secure Login hub vs portal, headless `jco.eclipse`, fetch/proxy parity, failure modes, validation commands.
 - `openadt-devcontainer-host-runtime`
   - Split config (WSL/container) vs host-native `fetch`/`proxy`; bootstrap paths; anti-patterns.
+- `act`
+  - **`/act`** on PRs/MRs: fix CI, apply review feedback, address comments, resolve threads (`--ci`, `--comments`, `--apply-suggestions`, `--resolve-threads`).
 
 When changing transport, logon, or setup detectors, update the relevant skill in the same PR as code/spec changes.
 
