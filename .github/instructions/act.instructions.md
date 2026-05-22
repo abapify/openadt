@@ -1,6 +1,5 @@
 ---
 applyTo: ".github/**,specs/**,apps/**,.agents/**"
-excludeAgent: "none"
 ---
 
 # PR follow-up (`/act`)
