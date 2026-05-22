@@ -3,6 +3,7 @@
 Read specs first, prefer TDD, keep SAP binaries external, never commit private SAP landscape data, redact secrets, and update specs when command behavior changes.
 
 ## Rules
+
 1. Read specs/ before broad implementation changes
 2. Prefer TDD: write tests first for config parsing, request/response mapping, proxy auth, header redaction, setup detectors
 3. SAP/JCo integration tests must be opt-in (annotated @Tag("integration")) and skipped by default
@@ -13,10 +14,12 @@ Read specs first, prefer TDD, keep SAP binaries external, never commit private S
 8. Put temporary repo-local artifacts under `tmp/`, which must stay gitignored; do not leave ad hoc scratch files elsewhere in the workspace
 
 ## Specs
+
 - specs/cli.md — CLI contract and command behavior
 - specs/config.md — Config file format and field descriptions
 - specs/proxy.md — Proxy server behavior and security requirements
 - specs/setup.md — Setup analyzer behavior and detector descriptions
 
 ## Skills
+
 - .agents/skills/ — Reusable agent skills for common tasks

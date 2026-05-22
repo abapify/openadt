@@ -5,6 +5,7 @@
 The `openadt setup` command runs a series of detectors to discover SAP systems and runtime prerequisites configured in local tooling, then writes the results as config fragments.
 
 Default host output:
+
 - `~/.openadt/config.toml`
 - `~/.openadt/destinations/detected.openadt.toml`
 - `~/.openadt/local.openadt.toml`
@@ -12,6 +13,7 @@ Default host output:
 ## SetupAnalyzer
 
 Orchestrates all detectors and aggregates results:
+
 1. Runs SapGuiLandscapeDetector
 2. Runs NwbcSystemDetector
 3. Runs SapBusinessClientDetector
@@ -21,6 +23,7 @@ Orchestrates all detectors and aggregates results:
 7. Runs SecureLoginDetector
 
 Returns a `SetupResult` with:
+
 - `systems` — list of discovered SystemProfile objects
 - `runtime` — detected runtime paths for JCo and sapcrypto
 - `secureLogin` — detected Secure Login hub settings when reachable
@@ -31,22 +34,26 @@ Returns a `SetupResult` with:
 ### SapGuiLandscapeDetector
 
 Reads SAP GUI landscape XML files, including:
+
 - `SAPUILandscape.xml`
 - cached landscapes from `LogonServerConfigCache/*.xml`
 
 Lookup paths:
+
 - **Windows**: `%APPDATA%\SAP\Common\SAPUILandscape.xml`
 - **macOS**: `~/Library/Application Support/SAP/Common/SAPUILandscape.xml`
 - **WSL**: `/mnt/c/Users/<user>/AppData/Roaming/SAP/Common/SAPUILandscape.xml`
 - **WSL**: `/mnt/c/Users/<user>/AppData/Roaming/SAP/LogonServerConfigCache/*.xml`
 
 For classic `<System>` entries, extracts:
+
 - `name` → alias, description
 - `server` → jco.ashost
 - `systemid` → system_id
 - `sysno` → jco.sysnr
 
 For load-balanced `<Service type="SAPGUI">` entries linked to `<Messageserver>`, extracts:
+
 - `systemid` → alias, system_id, jco.r3name
 - `Messageserver.host` → jco.mshost
 - `Messageserver.port` → jco.msserv
@@ -61,10 +68,12 @@ Sets `source = "sapgui"`.
 Reads SAP Business Client recent connection files to enrich SAP GUI systems with defaults that are not always present in the SAP GUI landscape.
 
 Lookup paths:
+
 - **Windows**: `%APPDATA%\SAP\NWBC\Recents\*.recents`
 - **WSL**: `/mnt/c/Users/<user>/AppData/Roaming/SAP/NWBC/Recents/*.recents`
 
 Extracts:
+
 - `url ... ~sysid=<SID>` → system_id
 - `client` → client
 - `connection` → description fallback
@@ -76,6 +85,7 @@ Sets `source = "sap-business-client"`.
 Checks if SAP Business Client is installed.
 
 Lookup paths:
+
 - **Windows**: `%APPDATA%\SAP\SAP Business Client`
 - **Windows**: `%ProgramFiles%\SAP\SAP Business Client`
 - **WSL**: `/mnt/c/Users/<user>/AppData/Roaming/SAP/NWBC`
@@ -88,6 +98,7 @@ This detector is installation-only and does not add placeholder system profiles.
 Reads Eclipse workspace ADT connection settings.
 
 Lookup paths:
+
 - `~/eclipse-workspace/.metadata/.plugins/org.eclipse.core.runtime/.settings/com.sap.adt.tools.core.prefs`
 - `/mnt/c/Users/<user>/eclipse-workspace/.metadata/.plugins/org.eclipse.core.runtime/.settings/com.sap.adt.tools.core.prefs`
 - `/mnt/c/Users/<user>/Documents/workspace/.metadata/.plugins/org.eclipse.core.runtime/.settings/com.sap.adt.tools.core.prefs`
@@ -99,12 +110,14 @@ Parses connection data to extract system profiles. Sets `source = "eclipse-adt"`
 Detects runtime prerequisites needed for ADT SDK and RFC calls.
 
 Lookup paths:
+
 - JCo jars from user Eclipse / p2 plugin pools
 - JCo native libraries from common user directories
 - `sapcrypto.dll` from SAP Secure Login installation
 - staged devcontainer runtime under `./.devcontainer/dist/` as fallback
 
 Fills:
+
 - `runtime.jco_jar`
 - `runtime.jco_native_dir`
 - `runtime.sapcrypto`
@@ -115,10 +128,12 @@ Fills:
 Reads SAP GUI `saprules.xml` to enrich detected systems with ADT hostnames observed from successful local ADT usage.
 
 Lookup paths:
+
 - **Windows**: `%APPDATA%\SAP\Common\saprules.xml`
 - **WSL**: `/mnt/c/Users/<user>/AppData/Roaming/SAP/Common/saprules.xml`
 
 Extracts:
+
 - `context.system` → system_id
 - `context.client` → client
 - `files.name` entries that contain `/sap/bc/adt` → `adt.ashost` and `adt.discovery_url`
@@ -136,6 +151,7 @@ Timeout: 2 seconds.
 ## Default Enrichment
 
 After merging detector results, `SetupAnalyzer` applies conservative defaults for SNC SSO profiles:
+
 - `alias = system_id` when alias is missing
 - `user = <current OS username in uppercase>` when missing
 - `language = "EN"` when missing

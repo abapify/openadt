@@ -386,14 +386,14 @@ Run the local setup doctor:
 
 Common failures:
 
-| Symptom | Likely cause | Action |
-|---------|--------------|--------|
-| `JCo jar not configured` | Runtime fragment is missing | Run `openadt setup`, then check `~\.openadt\local.openadt.toml` |
-| `Illegal JCo archive` | JCo jar has Eclipse p2 filename | Re-run setup so `JCoJarCanonicalizer` creates the canonical jar |
-| `SessionReferenceProvider` class not found | Core JCo jar is missing or loaded after `jco.eclipse` | Build/package with the SDK runner and keep canonical JCo first |
-| `GSS-API(maj): No credentials were supplied` | SNC runtime has no usable credential | Verify Secure Login Client on host OS or Linux `SECUDIR` |
-| HTTP 406 for system information | Missing ADT Accept header | Use `--json` default behavior or pass the systeminformation Accept header |
-| Proxy works differently from fetch | Commands use different config or transport | Check `OPENADT_CONFIG`, alias, and `[destinations.<alias>.adt].transport` |
+| Symptom                                      | Likely cause                                          | Action                                                                    |
+| -------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------- |
+| `JCo jar not configured`                     | Runtime fragment is missing                           | Run `openadt setup`, then check `~\.openadt\local.openadt.toml`           |
+| `Illegal JCo archive`                        | JCo jar has Eclipse p2 filename                       | Re-run setup so `JCoJarCanonicalizer` creates the canonical jar           |
+| `SessionReferenceProvider` class not found   | Core JCo jar is missing or loaded after `jco.eclipse` | Build/package with the SDK runner and keep canonical JCo first            |
+| `GSS-API(maj): No credentials were supplied` | SNC runtime has no usable credential                  | Verify Secure Login Client on host OS or Linux `SECUDIR`                  |
+| HTTP 406 for system information              | Missing ADT Accept header                             | Use `--json` default behavior or pass the systeminformation Accept header |
+| Proxy works differently from fetch           | Commands use different config or transport            | Check `OPENADT_CONFIG`, alias, and `[destinations.<alias>.adt].transport` |
 
 ## Security Checklist
 

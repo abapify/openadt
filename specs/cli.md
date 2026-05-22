@@ -3,15 +3,18 @@
 ## Commands
 
 ### openadt
+
 Root command. Shows usage when run without subcommands.
 
 Options:
+
 - `--help, -h` — Show help
 - `--version, -V` — Show version
 
 ---
 
 ### openadt setup
+
 Auto-detect SAP systems and runtime prerequisites from local tooling and write them to config.
 
 ```bash
@@ -21,10 +24,12 @@ openadt setup --config <path>
 ```
 
 Options:
+
 - `--check` — Show detected systems and validate without writing config
 - `--config, -c <path>` — Config file path (default write target: `~/.openadt/config.toml`)
 
 Detectors (in order):
+
 1. `SapGuiLandscapeDetector` — reads SAP GUI landscape XML files, including load-balanced `Messageserver` / `Service` entries
 2. `NwbcSystemDetector` — reads SAP Business Client recent connections to enrich system defaults such as client
 3. `SapBusinessClientDetector` — checks for SAP Business Client installation
@@ -34,12 +39,14 @@ Detectors (in order):
 7. `SecureLoginDetector` — probes `https://127.0.0.1:34443` when available
 
 Platform behavior:
+
 - On WSL, Windows-side SAP tooling is detected from `/mnt/c/Users/...` and `/mnt/c/Program Files/...`
 - SAP GUI load-balanced entries are converted into JCo message-server settings (`mshost`, `msserv`, `r3name`, `group`)
 - NWBC recents can fill missing `client` values for detected systems
 - `saprules.xml` can fill missing `adt.ashost` values from previously used local ADT URLs
 
 Outputs:
+
 - List of detected systems with alias and source
 - Detected runtime paths when found
 - Detected Secure Login hub when reachable
@@ -49,6 +56,7 @@ Outputs:
   - `local.openadt.toml`
 
 Devcontainer note:
+
 - devcontainer bootstrap writes:
   - `.devcontainer/openadt-config.toml`
   - `.devcontainer/runtime.openadt.toml`
@@ -58,6 +66,7 @@ Devcontainer note:
 ---
 
 ### openadt proxy \<SYSTEM\>
+
 Start the local ADT proxy server for a system.
 
 ```bash
@@ -68,9 +77,11 @@ openadt proxy DEV --local-username openadt --local-password <password>
 ```
 
 Arguments:
+
 - `SYSTEM` — System alias to proxy (optional; defaults to first configured system)
 
 Options:
+
 - `--listen <host:port>` — Bind address and port (default: `127.0.0.1:0`, OS assigns port)
 - `--local-auth <type>` — Local auth type (`basic`)
 - `--local-username <name>` — Local proxy username (default: `openadt`)
@@ -78,6 +89,7 @@ Options:
 - `--config, -c <path>` — Config file path
 
 Behavior:
+
 - Binds to `127.0.0.1` by default (loopback-only)
 - Uses the same transport stack as `openadt fetch` via `AdtTransportFactory` (see `specs/proxy.md`)
 - Default transport is ADT SDK + JCo when `config.runtime.adt_plugins_dir` is set
@@ -89,6 +101,7 @@ Behavior:
 ---
 
 ### openadt fetch \<SYSTEM\> \<URL-OR-PATH\>
+
 Fetch a single ADT resource via the configured ADT transport.
 
 ```bash
@@ -98,10 +111,12 @@ openadt fetch DEV /sap/bc/adt/example --method POST --body @request.xml --header
 ```
 
 Arguments:
+
 - `SYSTEM` — System alias
 - `URL-OR-PATH` — ADT path or full URL; if full URL is supplied, only path and query are used
 
 Options:
+
 - `--method, -X <method>` — HTTP method (default: `GET`)
 - `--header, -H "Name: Value"` — Add request header (repeatable)
 - `--body, -d <text|@file>` — Request body text or `@file` to read from file
@@ -113,6 +128,7 @@ Options:
 - `--config, -c <path>` — Config file path (default load order: `./.openadt/config.toml`, then `~/.openadt/config.toml`)
 
 Behavior:
+
 - Default method is `GET`
 - `--body @file` reads request bytes from a file
 - `--output <file>` writes response body bytes
@@ -124,6 +140,7 @@ Behavior:
 - `OPENADT_CONFIG` overrides default config lookup
 
 SDK transport (default when `adt_plugins_dir` is configured; `adt.transport = "sdk"` or unset):
+
 - Uses SAP ADT Java SDK (`com.sap.adt.*`) over JCo + SNC
 - Prepares runtime once per process: native JCo/SNC, headless `com.sap.conn.jco.eclipse`, ADT communication activator, Secure Login Web Adapter hub
 - Resolves destination in order: Eclipse workspace `.destination.properties` for the system SID, else `[destinations.<alias>]` from config
@@ -132,6 +149,7 @@ SDK transport (default when `adt_plugins_dir` is configured; `adt.transport = "s
 - Set `OPENADT_VERBOSE=true` for stderr diagnostics (no secrets)
 
 HTTP transport (`adt.transport = "http"`):
+
 - Does not use JCo or the ADT SDK
 - Requires `destinations.<alias>.adt.discovery_url` (logical frontend from `saprules.xml`)
 - Requires a SAP logon ticket via `OPENADT_MYSAPSSO2`, `secure_login.mysapsso2`, or `OPENADT_COOKIE_FILE`
@@ -139,5 +157,5 @@ HTTP transport (`adt.transport = "http"`):
 - Resolves the ADT API base via `/.well-known/sap-adt-info` or `/sap/public/bc/icf/virtualhost`
 
 Local SDK dev runner (not required in production installs):
-- `scripts/openadt-sdk.ps1` — builds classpath from `apps/openadt-cli/target/sap-lib` with canonical JCo jar name and core JCo before `jco.eclipse`
 
+- `scripts/openadt-sdk.ps1` — builds classpath from `apps/openadt-cli/target/sap-lib` with canonical JCo jar name and core JCo before `jco.eclipse`
