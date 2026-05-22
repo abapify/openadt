@@ -1,73 +1,88 @@
 ---
 name: act
 description: >-
-  Use when the user invokes /act on a PR/MR or code review. Fix CI, apply
-  feedback, and clear merge blockers. Idempotent on re-run. Flags: --ci,
-  --comments, --apply-suggestions, --resolve-threads.
+  Use when the user invokes /act on a PR/MR. Fix blockers in priority order (CI
+  → required review → suggestions → threads) until merge-ready; idempotent
+  re-runs; no unresolved review threads left behind.
 disable-model-invocation: true
 ---
 
 # /act
 
-Follow-up on an open change request: read CI, review comments, suggestions, and threads; fix what blocks merge; commit; summarize in the PR.
+Drive an open PR/MR to merge-ready: work **most critical first**, finish **all** actionable review items. Re-runs must not duplicate commits or comments.
 
-**Invoke:** `/act` or `/act --ci` | `--comments` | `--apply-suggestions` | `--resolve-threads`  
-Without flags, infer work from current PR state (CI first, then blocking review).
+**Invoke:** `/act` or `--ci` | `--comments` | `--apply-suggestions` | `--resolve-threads`  
+Flags narrow scope; default `/act` runs the full sequence below.
 
 ## On start
 
-1. React with 👀 (or 👍/👎 if unavailable).
-2. Load PR/MR context (`gh pr view`, checks, comments, unresolved threads).
-3. **Idempotency pass** (see below). If nothing actionable remains, reply briefly and stop — no drive-by edits.
+1. React 👀 (or 👍/👎).
+2. Snapshot PR state: checks on **HEAD**, unresolved review threads, open conversations, inline suggestions, draft notes.
+3. Build a **work queue** (priority order). Skip items already done (idempotency table).
 
-## Do
+## Priority queue (default `/act`)
 
-- Targeted fixes only; match repo style; verify with the same commands CI uses.
-- One focused commit per logical fix batch (only if user allows commits).
-- Resolve threads only when the branch already contains the fix.
-- PR reply: what changed, which threads addressed, CI status (passing / expected / still failing), remaining blockers.
+Work top → bottom. Do not skip a tier while a higher tier still blocks merge or has **unresolved** required feedback.
 
-## Do not
+| P | Tier | Includes | Done when |
+|---|------|----------|-----------|
+| 0 | **Merge blockers** | Failing required CI, merge conflicts, broken build/test on HEAD | Required checks green (or platform confirms pass) on latest commit |
+| 1 | **Blocking review** | “Must fix”, changes requested, security/correctness threads | Fix on branch + reply; thread resolved when platform allows |
+| 2 | **Non-blocking review** | Questions, nits, style, optional improvements | Code or **explicit PR reply** (why deferred / won’t fix); then resolve thread |
+| 3 | **Inline suggestions** | GitHub “Apply suggestion” / equivalent | Applied or rejected with short rationale in thread |
+| 4 | **Hygiene** | Stale bot comments, label/check noise | Only if still blocking perception of readiness |
 
-- Open-ended review or drive-by refactors.
-- Claim green CI without a passing check or explicit platform confirmation.
-- Close threads without a real fix on the branch.
+**Flags:** `--ci` → P0 only. `--comments` → P1–P2. `--apply-suggestions` → P3. `--resolve-threads` → resolve threads whose fix/reply is already on branch (P1–P3 after the fact).
 
-## Idempotency (re-runs must not duplicate)
+## Completion rule (no loose ends)
 
-Before each action, check whether it is **already done**:
+Before finishing `/act`, verify:
+
+- [ ] Required CI on HEAD: passing or explicitly re-run and pending (state named in summary).
+- [ ] **Every unresolved human review thread** on the PR: either fixed + resolved, or answered in-thread + resolved.
+- [ ] No ignored comment without a PR-visible response (reply in thread beats silence).
+- [ ] Inline suggestions: applied or declined with one-line reason in thread.
+
+If something cannot be fixed in-repo (needs product decision, external dependency), say so **in that thread**, resolve only after the reply is posted.
+
+**Stop early** only when the queue is empty or the user scoped a flag and that scope is complete — not while unresolved threads remain (unless `--ci` alone was requested).
+
+## Idempotency
 
 | Action | Skip when |
 |--------|-----------|
-| Code change | Diff already implements the suggestion; tree clean for that item |
-| Commit | `git status` clean or change already in latest commit message for this fix |
-| Apply suggestion | Hunk already matches suggestion on current branch |
-| Resolve thread | Thread already resolved, or fix not on branch yet |
-| PR comment | Prior `/act` summary on this PR covers the same state (read recent bot/agent comments); post only **delta** or “no changes needed” |
-| CI fix | Latest run on HEAD already green for required checks |
-| Push / re-run | No new commits since last push; workflow already running for same SHA |
+| Code fix | Already on branch |
+| Commit | Clean tree / same fix in HEAD |
+| Suggestion | Hunk already matches |
+| Resolve | Already resolved |
+| PR summary | Post **delta** vs last agent summary; “merge-ready” only if completion rule passes |
+| CI work | HEAD already green |
 
-**Rules:**
+No empty commits. No duplicate summaries. Use latest workflow run for HEAD.
 
-- Never create an empty commit.
-- Never post the same summary twice; on re-run say what is *still* open or confirm merge-ready.
-- Prefer `gh pr checks` / latest workflow run on **current HEAD**, not stale failures from an old SHA.
-- If the user ran `/act` twice in a row with no new review/CI signal, stop after the idempotency check.
+## PR closing summary
 
-## Flags
+One comment, structured:
 
-| Flag | Only |
-|------|------|
-| `--ci` | Failing checks / logs |
-| `--comments` | Review discussion |
-| `--apply-suggestions` | Inline suggestions |
-| `--resolve-threads` | Resolve already-fixed threads (no new code unless required to unblock resolve) |
+1. **Status:** merge-ready / blocked (why)
+2. **Done this run:** P0…Pn items (bullet list)
+3. **Threads:** resolved N, replied M (link or numbers)
+4. **CI:** pass / failing check names / re-run triggered
+5. **Left:** only items that need author or reviewer (must be none for “merge-ready”)
+
+## Principles
+
+- Act on findings, not a new broad review.
+- Minimal diffs; preserve author intent.
+- Do not claim green CI without evidence.
+- Do not resolve a thread without a fix or a written answer on the branch/PR.
 
 ## GitHub
 
 ```bash
-gh pr view --json number,statusCheckRollup,commits
+gh pr view --json number,statusCheckRollup,reviewDecision
 gh pr checks
+gh api graphql -f query='...'  # unresolved review threads if needed
 gh run list --branch "$(git branch --show-current)" --limit 3
 gh run view <id> --log-failed
 ```

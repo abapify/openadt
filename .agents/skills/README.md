@@ -9,7 +9,7 @@ This directory contains reusable agent skills for common OpenADT development tas
 - `openadt-devcontainer-host-runtime`
   - Split config (WSL/container) vs host-native `fetch`/`proxy`; bootstrap paths; anti-patterns.
 - `act`
-  - **`/act`** on PRs/MRs: fix CI, apply review feedback, address comments, resolve threads (`--ci`, `--comments`, `--apply-suggestions`, `--resolve-threads`).
+  - **`/act`** on PRs/MRs: priority queue P0 CI → P1 blocking review → P2 nits → P3 suggestions; all threads answered/resolved; idempotent re-runs.
 
 When changing transport, logon, or setup detectors, update the relevant skill in the same PR as code/spec changes.
 
