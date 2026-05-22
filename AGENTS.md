@@ -22,4 +22,12 @@ Read specs first, prefer TDD, keep SAP binaries external, never commit private S
 
 ## Skills
 
-- .agents/skills/ — Reusable agent skills for common tasks
+Reusable workflows: **`.agents/skills/<name>/SKILL.md`** (index: `.agents/skills/README.md`).
+
+| Skill                               | Trigger                                                        |
+| ----------------------------------- | -------------------------------------------------------------- |
+| `act`                               | `/act` on a PR — CI, review, **Resolve conversation** required |
+| `openadt-local-sap-runtime`         | SAP runtime, fetch, proxy, setup                               |
+| `openadt-devcontainer-host-runtime` | Devcontainer / WSL vs host                                     |
+
+**GitHub Copilot** (cloud agent, code review): also reads `.github/copilot-instructions.md` and path rules under `.github/instructions/`. **Cursor** loads the same skill files via the agent skills system; global copies may exist under `~/.agents/skills/`.
