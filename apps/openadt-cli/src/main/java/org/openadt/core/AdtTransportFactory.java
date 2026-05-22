@@ -11,14 +11,15 @@ public final class AdtTransportFactory {
         if ("http".equalsIgnoreCase(transport)) {
             return new HttpAdtTransportClient(config);
         }
+        if ("sdk".equalsIgnoreCase(transport) && !hasAdtPluginsDir(config)) {
+            throw new IllegalStateException("ADT SDK transport requires runtime.adt_plugins_dir to be configured.");
+        }
         boolean sdkExplicit = transport == null
             || "sdk".equalsIgnoreCase(transport)
             || transport.isBlank();
         if (sdkExplicit
             && !"rest-rfc".equalsIgnoreCase(transport)
-            && config.getRuntime() != null
-            && config.getRuntime().getAdtPluginsDir() != null
-            && !config.getRuntime().getAdtPluginsDir().isBlank()) {
+            && hasAdtPluginsDir(config)) {
             return new AdtSdkTransportClient(config);
         }
 
@@ -32,5 +33,11 @@ public final class AdtTransportFactory {
             config.getRuntime()
         );
         return new AdtRestRfcClient(factory);
+    }
+
+    private static boolean hasAdtPluginsDir(OpenAdtConfig config) {
+        return config.getRuntime() != null
+            && config.getRuntime().getAdtPluginsDir() != null
+            && !config.getRuntime().getAdtPluginsDir().isBlank();
     }
 }

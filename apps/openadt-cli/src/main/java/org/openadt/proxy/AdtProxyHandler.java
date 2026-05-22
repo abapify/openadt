@@ -10,14 +10,16 @@ import org.openadt.core.SystemProfile;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
 public class AdtProxyHandler implements HttpHandler {
-    private static final Set<String> STRIPPED_HEADERS = Set.of(
+    private static final Set<String> STRIPPED_REQUEST_HEADERS = Set.of(
         "authorization", "x-sap-logontoken", "x-sap-reentrance-ticket",
         "sap-snc-token", "cookie", "set-cookie"
     );
+    private static final Set<String> STRIPPED_RESPONSE_HEADERS = Set.of("set-cookie", "set-cookie2");
 
     private final SystemProfile systemProfile;
     private final AdtTransportClient transportClient;
@@ -30,7 +32,7 @@ public class AdtProxyHandler implements HttpHandler {
     public ProxyRequest buildProxyRequest(HttpExchange exchange) throws IOException {
         Map<String, String> headers = new LinkedHashMap<>();
         exchange.getRequestHeaders().forEach((key, values) -> {
-            if (!STRIPPED_HEADERS.contains(key.toLowerCase())) {
+            if (!STRIPPED_REQUEST_HEADERS.contains(key.toLowerCase(Locale.ROOT))) {
                 headers.put(key, values.isEmpty() ? "" : values.get(0));
             }
         });
@@ -68,7 +70,8 @@ public class AdtProxyHandler implements HttpHandler {
             ProxyResponse response = transportClient.execute(systemProfile, request);
 
             response.headers().forEach((key, value) -> {
-                if (isValidResponseHeaderName(key)) {
+                if (isValidResponseHeaderName(key)
+                    && !STRIPPED_RESPONSE_HEADERS.contains(key.toLowerCase(Locale.ROOT))) {
                     exchange.getResponseHeaders().add(key, value);
                 }
             });

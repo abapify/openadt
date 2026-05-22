@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class AdtTransportFactoryTest {
     @Test
@@ -45,6 +46,23 @@ class AdtTransportFactoryTest {
 
         org.junit.jupiter.api.Assertions.assertEquals(
             "JCo jar not configured. Run 'openadt setup' first.",
+            error.getMessage()
+        );
+    }
+
+    @Test
+    void explicitSdkTransportRequiresAdtPluginsDir() {
+        OpenAdtConfig config = new OpenAdtConfig();
+        SystemProfile system = new SystemProfile();
+        SystemProfile.AdtConfig adt = new SystemProfile.AdtConfig();
+        adt.setTransport("sdk");
+        system.setAdt(adt);
+
+        IllegalStateException error = assertThrows(IllegalStateException.class,
+            () -> AdtTransportFactory.create(config, system));
+
+        assertEquals(
+            "ADT SDK transport requires runtime.adt_plugins_dir to be configured.",
             error.getMessage()
         );
     }

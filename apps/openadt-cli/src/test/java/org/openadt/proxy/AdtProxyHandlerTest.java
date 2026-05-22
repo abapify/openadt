@@ -88,6 +88,31 @@ class AdtProxyHandlerTest {
         assertEquals("application/json", request.getHeader("Accept"));
     }
 
+    @Test
+    void testDoesNotForwardResponseCookies() throws IOException {
+        TestExchange exchange = new TestExchange("GET", "/sap/bc/adt/", new byte[0]);
+        AdtProxyHandler handler = new AdtProxyHandler(
+            new SystemProfile(),
+            (system, request) -> new ProxyResponse(
+                "HTTP/1.1",
+                200,
+                "OK",
+                Map.of(
+                    "Set-Cookie", "JSESSIONID=abc123",
+                    "Set-Cookie2", "Legacy=1",
+                    "Content-Type", "application/json"
+                ),
+                "{}".getBytes()
+            )
+        );
+
+        handler.handle(exchange);
+
+        assertNull(exchange.getResponseHeaders().getFirst("Set-Cookie"));
+        assertNull(exchange.getResponseHeaders().getFirst("Set-Cookie2"));
+        assertEquals("application/json", exchange.getResponseHeaders().getFirst("Content-Type"));
+    }
+
     private static AdtProxyHandler newHandler() {
         return new AdtProxyHandler(
             new SystemProfile(),

@@ -17,10 +17,9 @@ Orchestrates all detectors and aggregates results:
 1. Runs SapGuiLandscapeDetector
 2. Runs NwbcSystemDetector
 3. Runs SapBusinessClientDetector
-4. Runs EclipseAdtDetector
-5. Runs SapRulesDetector
-6. Runs RuntimeDetector
-7. Runs SecureLoginDetector
+4. Runs SapRulesDetector
+5. Runs RuntimeDetector
+6. Runs SecureLoginDetector
 
 Returns a `SetupResult` with:
 
@@ -93,18 +92,6 @@ Lookup paths:
 
 This detector is installation-only and does not add placeholder system profiles.
 
-### EclipseAdtDetector
-
-Reads Eclipse workspace ADT connection settings.
-
-Lookup paths:
-
-- `~/eclipse-workspace/.metadata/.plugins/org.eclipse.core.runtime/.settings/com.sap.adt.tools.core.prefs`
-- `/mnt/c/Users/<user>/eclipse-workspace/.metadata/.plugins/org.eclipse.core.runtime/.settings/com.sap.adt.tools.core.prefs`
-- `/mnt/c/Users/<user>/Documents/workspace/.metadata/.plugins/org.eclipse.core.runtime/.settings/com.sap.adt.tools.core.prefs`
-
-Parses connection data to extract system profiles. Sets `source = "eclipse-adt"`.
-
 ### RuntimeDetector
 
 Detects runtime prerequisites needed for ADT SDK and RFC calls.
@@ -156,5 +143,5 @@ After merging detector results, `SetupAnalyzer` applies conservative defaults fo
 - `user = <current OS username in uppercase>` when missing
 - `language = "EN"` when missing
 - `jco.sticky = "1"` and `jco.deny_initial_password = "1"` when SNC SSO is enabled
-- `adt.transport = "http"` when the Secure Login hub is reachable and `adt.discovery_url` is known; otherwise `adt.transport = "sdk"`
+- `adt.transport = "sdk"` when `runtime.adt_plugins_dir` is detected; otherwise `adt.transport = "rest-rfc"` when `runtime.jco_jar` is detected; otherwise `adt.transport = "sdk"`
 - `adt.authentication_kind = "sso"` when SNC SSO is enabled

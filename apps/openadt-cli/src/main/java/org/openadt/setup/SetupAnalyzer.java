@@ -27,7 +27,6 @@ public class SetupAnalyzer {
                 new SapGuiLandscapeDetector(),
                 new NwbcSystemDetector(),
                 new SapBusinessClientDetector(),
-                new EclipseAdtDetector(),
                 new SapRulesDetector()
             ),
             new SecureLoginDetector(),
@@ -49,10 +48,9 @@ public class SetupAnalyzer {
             detector.detect().forEach(system -> mergeSystem(systemsByKey, system));
         }
 
-        SecureLoginDetector.DetectionResult slcResult = secureLoginDetector.detectSecureLogin();
-        systemsByKey.values().forEach(system -> applyDefaults(system, slcResult.available()));
-
         OpenAdtConfig.RuntimeConfig runtime = runtimeDetector.detect();
+        SecureLoginDetector.DetectionResult slcResult = secureLoginDetector.detectSecureLogin();
+        systemsByKey.values().forEach(system -> applyDefaults(system, runtime));
         OpenAdtConfig.SecureLoginConfig secureLogin = null;
         if (slcResult.available()) {
             OpenAdtConfig.SecureLoginConfig detected = new OpenAdtConfig.SecureLoginConfig();
@@ -126,7 +124,7 @@ public class SetupAnalyzer {
         }
     }
 
-    private void applyDefaults(SystemProfile system, boolean secureLoginHubAvailable) {
+    private void applyDefaults(SystemProfile system, OpenAdtConfig.RuntimeConfig runtime) {
         if (blank(system.getAlias()) && !blank(system.getSystemId())) {
             system.setAlias(system.getSystemId());
         }
@@ -153,8 +151,10 @@ public class SetupAnalyzer {
             system.setAdt(new SystemProfile.AdtConfig());
         }
         if (blank(system.getAdt().getTransport())) {
-            if (secureLoginHubAvailable && !blank(system.getAdt().getDiscoveryUrl())) {
-                system.getAdt().setTransport("http");
+            if (runtime != null && !blank(runtime.getAdtPluginsDir())) {
+                system.getAdt().setTransport("sdk");
+            } else if (runtime != null && !blank(runtime.getJcoJar())) {
+                system.getAdt().setTransport("rest-rfc");
             } else {
                 system.getAdt().setTransport("sdk");
             }

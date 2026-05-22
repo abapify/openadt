@@ -85,14 +85,16 @@ The legacy fallback uses RFC function `SADT_REST_RFC_ENDPOINT` to forward HTTP r
 
 RFC request structure:
 
-- `REQUEST.METHOD` — HTTP method
-- `REQUEST.PATH` — URL path
-- `REQUEST.BODY` — Request body bytes
-- `HEADERS` — Table of NAME/VALUE pairs
+- `REQUEST.REQUEST_LINE.METHOD` — HTTP method
+- `REQUEST.REQUEST_LINE.URI` — URL path
+- `REQUEST.REQUEST_LINE.VERSION` — HTTP version
+- `REQUEST.HEADER_FIELDS[]` — Table of NAME/VALUE pairs
+- `REQUEST.MESSAGE_BODY` — Request body bytes
 
 Response structure:
 
-- `RESPONSE.STATUS_CODE` — HTTP status code
-- `RESPONSE.REASON` — Reason phrase
-- `RESPONSE.BODY` — Response body bytes
-- `HEADERS` — Table of NAME/VALUE pairs
+- `RESPONSE.STATUS_LINE.STATUS_CODE` — HTTP status code
+- `RESPONSE.STATUS_LINE.REASON_PHRASE` — Reason phrase
+- `RESPONSE.STATUS_LINE.VERSION` — HTTP version
+- `RESPONSE.HEADER_FIELDS[]` — Table of NAME/VALUE pairs
+- `RESPONSE.MESSAGE_BODY` — Response body bytes

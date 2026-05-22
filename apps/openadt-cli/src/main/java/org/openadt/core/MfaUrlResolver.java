@@ -59,7 +59,7 @@ public final class MfaUrlResolver {
         if (secureLogin.getSsoUrl() != null && !secureLogin.getSsoUrl().isBlank()) {
             return secureLogin.getSsoUrl().trim();
         }
-        String portalProfileId = profileIdFromUrl(secureLogin.getSsoUrl());
+        String portalProfileId = null;
         String origin = secureLogin.getOrigin();
         if (portalProfileId == null) {
             portalProfileId = profileIdFromUrl(secureLogin.getEnrollUrl());

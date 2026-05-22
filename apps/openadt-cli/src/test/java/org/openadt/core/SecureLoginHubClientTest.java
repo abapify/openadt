@@ -15,6 +15,8 @@ import java.time.Duration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SecureLoginHubClientTest {
     private HttpServer server;
@@ -88,6 +90,13 @@ class SecureLoginHubClientTest {
         );
 
         assertThrows(IllegalStateException.class, () -> client.ensureWebAdapterLoggedIn("p1"));
+    }
+
+    @Test
+    void trustAllTlsIsLimitedToLoopbackHosts() {
+        assertTrue(SecureLoginHubClient.isLoopbackHub("https://127.0.0.1:34443"));
+        assertTrue(SecureLoginHubClient.isLoopbackHub("https://localhost:34443"));
+        assertFalse(SecureLoginHubClient.isLoopbackHub("https://sap.example.com:34443"));
     }
 
     private static HttpClient plainHttpClient() {

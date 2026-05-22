@@ -4,12 +4,15 @@ import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.Locale;
 import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class JCoDestinationFactory {
     private static final String JCO_DEST_MANAGER = "com.sap.conn.jco.JCoDestinationManager";
     private static final String JCO_DEST_DATA_PROVIDER = "com.sap.conn.jco.ext.DestinationDataProvider";
+    private static final Map<ClassLoader, ProviderRegistration> PROVIDERS = new ConcurrentHashMap<>();
 
     private final ClassLoader jcoClassLoader;
     private final OpenAdtConfig.RuntimeConfig runtimeConfig;
@@ -43,17 +46,34 @@ public class JCoDestinationFactory {
         Class<?> jcoEnvironmentClass = Class.forName(
             "com.sap.conn.jco.ext.Environment", true, jcoClassLoader);
 
-        // Register an in-memory destination provider
-        Object provider = createInMemoryProvider(destName, props);
-        Method registerMethod = jcoEnvironmentClass.getMethod("registerDestinationDataProvider",
-            Class.forName(JCO_DEST_DATA_PROVIDER, true, jcoClassLoader));
-        registerMethod.invoke(null, provider);
+        providerRegistration(jcoEnvironmentClass).destinations().put(destName, props);
 
         Method getDestMethod = destManagerClass.getMethod("getDestination", String.class);
         return getDestMethod.invoke(null, destName);
     }
 
-    private Object createInMemoryProvider(String destName, Properties props) throws Exception {
+    private ProviderRegistration providerRegistration(Class<?> jcoEnvironmentClass) throws Exception {
+        ProviderRegistration existing = PROVIDERS.get(jcoClassLoader);
+        if (existing != null) {
+            return existing;
+        }
+        synchronized (PROVIDERS) {
+            existing = PROVIDERS.get(jcoClassLoader);
+            if (existing != null) {
+                return existing;
+            }
+            Map<String, Properties> destinations = new ConcurrentHashMap<>();
+            Object provider = createInMemoryProvider(destinations);
+            Method registerMethod = jcoEnvironmentClass.getMethod("registerDestinationDataProvider",
+                Class.forName(JCO_DEST_DATA_PROVIDER, true, jcoClassLoader));
+            registerMethod.invoke(null, provider);
+            ProviderRegistration created = new ProviderRegistration(provider, destinations);
+            PROVIDERS.put(jcoClassLoader, created);
+            return created;
+        }
+    }
+
+    private Object createInMemoryProvider(Map<String, Properties> destinations) throws Exception {
         // Use a dynamic proxy to implement DestinationDataProvider
         Class<?> providerInterface = Class.forName(JCO_DEST_DATA_PROVIDER, true, jcoClassLoader);
         return java.lang.reflect.Proxy.newProxyInstance(
@@ -62,7 +82,7 @@ public class JCoDestinationFactory {
             (proxy, method, args) -> {
                 String methodName = method.getName();
                 if ("getDestinationProperties".equals(methodName)) {
-                    return props;
+                    return args != null && args.length > 0 ? destinations.get(args[0]) : null;
                 }
                 if ("supportsEvents".equals(methodName)) {
                     return false;
@@ -135,5 +155,8 @@ public class JCoDestinationFactory {
             + "_" + system.getClient()
             + "_" + system.getUser().toLowerCase(Locale.ROOT)
             + "_" + system.getLanguage().toLowerCase(Locale.ROOT);
+    }
+
+    private record ProviderRegistration(Object provider, Map<String, Properties> destinations) {
     }
 }

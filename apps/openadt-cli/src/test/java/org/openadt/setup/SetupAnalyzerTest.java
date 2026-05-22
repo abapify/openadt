@@ -37,7 +37,9 @@ class SetupAnalyzerTest {
         RuntimeDetector runtimeDetector = new RuntimeDetector(List.of(), List.of(), List.of()) {
             @Override
             public OpenAdtConfig.RuntimeConfig detect() {
-                return null;
+                OpenAdtConfig.RuntimeConfig runtime = new OpenAdtConfig.RuntimeConfig();
+                runtime.setAdtPluginsDir("/tmp/eclipse/plugins");
+                return runtime;
             }
         };
 
@@ -53,7 +55,38 @@ class SetupAnalyzerTest {
         assertEquals("1", detected.getJco().getSticky());
         assertEquals("1", detected.getJco().getDenyInitialPassword());
         assertNotNull(detected.getAdt());
-        assertEquals("http", detected.getAdt().getTransport());
+        assertEquals("sdk", detected.getAdt().getTransport());
         assertEquals("sso", detected.getAdt().getAuthenticationKind());
+    }
+
+    @Test
+    void defaultsToRestRfcWhenOnlyJcoRuntimeIsDetected() {
+        SystemProfile system = new SystemProfile();
+        system.setSystemId("DEV");
+        system.setAdt(new SystemProfile.AdtConfig());
+
+        RuntimeDetector runtimeDetector = new RuntimeDetector(List.of(), List.of(), List.of()) {
+            @Override
+            public OpenAdtConfig.RuntimeConfig detect() {
+                OpenAdtConfig.RuntimeConfig runtime = new OpenAdtConfig.RuntimeConfig();
+                runtime.setJcoJar("/tmp/com.sap.conn.jco_3.1.13.jar");
+                return runtime;
+            }
+        };
+
+        SetupAnalyzer analyzer = new SetupAnalyzer(
+            List.of(() -> List.of(system)),
+            new SecureLoginDetector() {
+                @Override
+                public DetectionResult detectSecureLogin() {
+                    return new DetectionResult(false, null);
+                }
+            },
+            runtimeDetector
+        );
+
+        SetupAnalyzer.SetupResult result = analyzer.analyze();
+
+        assertEquals("rest-rfc", result.systems().get(0).getAdt().getTransport());
     }
 }

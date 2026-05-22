@@ -7,6 +7,7 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -35,10 +36,11 @@ public class SecureLoginHubClient {
                 : DEFAULT_HUB_URL,
             secureLogin != null ? secureLogin.getOrigin() : null,
             secureLogin != null ? secureLogin.getReferer() : null,
-            HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(5))
-                .sslContext(trustLocalHub())
-                .build(),
+            createHttpClient(
+                secureLogin != null && secureLogin.getLocalSecurityHub() != null
+                    ? secureLogin.getLocalSecurityHub()
+                    : DEFAULT_HUB_URL
+            ),
             new ObjectMapper()
         );
     }
@@ -151,6 +153,26 @@ public class SecureLoginHubClient {
     private static String normalizeHubBase(String hubBaseUrl) {
         String value = hubBaseUrl.endsWith("/") ? hubBaseUrl.substring(0, hubBaseUrl.length() - 1) : hubBaseUrl;
         return value;
+    }
+
+    private static HttpClient createHttpClient(String hubBaseUrl) {
+        HttpClient.Builder builder = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5));
+        if (isLoopbackHub(hubBaseUrl)) {
+            builder.sslContext(trustLocalHub());
+        }
+        return builder.build();
+    }
+
+    static boolean isLoopbackHub(String hubBaseUrl) {
+        try {
+            String host = URI.create(normalizeHubBase(hubBaseUrl)).getHost();
+            if (host == null || host.isBlank()) {
+                return false;
+            }
+            return InetAddress.getByName(host).isLoopbackAddress();
+        } catch (Exception error) {
+            return false;
+        }
     }
 
     private static SSLContext trustLocalHub() {

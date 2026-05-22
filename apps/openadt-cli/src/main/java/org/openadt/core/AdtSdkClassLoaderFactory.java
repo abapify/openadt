@@ -27,6 +27,7 @@ public final class AdtSdkClassLoaderFactory {
         "org.eclipse.core.databinding.observable_",
         "org.eclipse.core.databinding.property_",
         "org.eclipse.core.jobs_",
+        "org.eclipse.core.net_",
         "org.eclipse.equinox.common_",
         "org.eclipse.equinox.registry_",
         "org.eclipse.osgi_",
