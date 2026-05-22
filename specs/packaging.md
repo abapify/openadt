@@ -14,7 +14,11 @@ OpenADT ships as a portable ZIP (`openadt.jar` + launchers). SAP binaries are ne
 - Install HEAD: `brew install --HEAD --formula packaging/homebrew/openadt.rb`
 - Stable install uses the GitHub Release ZIP; `package:release` updates the formula `sha256`
 
-## CI
+## CI action pins
+
+Workflows use current stable major tags: `actions/checkout@v6`, `actions/setup-java@v5`, `actions/setup-dotnet@v5`, `oven-sh/setup-bun@v2`, `nrwl/nx-set-shas@v5`, `softprops/action-gh-release@v3`. Bump when upstream releases a new major.
+
+## Release workflow
 
 Manual **Release** workflow (Actions → Release → Run workflow):
 
