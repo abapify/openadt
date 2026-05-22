@@ -243,7 +243,9 @@ function writeGithubOutput(version: string): void {
 }
 
 const latestTag = latestGitTag();
-const baseVersion = latestTag ? parseVersion(latestTag) : readPomBaselineVersion();
+const baseVersion = latestTag
+  ? parseVersion(latestTag)
+  : readPomBaselineVersion();
 
 const nextVersion = formatVersion(
   bumpVersion(baseVersion, bumpArg, prereleaseId),
