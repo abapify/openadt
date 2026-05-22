@@ -194,6 +194,7 @@ public class SecureLoginHubClient {
                 }
             };
             SSLContext context = SSLContext.getInstance("TLS");
+            // lgtm [java/insecure-trustmanager] loopback-only local Secure Login hub uses a self-signed certificate
             context.init(null, trustAll, new SecureRandom());
             return context;
         } catch (Exception error) {
