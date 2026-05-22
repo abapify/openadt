@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 
@@ -18,10 +19,19 @@ internal static class Program
         {
             start.ArgumentList.Add(arg);
         }
-        using var process = Process.Start(start);
-        if (process == null)
+        Process process;
+        try
+        {
+            process = Process.Start(start) ?? throw new InvalidOperationException("Failed to start java process.");
+        }
+        catch (Win32Exception)
         {
             Console.Error.WriteLine("java not found on PATH; install a JDK (for example Temurin 21)");
+            return 1;
+        }
+        catch (InvalidOperationException)
+        {
+            Console.Error.WriteLine("Failed to start java process.");
             return 1;
         }
         process.WaitForExit();

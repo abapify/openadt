@@ -1,5 +1,6 @@
 package org.openadt.core;
 
+import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Path;
 
 public final class AdtTransportFactory {
@@ -50,6 +51,12 @@ public final class AdtTransportFactory {
                 "ADT SDK transport is not available in this OpenADT build. "
                     + "Use transport = \"rest-rfc\" or \"http\", or run with scripts/openadt-sdk.ps1 and Eclipse ADT plugins."
             );
+        } catch (InvocationTargetException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof Exception exception) {
+                throw exception;
+            }
+            throw new RuntimeException(cause);
         }
     }
 }

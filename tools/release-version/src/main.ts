@@ -76,16 +76,10 @@ function bumpVersion(current: SemVer, bump: string, preId: string): SemVer {
 
   switch (bump) {
     case "major":
-      if (hasPre && next.prerelease[0] !== preId) {
-        next.prerelease = [preId, "1"];
-      } else if (hasPre) {
-        next.prerelease = incrementNumericPrerelease(next.prerelease);
-      } else {
-        next.major += 1;
-        next.minor = 0;
-        next.patch = 0;
-        next.prerelease = [];
-      }
+      next.major += 1;
+      next.minor = 0;
+      next.patch = 0;
+      next.prerelease = [];
       break;
     case "premajor":
       next.major += 1;
@@ -94,15 +88,9 @@ function bumpVersion(current: SemVer, bump: string, preId: string): SemVer {
       next.prerelease = [preId, "1"];
       break;
     case "minor":
-      if (hasPre && next.prerelease[0] !== preId) {
-        next.prerelease = [preId, "1"];
-      } else if (hasPre) {
-        next.prerelease = incrementNumericPrerelease(next.prerelease);
-      } else {
-        next.minor += 1;
-        next.patch = 0;
-        next.prerelease = [];
-      }
+      next.minor += 1;
+      next.patch = 0;
+      next.prerelease = [];
       break;
     case "preminor":
       next.minor += 1;
@@ -111,7 +99,7 @@ function bumpVersion(current: SemVer, bump: string, preId: string): SemVer {
       break;
     case "patch":
       if (hasPre) {
-        next.prerelease = incrementNumericPrerelease(next.prerelease);
+        next.prerelease = [];
       } else {
         next.patch += 1;
         next.prerelease = [];
@@ -174,10 +162,14 @@ function readPomBaselineVersion(): SemVer {
 function writePomVersion(version: string): void {
   const pomPath = join(root, "apps/openadt-cli/pom.xml");
   const pom = readFileSync(pomPath, "utf8");
-  const updated = pom.replace(
-    /<version>[^<]+<\/version>/,
-    `<version>${version}</version>`,
-  );
+  const parentEnd = pom.indexOf("</parent>");
+  const searchFrom = parentEnd >= 0 ? parentEnd + "</parent>".length : 0;
+  const openTag = pom.indexOf("<version>", searchFrom);
+  const closeTag = pom.indexOf("</version>", openTag);
+  if (openTag < 0 || closeTag < 0) {
+    throw new Error(`Could not update project version in ${pomPath}`);
+  }
+  const updated = `${pom.slice(0, openTag)}<version>${version}</version>${pom.slice(closeTag + "</version>".length)}`;
   writeFileSync(pomPath, updated);
 }
 

@@ -59,6 +59,12 @@ function buildWindowsExe(target: string): void {
   if (go.status === 0) {
     return;
   }
+  if (go.stderr) {
+    const stderr = go.stderr.toString().trim();
+    if (stderr.length > 0) {
+      console.error(stderr);
+    }
+  }
 
   const dotnet = spawnSync(
     "dotnet",
