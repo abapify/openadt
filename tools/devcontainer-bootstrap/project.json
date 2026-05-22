@@ -1,0 +1,14 @@
+{
+  "name": "devcontainer-bootstrap",
+  "root": "tools/devcontainer-bootstrap",
+  "sourceRoot": "tools/devcontainer-bootstrap/src",
+  "projectType": "application",
+  "targets": {
+    "prepare": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun tools/devcontainer-bootstrap/src/main.ts"
+      }
+    }
+  }
+}

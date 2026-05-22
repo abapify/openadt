@@ -1,0 +1,22 @@
+{
+  "name": "openadt-cli",
+  "root": "apps/openadt-cli",
+  "sourceRoot": "apps/openadt-cli/src/main/java",
+  "projectType": "application",
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "mvn -q -DskipTests package",
+        "cwd": "apps/openadt-cli"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "mvn -q test",
+        "cwd": "apps/openadt-cli"
+      }
+    }
+  }
+}

@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SYSTEM_ALIAS="${1:-DEV}"
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File \
+  "$(wslpath -w "$SCRIPT_DIR/openadt-local-check.ps1")" \
+  -SystemAlias "$SYSTEM_ALIAS"

@@ -2,19 +2,26 @@
 
 ## Overview
 
-OpenADT runs a local HTTP proxy server that intercepts ADT requests from Eclipse/IDE clients and forwards them to the SAP backend via RFC (SADT_REST_RFC_ENDPOINT), using JCo for authentication (SNC/SSO or username+password).
+OpenADT runs a local HTTP proxy server that intercepts ADT requests from Eclipse/IDE clients and forwards them to the SAP backend through the configured ADT transport.
+
+Default transport:
+- ADT SDK destination/session stack (`transport = "sdk"`)
+
+Fallback transports:
+- RFC bridge via `SADT_REST_RFC_ENDPOINT` (`transport = "rest-rfc"`)
+- Direct HTTP against the ICF/SAML frontend (`transport = "http"`) using `MYSAPSSO2` and `adt.discovery_url`
 
 ## Security Model
 
 The proxy sits between the IDE client and SAP. It:
 1. Authenticates the IDE client (optional Basic auth)
 2. Strips all SAP authentication headers from incoming requests
-3. Authenticates to SAP using JCo/SNC (no passwords in transit)
+3. Authenticates to SAP using the selected ADT transport runtime
 4. Returns responses from SAP to the IDE client
 
 ## Headers Stripped from Incoming Requests
 
-These headers are stripped before forwarding to SAP via RFC:
+These headers are stripped before forwarding to SAP:
 
 | Header | Reason |
 |--------|--------|
@@ -53,11 +60,23 @@ username = "developer"
 
 The password is not stored in config — it is prompted or read from a secrets manager.
 
-## RFC Function
+## Transport Modes
 
-The proxy uses RFC function `SADT_REST_RFC_ENDPOINT` to forward HTTP requests to SAP ADT.
+### SDK (default)
 
-Request structure:
+OpenADT registers an ADT destination, ensures logon through `AdtLogonServiceFactory`, creates a stateless system session, and sends ADT HTTP-like requests through the SAP ADT SDK.
+
+Implementation touchpoints:
+- `AdtTransportFactory` — selects SDK when `runtime.adt_plugins_dir` is set and transport is not `http` or `rest-rfc`
+- `SapSdkRuntime` — JCo natives, `JCoEclipseBootstrap`, `AdtCommunicationBootstrap`, `SecureLoginBootstrap`
+- `SapDestinationResolver` — Eclipse `.destination.properties` by SID, else config-built destination
+- `AdtSdkTransportClient` — shared by `openadt fetch` and `openadt proxy`
+
+### RFC Bridge
+
+The legacy fallback uses RFC function `SADT_REST_RFC_ENDPOINT` to forward HTTP requests to SAP ADT.
+
+RFC request structure:
 - `REQUEST.METHOD` — HTTP method
 - `REQUEST.PATH` — URL path
 - `REQUEST.BODY` — Request body bytes
