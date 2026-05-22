@@ -7,14 +7,14 @@
     "build": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "mvn -q -DskipTests package",
+        "command": "mvnw -q -DskipTests package",
         "cwd": "apps/openadt-cli"
       }
     },
     "test": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "mvn -q test",
+        "command": "mvnw -q test",
         "cwd": "apps/openadt-cli"
       }
     }

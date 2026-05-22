@@ -10,6 +10,9 @@
     "nx": "nx"
   },
   "devDependencies": {
+    "@nx/workspace": "22.7.2",
+    "@types/adm-zip": "^0.5.7",
+    "@types/node": "^22.15.21",
     "adm-zip": "^0.5.17",
     "husky": "^9.1.7",
     "nx": "^22.7.2",

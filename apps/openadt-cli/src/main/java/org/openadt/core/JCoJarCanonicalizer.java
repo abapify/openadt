@@ -44,9 +44,20 @@ public final class JCoJarCanonicalizer {
         Files.createDirectories(cacheDir);
         Path target = cacheDir.resolve(canonicalName);
         if (needsCopy(source, target)) {
-            Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
+            copyOrReuseExisting(source, target);
         }
         return target;
+    }
+
+    private static void copyOrReuseExisting(Path source, Path target) throws IOException {
+        try {
+            Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException locked) {
+            if (Files.exists(target)) {
+                return;
+            }
+            throw locked;
+        }
     }
 
     private static boolean needsCopy(Path source, Path target) throws IOException {
@@ -62,8 +73,8 @@ public final class JCoJarCanonicalizer {
             && JCO_JAR_NAME.matcher(path.getFileName().toString()).matches();
     }
 
-    /** For tests: copy into a fixed directory. */
-    static Path canonicalizeTo(Path source, Path targetDir) throws IOException {
+    /** Copy into a fixed directory (for tests or isolated caches). */
+    public static Path canonicalizeTo(Path source, Path targetDir) throws IOException {
         String canonicalName = canonicalFileName(source.getFileName().toString());
         if (canonicalName == null) {
             return source;
@@ -71,9 +82,7 @@ public final class JCoJarCanonicalizer {
         Files.createDirectories(targetDir);
         Path target = targetDir.resolve(canonicalName);
         if (needsCopy(source, target)) {
-            try (InputStream in = Files.newInputStream(source)) {
-                Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
-            }
+            copyOrReuseExisting(source, target);
         }
         return target;
     }

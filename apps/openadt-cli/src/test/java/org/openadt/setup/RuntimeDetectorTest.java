@@ -35,16 +35,20 @@ class RuntimeDetectorTest {
         Files.createDirectories(sapcrypto.getParent());
         Files.writeString(sapcrypto, "");
 
+        Path jcoCache = tempDir.resolve("jco-cache");
         RuntimeDetector detector = new RuntimeDetector(
             List.of(pluginsDir),
             List.of(tempDir),
-            List.of(sapcrypto)
+            List.of(sapcrypto),
+            jcoCache
         );
 
         OpenAdtConfig.RuntimeConfig runtime = detector.detect();
 
         assertNotNull(runtime);
-        Path expectedJco = JCoJarCanonicalizer.canonicalize(pluginsDir.resolve("com.sap.conn.jco_3.1.13.jar"));
+        Path expectedJco = JCoJarCanonicalizer.canonicalizeTo(
+            pluginsDir.resolve("com.sap.conn.jco_3.1.13.jar"),
+            jcoCache);
         assertEquals(expectedJco.toString(), runtime.getJcoJar());
         assertEquals(nativeDir.toString(), runtime.getJcoNativeDir());
         assertEquals(sapcrypto.toString(), runtime.getSapcrypto());

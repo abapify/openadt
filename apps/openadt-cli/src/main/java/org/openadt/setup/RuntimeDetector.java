@@ -25,6 +25,7 @@ public class RuntimeDetector {
     private final List<Path> nativeSearchRoots;
     private final List<Path> sapcryptoCandidates;
     private final Path stagedDevcontainerDist;
+    private final Path jcoCanonicalCacheDir;
 
     public RuntimeDetector() {
         this(
@@ -35,9 +36,19 @@ public class RuntimeDetector {
     }
 
     RuntimeDetector(List<Path> jcoJarRoots, List<Path> nativeSearchRoots, List<Path> sapcryptoCandidates) {
+        this(jcoJarRoots, nativeSearchRoots, sapcryptoCandidates, null);
+    }
+
+    RuntimeDetector(
+        List<Path> jcoJarRoots,
+        List<Path> nativeSearchRoots,
+        List<Path> sapcryptoCandidates,
+        Path jcoCanonicalCacheDir
+    ) {
         this.jcoJarRoots = List.copyOf(jcoJarRoots);
         this.nativeSearchRoots = List.copyOf(nativeSearchRoots);
         this.sapcryptoCandidates = List.copyOf(sapcryptoCandidates);
+        this.jcoCanonicalCacheDir = jcoCanonicalCacheDir;
         this.stagedDevcontainerDist =
             Path.of(System.getProperty("user.dir", ".")).toAbsolutePath().normalize().resolve(".devcontainer/dist");
     }
@@ -64,6 +75,9 @@ public class RuntimeDetector {
 
     private Path canonicalJcoJar(Path source) {
         try {
+            if (jcoCanonicalCacheDir != null) {
+                return JCoJarCanonicalizer.canonicalizeTo(source, jcoCanonicalCacheDir);
+            }
             return JCoJarCanonicalizer.canonicalize(source);
         } catch (IOException error) {
             return source;
