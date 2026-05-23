@@ -101,7 +101,7 @@ jobs:
         shell: bash
         run: |
           cd apps/openadt-cli
-          ./mvnw -q -Pdistribution package -Dmaven.test.skip=true
+          ./mvnw -q -Pdistribution -Dopenadt.distribution=true package -Dmaven.test.skip=true
 
       - name: Package zip and refresh winget or homebrew checksums
         env:

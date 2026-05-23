@@ -48,7 +48,6 @@
         <profile>
             <id>sap-sdk</id>
             <activation>
-                <activeByDefault>true</activeByDefault>
                 <property>
                     <name>!openadt.distribution</name>
                 </property>
