@@ -16,7 +16,7 @@ public final class SetupRuntimePreparer {
         return adtPluginsDir != null && !adtPluginsDir.isBlank();
     }
 
-    public static int prepare(String adtPluginsDir, String version) throws IOException, InterruptedException {
+    public static int prepare(String adtPluginsDir, String version, boolean force) throws IOException, InterruptedException {
         if (!System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("windows")) {
             System.err.println("Automatic runtime prepare is supported on Windows only.");
             System.err.println("Use scripts/openadt-sdk.ps1 from a git checkout for fetch/proxy.");
@@ -41,6 +41,9 @@ public final class SetupRuntimePreparer {
             "-AdtPluginsDir",
             adtPluginsDir
         );
+        if (force) {
+            builder.command().add("-Force");
+        }
         builder.inheritIO();
         builder.environment().putIfAbsent("OPENADT_HOME", home.toString());
         Process process = builder.start();

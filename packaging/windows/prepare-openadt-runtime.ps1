@@ -2,7 +2,8 @@ param(
   [Parameter(Mandatory = $true)]
   [string] $Version,
   [Parameter(Mandatory = $true)]
-  [string] $AdtPluginsDir
+  [string] $AdtPluginsDir,
+  [switch] $Force
 )
 
 $ErrorActionPreference = "Stop"
@@ -20,7 +21,7 @@ $tag = "v$Version"
 
 New-Item -ItemType Directory -Force -Path $runtimeDir, $buildRoot | Out-Null
 
-if (Test-Path (Join-Path $runtimeDir "version.txt")) {
+if (-not $Force -and (Test-Path (Join-Path $runtimeDir "version.txt"))) {
   $preparedVersion = (Get-Content (Join-Path $runtimeDir "version.txt") -Raw).Trim()
   if ($preparedVersion -eq $Version -and (Test-Path $outJar)) {
     Write-Host "Runtime jar already prepared: $outJar"
@@ -56,6 +57,13 @@ try {
     Write-Error "Maven build did not produce openadt-*.jar in target/"
   }
   Copy-Item -LiteralPath $built.FullName -Destination $outJar -Force
+  $sapLib = Join-Path $cliDir "target/sap-lib"
+  $runtimeSapLib = Join-Path $runtimeDir "sap-lib"
+  if (Test-Path $sapLib) {
+    if (Test-Path $runtimeSapLib) { Remove-Item -Recurse -Force $runtimeSapLib }
+    Copy-Item -LiteralPath $sapLib -Destination $runtimeSapLib -Recurse -Force
+    Write-Host "Prepared runtime sap-lib: $runtimeSapLib"
+  }
   Set-Content -Path (Join-Path $runtimeDir "version.txt") -Value $Version
   Write-Host "Prepared runtime jar: $outJar"
 } finally {

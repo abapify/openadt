@@ -81,9 +81,14 @@ function Invoke-SdkOpenAdt {
   if (-not (Test-Path $adtPluginsDir)) {
     Write-Error "ADT plugins directory not found. Run 'openadt config bootstrap' or 'openadt setup' first."
   }
-  $sapJars = @(Get-ChildItem $adtPluginsDir -Filter "*.jar" | Where-Object {
-    $_.Name -match '^(com\.sap\.(adt|conn)|org\.eclipse\.)'
-  })
+  $runtimeSapLib = Join-Path $env:USERPROFILE ".openadt/runtime/sap-lib"
+  if ((Test-Path $runtimeSapLib) -and ((Get-ChildItem $runtimeSapLib -Filter "*.jar").Count -ge 100)) {
+    $sapJars = @(Get-ChildItem $runtimeSapLib -Filter "*.jar")
+  } else {
+    $sapJars = @(Get-ChildItem $adtPluginsDir -Filter "*.jar" | Where-Object {
+      $_.Name -match '^(com\.sap\.(adt|conn)|org\.(eclipse|osgi)\.)'
+    })
+  }
   if ($sapJars.Count -eq 0) {
     Write-Error "No SAP ADT bundles in $adtPluginsDir"
   }
@@ -101,8 +106,19 @@ function Invoke-SdkOpenAdt {
   if (-not $javaExe) {
     Write-Error "java not found on PATH; install JDK 21"
   }
-  & $javaExe -cp ($cp -join ";") org.openadt.cli.OpenAdtCommand @CliArgs
-  exit $LASTEXITCODE
+  $argFile = Join-Path $env:TEMP ("openadt-" + [guid]::NewGuid().ToString("N") + ".args")
+  try {
+    $lines = New-Object System.Collections.Generic.List[string]
+    [void]$lines.Add("-cp")
+    [void]$lines.Add($cp -join ";")
+    [void]$lines.Add("org.openadt.cli.OpenAdtCommand")
+    foreach ($a in $CliArgs) { [void]$lines.Add($a) }
+    [IO.File]::WriteAllLines($argFile, $lines)
+    & $javaExe "@$argFile"
+    exit $LASTEXITCODE
+  } finally {
+    Remove-Item -LiteralPath $argFile -Force -ErrorAction SilentlyContinue
+  }
 }
 
 $env:OPENADT_HOME = $OpenAdtHome

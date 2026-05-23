@@ -26,6 +26,6 @@ public final class ConfigRuntimeBuilder {
             return 0;
         }
         System.out.println("Building full SAP SDK runtime for fetch/proxy...");
-        return SetupRuntimePreparer.prepare(adtPluginsDir, version);
+        return SetupRuntimePreparer.prepare(adtPluginsDir, version, force);
     }
 }
