@@ -18,13 +18,16 @@ Index: [`.agents/skills/README.md`](../.agents/skills/README.md).
 
 **On `/act`:** load the **`act` skill file first** (full body), then execute it. Do not use a generic built-in `act` shortcut without reading this repo’s skill.
 
-## Copilot coding agent — GitHub MCP (read vs write)
+## Copilot coding agent — resolve via gh CLI
 
-The coding agent often mounts **read-only** GitHub MCP (~33 tools: `pull_request_read`, `actions_*`, …). That set **does not** include `pull_request_review_write` — so **resolve conversation cannot use MCP** until repo MCP config drops `/readonly` and enables write PR tools. See [extend cloud agent with MCP](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/extend-cloud-agent-with-mcp).
+Read-only MCP (~33 tools) has **no** `pull_request_review_write`. **Resolve with GitHub CLI**, not Playwright:
 
-- **No Playwright** for `/act`.
-- **Resolve:** `pull_request_review_write` → `resolve_thread` if that tool is listed; else `gh api graphql` + `resolveReviewThread` (needs `api.github.com` in agent firewall); else list open thread URLs for the author.
-- Still run code/CI fixes when resolve is blocked.
+```bash
+bash .github/skills/act/resolve-open-threads.sh --dry-run abapify openadt 2
+bash .github/skills/act/resolve-open-threads.sh abapify openadt 2
+```
+
+Uses `GH_TOKEN=$GITHUB_TOKEN` and `gh api graphql`. **Always run** after code fixes; only report blocked if gh returns 403. Optional: enable write MCP (`pull_request_review_write`) in Copilot → Cloud agent → MCP config.
 
 ## PR / review workflow (`/act`)
 

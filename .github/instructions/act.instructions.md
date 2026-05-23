@@ -4,15 +4,18 @@ applyTo: ".github/**,specs/**,apps/**,.agents/**,tools/**"
 
 # PR follow-up (`/act`)
 
-When the user invokes **`/act`** or **`@copilot /act`**, read **[`.github/skills/act/SKILL.md`](../skills/act/SKILL.md)** (Copilot) or **`.agents/skills/act/SKILL.md`** before changing code.
+Read **[`.github/skills/act/SKILL.md`](../skills/act/SKILL.md)** before changing code.
 
-## Copilot coding agent
+## Copilot: resolve with gh CLI
 
-- **No Playwright** for `/act`.
-- **MCP only:** `pull_request_review_write` → `resolve_thread` for resolve.
-- If resolve blocked (no `PRRT_` ids): still do CI/code fixes; list open thread URLs in summary.
-- `bunx nx format:write` on touched `tools/**/*.ts` before commit.
+Read-only MCP cannot resolve threads. After P0–P3:
 
-## Default `/act` (everything on)
+```bash
+bash .github/skills/act/resolve-open-threads.sh abapify openadt <PR>
+```
 
-CI → review fixes → suggestions → resolve pass (MCP) → summary. Do not stop early when resolve is hard.
+No Playwright. `bunx nx format:write` on touched `tools/**/*.ts` before commit.
+
+## Default `/act`
+
+All steps on. Do not skip resolve because MCP is read-only — use gh.
