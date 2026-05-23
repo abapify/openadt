@@ -121,12 +121,47 @@ function Invoke-SdkOpenAdt {
   }
 }
 
+function Test-OpenAdtProxyActive {
+  param([string]$Alias)
+  if (-not $Alias) { return $false }
+  $safe = ($Alias.ToLower() -replace '[^a-z0-9._-]+', '_')
+  $reg = Join-Path $env:USERPROFILE ".openadt/runtime/proxy-$safe.json"
+  if (-not (Test-Path $reg)) { return $false }
+  try {
+    $info = Get-Content $reg -Raw | ConvertFrom-Json
+    if (-not $info.port) { return $false }
+    $client = New-Object System.Net.Sockets.TcpClient
+    $async = $client.BeginConnect($info.host, [int]$info.port, $null, $null)
+    $ok = $async.AsyncWaitHandle.WaitOne(500)
+    if ($ok) { $client.EndConnect($async) }
+    $client.Close()
+    return $ok
+  } catch {
+    return $false
+  }
+}
+
+function Resolve-FetchUsesLiteProxy {
+  param([string[]]$CliArgs)
+  if ($CliArgs -contains "--direct") { return $false }
+  for ($i = 0; $i -lt $CliArgs.Count; $i++) {
+    if ($CliArgs[$i] -eq "fetch" -and ($i + 1) -lt $CliArgs.Count) {
+      return (Test-OpenAdtProxyActive $CliArgs[$i + 1])
+    }
+  }
+  return $false
+}
+
 $env:OPENADT_HOME = $OpenAdtHome
 if (-not $OpenAdtArgs -or $OpenAdtArgs.Count -eq 0) {
   Invoke-LiteOpenAdt @()
 }
 
 $subcommand = $OpenAdtArgs[0]
+if ($subcommand -eq "fetch" -and (Resolve-FetchUsesLiteProxy $OpenAdtArgs)) {
+  Invoke-LiteOpenAdt $OpenAdtArgs
+}
+
 if ($subcommand -in @("fetch", "proxy")) {
   Invoke-SdkOpenAdt $OpenAdtArgs
 }

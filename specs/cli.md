@@ -131,13 +131,17 @@ openadt proxy DEV --local-auth basic
 openadt proxy DEV --local-username openadt --local-password <password>
 ```
 
+Default listen address: `127.0.0.1:8079` (or `proxy.listen` from config).
+
+While the proxy is running, `openadt fetch` for the same system reuses it automatically (warm SAP session, no cold JVM/SDK startup). Use `openadt fetch --direct` to bypass the local proxy.
+
 Arguments:
 
 - `SYSTEM` — System alias to proxy (optional; defaults to first configured system)
 
 Options:
 
-- `--listen <host:port>` — Bind address and port (default: `127.0.0.1:0`, OS assigns port)
+- `--listen <host:port>` — Bind address and port (default: `proxy.listen` from config, else `127.0.0.1:8079`)
 - `--local-auth <type>` — Local auth type (`basic`)
 - `--local-username <name>` — Local proxy username (default: `openadt`)
 - `--local-password <password>` — Local proxy password (falls back to `OPENADT_PROXY_PASSWORD` env var)
@@ -180,11 +184,13 @@ Options:
 - `--fail, -f` — Exit nonzero for HTTP status >= 400
 - `--json` — Pretty-print JSON response body
 - `--raw` — Write only response body bytes (binary-safe)
+- `--direct` — Call SAP via SDK/JCo even when a local `openadt proxy` is running
 - `--config, -c <path>` — Config file path (default load order: `./.openadt/config.toml`, then `~/.openadt/config.toml`)
 
 Behavior:
 
-- Default method is `GET`
+- When `openadt proxy <SYSTEM>` is running, `fetch` reuses it over loopback (fast path)
+- Without a running proxy, `fetch` starts a cold SDK/JCo session (slow first call)
 - `--body @file` reads request bytes from a file
 - `--output <file>` writes response body bytes
 - `--include` prints status and headers before body

@@ -133,14 +133,17 @@ Ensure `$HOME/.local/bin` is on your `PATH`, then run `openadt --help`.
 
 ### Windows — Scoop (recommended)
 
-Three steps: **install → setup → fetch/proxy**.
+Three steps: **install → setup → proxy + fetch**.
 
 ```powershell
 scoop bucket add openadt https://github.com/abapify/scoop-bucket.git
 scoop install openadt
 openadt setup
-openadt fetch DEV /sap/bc/adt/core/http/systeminformation --json
+openadt proxy S0D
+openadt fetch S0D /sap/bc/adt/core/http/systeminformation --json
 ```
+
+Keep `openadt proxy` running in one terminal; `fetch` reuses it automatically (fast). Without proxy, `fetch` still works but starts a cold SAP session each time (~15 s).
 
 `openadt setup` runs **config bootstrap** (detect SAP paths, write config) and **config build** (full SDK runtime jar into `~\.openadt\runtime\`). First build can take a few minutes. After upgrading OpenADT, run `openadt config build`.
 

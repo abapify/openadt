@@ -3,6 +3,7 @@ package org.openadt.cli;
 import org.openadt.core.AdtTransportClient;
 import org.openadt.core.AdtTransportFactory;
 import org.openadt.core.ConfigLoader;
+import org.openadt.core.LocalProxyRegistry;
 import org.openadt.core.OpenAdtConfig;
 import org.openadt.core.SystemProfile;
 import org.openadt.proxy.LocalAdtProxyServer;
@@ -10,7 +11,6 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
-import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
 
@@ -20,10 +20,12 @@ import java.util.concurrent.Callable;
     description = "Start the local ADT proxy server"
 )
 public class ProxyCommand implements Callable<Integer> {
+    private static final String DEFAULT_LISTEN = "127.0.0.1:8079";
+
     @Parameters(index = "0", description = "System alias to proxy", arity = "0..1")
     private String systemAlias;
 
-    @Option(names = {"--listen"}, description = "Bind address:port (default: 127.0.0.1:0)", defaultValue = "127.0.0.1:0")
+    @Option(names = {"--listen"}, description = "Bind address:port (default: config proxy.listen or 127.0.0.1:8079)")
     private String listen;
 
     @Option(names = {"--local-auth"}, description = "Local auth type (basic)")
@@ -50,6 +52,8 @@ public class ProxyCommand implements Callable<Integer> {
             return 1;
         }
 
+        String effectiveListen = resolveListen(config);
+
         // Resolve effective auth settings: CLI flags override config file
         String effectiveAuth = localAuth != null ? localAuth
             : (config.getProxy() != null ? config.getProxy().getAuth() : null);
@@ -72,14 +76,30 @@ public class ProxyCommand implements Callable<Integer> {
             System.err.println(e.getMessage());
             return 1;
         }
-        warmUpSdkTransportIfPresent(transportClient, system);
-        LocalAdtProxyServer proxyServer = new LocalAdtProxyServer(transportClient);
-        int port = proxyServer.start(system, listen, effectiveAuth, effectiveUsername, effectivePassword);
 
-        System.out.printf("OpenADT proxy for system '%s' listening on %s%n", system.getAlias(), listen.replace(":0", ":" + port));
+        LocalAdtProxyServer proxyServer = new LocalAdtProxyServer(transportClient);
+        int port = proxyServer.start(system, effectiveListen, effectiveAuth, effectiveUsername, effectivePassword);
+        String host = parseHost(effectiveListen);
+        String bound = host + ":" + port;
+
+        LocalProxyRegistry.register(new LocalProxyRegistry.ProxyEndpoint(
+            system.getAlias(),
+            host,
+            port,
+            "basic".equalsIgnoreCase(effectiveAuth),
+            effectiveUsername
+        ));
+
+        System.out.printf("OpenADT proxy for system '%s' listening on %s%n", system.getAlias(), bound);
+        System.out.println("Keep this running; openadt fetch reuses it automatically.");
         System.out.println("Press Ctrl+C to stop.");
         Object lock = new Object();
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            try {
+                LocalProxyRegistry.unregister(system.getAlias());
+            } catch (Exception ignored) {
+                // best effort
+            }
             proxyServer.stop();
             synchronized (lock) { lock.notifyAll(); }
         }));
@@ -88,6 +108,28 @@ public class ProxyCommand implements Callable<Integer> {
         }
 
         return 0;
+    }
+
+    private String resolveListen(OpenAdtConfig config) {
+        if (listen != null && !listen.isBlank()) {
+            return listen;
+        }
+        if (config.getProxy() != null && config.getProxy().getListen() != null
+            && !config.getProxy().getListen().isBlank()) {
+            return config.getProxy().getListen();
+        }
+        return DEFAULT_LISTEN;
+    }
+
+    static String parseHost(String listenAddress) {
+        if (listenAddress == null || listenAddress.isBlank()) {
+            return "127.0.0.1";
+        }
+        int lastColon = listenAddress.lastIndexOf(':');
+        if (lastColon < 0) {
+            return listenAddress;
+        }
+        return listenAddress.substring(0, lastColon);
     }
 
     private SystemProfile findSystem(OpenAdtConfig config, String alias) {
@@ -99,23 +141,5 @@ public class ProxyCommand implements Callable<Integer> {
             .filter(s -> alias.equals(s.getAlias()))
             .findFirst()
             .orElse(null);
-    }
-
-    private static void warmUpSdkTransportIfPresent(AdtTransportClient transportClient, SystemProfile system) {
-        try {
-            Class<?> sdkClass = Class.forName("org.openadt.core.AdtSdkTransportClient");
-            if (!sdkClass.isInstance(transportClient)) {
-                return;
-            }
-            System.err.println("Warming up ADT SDK logon (first request may take 20-40s)...");
-            Method warmUp = sdkClass.getMethod("warmUp", SystemProfile.class);
-            warmUp.invoke(transportClient, system);
-            System.err.println("ADT SDK logon ready.");
-        } catch (ClassNotFoundException ignored) {
-            // Distribution build without ADT SDK classes.
-        } catch (ReflectiveOperationException e) {
-            Throwable cause = e.getCause() != null ? e.getCause() : e;
-            System.err.println("ADT SDK warmup failed: " + cause.getMessage());
-        }
     }
 }

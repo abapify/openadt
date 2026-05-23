@@ -1,8 +1,9 @@
 package org.openadt.cli;
 
 import org.openadt.core.AdtTransportClient;
-import org.openadt.core.AdtTransportFactory;
 import org.openadt.core.ConfigLoader;
+import org.openadt.core.FetchTransportResolver;
+import org.openadt.core.LocalProxyRegistry;
 import org.openadt.core.OpenAdtConfig;
 import org.openadt.core.ProxyRequest;
 import org.openadt.core.ProxyResponse;
@@ -62,6 +63,9 @@ public class FetchCommand implements Callable<Integer> {
     @Option(names = {"--config", "-c"}, description = "Config file path")
     private Path configPath;
 
+    @Option(names = {"--direct"}, description = "Call SAP via SDK/JCo even when a local openadt proxy is running")
+    private boolean direct;
+
     @Override
     public Integer call() throws Exception {
         ConfigLoader loader = new ConfigLoader();
@@ -79,9 +83,18 @@ public class FetchCommand implements Callable<Integer> {
         byte[] requestBody = resolveBody(body);
         AdtTransportClient transportClient;
         try {
-            transportClient = AdtTransportFactory.create(config, system);
+            if (!direct && LocalProxyRegistry.findActive(system.getAlias()).isPresent()) {
+                System.err.println("Using local openadt proxy for " + system.getAlias());
+            } else if (!direct) {
+                System.err.println("Tip: run 'openadt proxy " + system.getAlias()
+                    + "' in another terminal; fetch will reuse it and start faster.");
+            }
+            transportClient = FetchTransportResolver.resolve(config, system, direct);
         } catch (IllegalStateException e) {
             System.err.println(e.getMessage());
+            return 1;
+        } catch (Exception e) {
+            System.err.println(e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
             return 1;
         }
 
