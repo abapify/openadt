@@ -6,7 +6,7 @@ import picocli.CommandLine.Command;
 @Command(
     name = "openadt",
     mixinStandardHelpOptions = true,
-    version = "openadt 1.0.0-SNAPSHOT",
+    versionProvider = OpenAdtVersionProvider.class,
     description = "OpenADT - Open-source SAP ADT proxy tool",
     subcommands = {
         SetupCommand.class,
