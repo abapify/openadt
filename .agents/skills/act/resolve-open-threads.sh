@@ -55,12 +55,16 @@ if echo "$threads_json" | jq -e '.errors' >/dev/null 2>&1; then
   exit 1
 fi
 
-mapfile -t open_ids < <(
+open_ids=()
+while IFS= read -r line; do
+  [[ -n "$line" ]] && open_ids+=("$line")
+done < <(
   echo "$threads_json" | jq -r '
     .data.repository.pullRequest.reviewThreads.nodes[]
     | select(.isResolved == false)
     | .id
   '
+)
 )
 
 open_count="${#open_ids[@]}"
