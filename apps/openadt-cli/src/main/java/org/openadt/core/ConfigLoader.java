@@ -319,6 +319,18 @@ public class ConfigLoader {
         if (source.getAdtPluginsDir() != null) {
             runtime.setAdtPluginsDir(source.getAdtPluginsDir());
         }
+        if (source.getHttpCaCert() != null) {
+            runtime.setHttpCaCert(source.getHttpCaCert());
+        }
+        if (source.getHttpTruststore() != null) {
+            runtime.setHttpTruststore(source.getHttpTruststore());
+        }
+        if (source.getHttpTruststorePassword() != null) {
+            runtime.setHttpTruststorePassword(source.getHttpTruststorePassword());
+        }
+        if (source.getHttpCallbackPort() != null) {
+            runtime.setHttpCallbackPort(source.getHttpCallbackPort());
+        }
     }
 
     private void mergeRuntimeLastWins(OpenAdtConfig target, OpenAdtConfig.RuntimeConfig source) {
@@ -601,6 +613,10 @@ public class ConfigLoader {
             writeString(lines, "jco_native_dir", config.getRuntime().getJcoNativeDir());
             writeString(lines, "sapcrypto", config.getRuntime().getSapcrypto());
             writeString(lines, "adt_plugins_dir", config.getRuntime().getAdtPluginsDir());
+            writeString(lines, "http_ca_cert", config.getRuntime().getHttpCaCert());
+            writeString(lines, "http_truststore", config.getRuntime().getHttpTruststore());
+            writeString(lines, "http_truststore_password", config.getRuntime().getHttpTruststorePassword());
+            writeString(lines, "http_callback_port", config.getRuntime().getHttpCallbackPort());
         }
         if (config.getSecureLogin() != null) {
             lines.add("");

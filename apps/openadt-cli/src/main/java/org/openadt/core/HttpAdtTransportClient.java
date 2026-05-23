@@ -25,10 +25,7 @@ public class HttpAdtTransportClient implements AdtTransportClient {
     public HttpAdtTransportClient(OpenAdtConfig config) {
         this(
             config,
-            HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(30))
-                .followRedirects(HttpClient.Redirect.NORMAL)
-                .build(),
+            defaultHttpClient(config),
             new AdtHttpCookieProvider(),
             new ObjectMapper()
         );
@@ -39,6 +36,18 @@ public class HttpAdtTransportClient implements AdtTransportClient {
         this.httpClient = httpClient;
         this.cookieProvider = cookieProvider;
         this.objectMapper = objectMapper;
+    }
+
+    private static HttpClient defaultHttpClient(OpenAdtConfig config) {
+        HttpTlsConfigurer tlsConfigurer = new HttpTlsConfigurer();
+        javax.net.ssl.SSLContext sslContext = tlsConfigurer.buildSslContext(config);
+        HttpClient.Builder builder = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(30))
+            .followRedirects(HttpClient.Redirect.NORMAL);
+        if (sslContext != null) {
+            builder.sslContext(sslContext);
+        }
+        return builder.build();
     }
 
     @Override

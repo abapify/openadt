@@ -46,6 +46,10 @@ Supported fragment areas:
 | `jco_native_dir`  | string | Directory containing JCo native libraries                                                                                                                                                                 |
 | `sapcrypto`       | string | Absolute path to sapcrypto.dll, libsapcrypto.so, or libsapcrypto.dylib                                                                                                                                    |
 | `adt_plugins_dir` | string | Eclipse/ADT plugin directory, typically `~/.p2/pool/plugins`                                                                                                                                              |
+| `http_ca_cert`    | string | Optional CA certificate path (PEM/DER) used by HTTP ADT transport TLS trust                                                                                                                              |
+| `http_truststore` | string | Optional truststore path (JKS/PKCS12) used by HTTP ADT transport TLS trust                                                                                                                                |
+| `http_truststore_password` | string | Optional truststore password for `http_truststore`                                                                                                                                            |
+| `http_callback_port` | string | Optional localhost callback port for browser reentrance-ticket flow (`0` or unset = random local port)                                                                                           |
 
 ## [secure_login] section
 

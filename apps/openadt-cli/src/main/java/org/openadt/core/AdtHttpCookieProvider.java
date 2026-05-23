@@ -15,13 +15,21 @@ import java.util.function.Function;
  */
 public class AdtHttpCookieProvider {
     private final Function<String, String> envProvider;
+    private final AdtHttpTicketProvider ticketProvider;
 
     public AdtHttpCookieProvider() {
-        this(System::getenv);
+        this(System::getenv, null);
     }
 
     AdtHttpCookieProvider(Function<String, String> envProvider) {
+        this(envProvider, null);
+    }
+
+    AdtHttpCookieProvider(Function<String, String> envProvider, AdtHttpTicketProvider ticketProvider) {
         this.envProvider = envProvider;
+        this.ticketProvider = ticketProvider != null
+            ? ticketProvider
+            : new AdtHttpReentranceTicketFlow(envProvider, AdtHttpReentranceTicketFlow::openInDesktopBrowser);
     }
 
     public String resolveMysapsso2(OpenAdtConfig config, SystemProfile system) {
@@ -46,6 +54,10 @@ public class AdtHttpCookieProvider {
         }
 
         ensureWebAdapterReady(config);
+        String fromReentranceFlow = ticketProvider.acquireTicket(config, system);
+        if (fromReentranceFlow != null && !fromReentranceFlow.isBlank()) {
+            return fromReentranceFlow;
+        }
 
         throw new IllegalStateException(buildMissingTicketMessage(system));
     }

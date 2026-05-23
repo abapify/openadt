@@ -168,6 +168,7 @@ openadt fetch DEV /sap/bc/adt/core/http/systeminformation --pretty
 openadt fetch DEV /sap/bc/adt/core/discovery --pretty
 openadt fetch DEV /sap/bc/adt/core/http/systeminformation --pretty --raw
 openadt fetch DEV /sap/bc/adt/example --method POST --body @request.xml --header "Content-Type: application/xml"
+openadt fetch --base-url https://abap.example.invalid --client 100 --language EN --path /sap/bc/adt/core/http/systeminformation --accept application/vnd.sap.adt.core.http.systeminformation.v1+json
 ```
 
 Arguments:
@@ -188,6 +189,14 @@ Options:
 - `--raw` — Body only on stdout; no proxy/tip messages on stderr (for scripting; combine with `--pretty`)
 - `--direct` — Call SAP via SDK/JCo even when a local `openadt proxy` is running
 - `--config, -c <path>` — Config file path (default load order: `./.openadt/config.toml`, then `~/.openadt/config.toml`)
+- `--base-url <url>` — Direct HTTP ADT mode (browser SSO reentrance-ticket flow, no system alias required)
+- `--path <adt-path>` — ADT path in direct HTTP ADT mode
+- `--client <client>` — SAP client in direct HTTP ADT mode
+- `--language <lang>` — SAP language in direct HTTP ADT mode (default: `EN`)
+- `--ca-cert <path>` — CA certificate for explicit HTTPS trust in HTTP transport mode
+- `--truststore <path>` — Truststore file for explicit HTTPS trust in HTTP transport mode
+- `--truststore-password <secret>` — Truststore password for explicit HTTPS trust in HTTP transport mode
+- `--callback-port <port>` — Callback bind port for browser SSO flow (`0` picks a random local port)
 
 Behavior:
 
@@ -216,9 +225,12 @@ HTTP transport (`adt.transport = "http"`):
 
 - Does not use JCo or the ADT SDK
 - Requires `destinations.<alias>.adt.discovery_url` (logical frontend from `saprules.xml`)
-- Requires a SAP logon ticket via `OPENADT_MYSAPSSO2`, `secure_login.mysapsso2`, or `OPENADT_COOKIE_FILE`
+- Accepts SAP logon tickets from `OPENADT_MYSAPSSO2`, `secure_login.mysapsso2`, or `OPENADT_COOKIE_FILE`
+- If no ticket is available, OpenADT starts a localhost callback (`/adt/redirect`), opens the browser against `/sap/bc/adt/core/http/reentranceticket`, and captures the returned `reentrance-ticket` in memory
+- Reentrance tickets are kept in memory for the active request flow only; no ticket file is written by default
 - Uses the Secure Login hub only to verify Web Adapter login when `secure_login.origin` and `secure_login.web_adapter_profile_id` are configured
 - Resolves the ADT API base via `/.well-known/sap-adt-info` or `/sap/public/bc/icf/virtualhost`
+- Supports explicit TLS trust override via runtime config (`runtime.http_ca_cert`, `runtime.http_truststore`, `runtime.http_truststore_password`) or env (`OPENADT_HTTP_CA_CERT`, `OPENADT_HTTP_TRUSTSTORE`, `OPENADT_HTTP_TRUSTSTORE_PASSWORD`)
 
 Local SDK dev runner (not required in production installs):
 
