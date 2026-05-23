@@ -58,7 +58,7 @@ class AdtHttpCookieProviderTest {
 
         AdtHttpCookieProvider provider = new AdtHttpCookieProvider(
             key -> null,
-            (config, ignoredSystem) -> null
+            (config, system) -> null
         );
 
         IllegalStateException error = assertThrows(
@@ -81,7 +81,7 @@ class AdtHttpCookieProviderTest {
 
         AdtHttpCookieProvider provider = new AdtHttpCookieProvider(
             key -> null,
-            (config, ignoredSystem) -> "ticket-from-callback"
+            (config, system) -> "ticket-from-callback"
         );
 
         assertEquals("ticket-from-callback", provider.resolveMysapsso2(

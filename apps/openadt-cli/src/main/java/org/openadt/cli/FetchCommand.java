@@ -158,6 +158,9 @@ public class FetchCommand implements Callable<Integer> {
             response = transportClient.execute(system, request);
         } catch (Exception error) {
             System.err.println(error.getMessage() != null ? error.getMessage() : error.getClass().getSimpleName());
+            if (Boolean.parseBoolean(System.getenv().getOrDefault("OPENADT_VERBOSE", "false"))) {
+                error.printStackTrace(System.err);
+            }
             return 1;
         }
 

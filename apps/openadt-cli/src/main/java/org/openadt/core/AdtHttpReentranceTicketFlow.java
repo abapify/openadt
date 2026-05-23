@@ -139,6 +139,9 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
     }
 
     private static URI originUri(URI uri) {
+        if (uri.getAuthority() == null || uri.getAuthority().isBlank()) {
+            throw new IllegalStateException("HTTP ADT frontend URL must include host[:port]: " + uri);
+        }
         return URI.create(uri.getScheme() + "://" + uri.getAuthority() + "/");
     }
 
@@ -186,7 +189,7 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
             }
             System.err.println("Desktop browse action is not supported. Open this URL manually: " + uri);
         } catch (IOException error) {
-            throw new IllegalStateException("Failed to open browser URL: " + uri, error);
+            throw new IllegalStateException("Desktop browser is available but failed to open URL: " + uri, error);
         }
     }
 }
