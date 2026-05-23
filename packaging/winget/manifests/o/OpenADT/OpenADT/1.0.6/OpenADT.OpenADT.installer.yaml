@@ -9,7 +9,7 @@ NestedInstallerFiles:
 Installers:
   - Architecture: x64
     InstallerUrl: https://github.com/abapify/openadt/releases/download/v1.0.6/openadt-1.0.6.zip
-    InstallerSha256: 640877884535E22BD43502059D6B225F040F7B27EFCCD854D4FE1E10A1688356
+    InstallerSha256: 5BDF9BC280065B729166B08F30F5284BD0CC5FADF07BB34A7B5E03C4144E2539
 Commands:
   - openadt
 Dependencies:
