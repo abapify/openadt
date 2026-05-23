@@ -4,9 +4,9 @@ class Openadt < Formula
   license "Apache-2.0"
 
   # Stable: prebuilt zip from GitHub Releases (sha256 updated by package:release on v1.0.1).
-  STABLE = "1.0.9"
+  STABLE = "1.0.10"
   url "https://github.com/abapify/openadt/releases/download/v#{STABLE}/openadt-#{STABLE}.zip"
-  sha256 "e5378fe3b06bd372c15e7f82079ffe5001050fb050b7d18b02cf55174b368c11"
+  sha256 "PLACEHOLDER_RUN_PACKAGE_RELEASE"
   version STABLE
 
   head "https://github.com/abapify/openadt.git", branch: "main"
