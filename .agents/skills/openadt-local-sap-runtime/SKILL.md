@@ -1,11 +1,13 @@
 ---
 name: openadt-local-sap-runtime
-description: Use when working on OpenADT setup, fetch, proxy, or live SAP validation against a real local SAP GUI, NWBC, JCo, SNC, and Secure Login installation.
+description: Use when working on OpenADT setup, fetch, proxy, or live SAP validation on Windows, Linux, or macOS — with or without the full JCo/SNC/Secure Login stack.
 ---
 
 # OpenADT Local SAP Runtime
 
-Knowledge base for making **fetch** and **proxy** work like Eclipse ADT on a real Windows (or WSL-detected) SAP stack.
+Knowledge base for making **fetch** and **proxy** work like Eclipse ADT when the full SAP stack is present, or for lighter setups (HTTP ticket, basic localhost proxy) when it is not.
+
+**Platforms:** Windows (`sapjco3.dll`), Linux (`libsapjco3.so`), macOS (`libsapjco3.dylib`). JCo + `sapcrypto` + Secure Login are **optional** unless the destination uses SNC SSO or SDK transport.
 
 ## MVP CLI surface
 

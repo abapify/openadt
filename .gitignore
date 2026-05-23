@@ -47,6 +47,12 @@ yarn.lock
 .devcontainer/openadt-config.toml
 .devcontainer/*.openadt.toml
 tmp/
+packaging/dist/
+packaging/windows/launcher/bin/
+packaging/windows/launcher/obj/
+*.pdb
+*.deps.json
+*.runtimeconfig.json
 
 .nx/installation
 .nx/cache

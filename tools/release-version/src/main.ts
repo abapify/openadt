@@ -1,0 +1,258 @@
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
+import { join, resolve } from "node:path";
+import { spawnSync } from "node:child_process";
+
+const root = resolve(import.meta.dir, "../../..");
+const bumpArg = process.argv
+  .find((a) => a.startsWith("--bump="))
+  ?.split("=")[1];
+const prereleaseId =
+  process.argv.find((a) => a.startsWith("--prerelease-id="))?.split("=")[1] ??
+  "rc";
+
+if (!bumpArg) {
+  console.error(
+    "Usage: bun tools/release-version/src/main.ts --bump=patch|minor|major|...",
+  );
+  process.exit(1);
+}
+
+type SemVer = {
+  major: number;
+  minor: number;
+  patch: number;
+  prerelease: string[];
+};
+
+const BUMP_TYPES = new Set([
+  "major",
+  "minor",
+  "patch",
+  "prerelease",
+  "premajor",
+  "preminor",
+  "prepatch",
+]);
+
+if (!BUMP_TYPES.has(bumpArg)) {
+  console.error(`Unknown bump type: ${bumpArg}`);
+  process.exit(1);
+}
+
+function parseVersion(raw: string): SemVer {
+  const cleaned = raw.trim().replace(/^v/i, "");
+  const match = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/.exec(cleaned);
+  if (!match) {
+    throw new Error(`Invalid semver: ${raw}`);
+  }
+  const prerelease = match[4] ? match[4].split(".") : [];
+  return {
+    major: Number(match[1]),
+    minor: Number(match[2]),
+    patch: Number(match[3]),
+    prerelease,
+  };
+}
+
+function formatVersion(v: SemVer): string {
+  const core = `${v.major}.${v.minor}.${v.patch}`;
+  return v.prerelease.length > 0 ? `${core}-${v.prerelease.join(".")}` : core;
+}
+
+function bumpVersion(current: SemVer, bump: string, preId: string): SemVer {
+  const next: SemVer = {
+    major: current.major,
+    minor: current.minor,
+    patch: current.patch,
+    prerelease: [...current.prerelease],
+  };
+  const hasPre = next.prerelease.length > 0;
+
+  switch (bump) {
+    case "major":
+      next.major += 1;
+      next.minor = 0;
+      next.patch = 0;
+      next.prerelease = [];
+      break;
+    case "premajor":
+      next.major += 1;
+      next.minor = 0;
+      next.patch = 0;
+      next.prerelease = [preId, "1"];
+      break;
+    case "minor":
+      next.minor += 1;
+      next.patch = 0;
+      next.prerelease = [];
+      break;
+    case "preminor":
+      next.minor += 1;
+      next.patch = 0;
+      next.prerelease = [preId, "1"];
+      break;
+    case "patch":
+      if (hasPre) {
+        next.prerelease = [];
+      } else {
+        next.patch += 1;
+        next.prerelease = [];
+      }
+      break;
+    case "prepatch":
+      next.patch += 1;
+      next.prerelease = [preId, "1"];
+      break;
+    case "prerelease":
+      if (!hasPre) {
+        next.patch += 1;
+        next.prerelease = [preId, "1"];
+      } else {
+        next.prerelease = incrementNumericPrerelease(next.prerelease);
+      }
+      break;
+    default:
+      throw new Error(`Unhandled bump: ${bump}`);
+  }
+  return next;
+}
+
+function incrementNumericPrerelease(parts: string[]): string[] {
+  const copy = [...parts];
+  for (let i = copy.length - 1; i >= 0; i -= 1) {
+    if (/^\d+$/.test(copy[i])) {
+      copy[i] = String(Number(copy[i]) + 1);
+      return copy;
+    }
+  }
+  copy.push("1");
+  return copy;
+}
+
+function latestGitTag(): string | null {
+  const result = spawnSync("git", ["tag", "-l", "v*", "--sort=-v:refname"], {
+    cwd: root,
+    encoding: "utf8",
+  });
+  if (result.status !== 0) {
+    throw new Error(`git tag failed: ${result.stderr}`);
+  }
+  const tag = result.stdout
+    .split(/\r?\n/)
+    .find((line) => line.trim().length > 0);
+  return tag?.trim() ?? null;
+}
+
+function readPomBaselineVersion(): SemVer {
+  const pomPath = join(root, "apps/openadt-cli/pom.xml");
+  const pom = readFileSync(pomPath, "utf8");
+  const match = /<version>([^<]+)<\/version>/.exec(pom);
+  if (!match) {
+    throw new Error(`Could not read version from ${pomPath}`);
+  }
+  return parseVersion(match[1].trim().replace(/-SNAPSHOT$/, ""));
+}
+
+function writePomVersion(version: string): void {
+  const pomPath = join(root, "apps/openadt-cli/pom.xml");
+  const pom = readFileSync(pomPath, "utf8");
+  const parentEnd = pom.indexOf("</parent>");
+  const searchFrom = parentEnd >= 0 ? parentEnd + "</parent>".length : 0;
+  const openTag = pom.indexOf("<version>", searchFrom);
+  const closeTag = pom.indexOf("</version>", openTag);
+  if (openTag < 0 || closeTag < 0) {
+    throw new Error(`Could not update project version in ${pomPath}`);
+  }
+  const updated = `${pom.slice(0, openTag)}<version>${version}</version>${pom.slice(closeTag + "</version>".length)}`;
+  writeFileSync(pomPath, updated);
+}
+
+function listWingetVersionDirs(): string[] {
+  const base = join(root, "packaging/winget/manifests/o/OpenADT/OpenADT");
+  if (!existsSync(base)) {
+    return [];
+  }
+  return readdirSync(base, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort((a, b) => {
+      try {
+        return (
+          parseVersion(b).major - parseVersion(a).major ||
+          parseVersion(b).minor - parseVersion(a).minor ||
+          parseVersion(b).patch - parseVersion(a).patch
+        );
+      } catch {
+        return b.localeCompare(a);
+      }
+    });
+}
+
+function syncWingetManifests(version: string, templateVersion: string): void {
+  const base = join(root, "packaging/winget/manifests/o/OpenADT/OpenADT");
+  const templateDir = join(base, templateVersion);
+  const targetDir = join(base, version);
+  if (!existsSync(templateDir)) {
+    throw new Error(`Winget template folder missing: ${templateDir}`);
+  }
+  mkdirSync(targetDir, { recursive: true });
+  for (const file of readdirSync(templateDir)) {
+    const from = join(templateDir, file);
+    const to = join(targetDir, file.replaceAll(templateVersion, version));
+    let content = readFileSync(from, "utf8");
+    content = content.replaceAll(templateVersion, version);
+    writeFileSync(to, content);
+  }
+}
+
+function updateHomebrew(version: string): void {
+  const formulaPath = join(root, "packaging/homebrew/openadt.rb");
+  let formula = readFileSync(formulaPath, "utf8");
+  formula = formula.replace(/STABLE = "[^"]+"/, `STABLE = "${version}"`);
+  formula = formula.replace(
+    /sha256 "[^"]+"/,
+    'sha256 "PLACEHOLDER_RUN_PACKAGE_RELEASE"',
+  );
+  formula = formula.replace(
+    /# Stable: prebuilt zip from GitHub Releases \(sha256 updated by `bun run package:release`\)\./,
+    `# Stable: prebuilt zip from GitHub Releases (sha256 updated by package:release on v${version}).`,
+  );
+  writeFileSync(formulaPath, formula);
+}
+
+function writeGithubOutput(version: string): void {
+  const output = process.env.GITHUB_OUTPUT;
+  if (!output) {
+    return;
+  }
+  writeFileSync(output, `version=${version}\ntag=v${version}\n`, { flag: "a" });
+}
+
+const latestTag = latestGitTag();
+const baseVersion = latestTag
+  ? parseVersion(latestTag)
+  : readPomBaselineVersion();
+
+const nextVersion = formatVersion(
+  bumpVersion(baseVersion, bumpArg, prereleaseId),
+);
+
+writePomVersion(nextVersion);
+
+const wingetVersions = listWingetVersionDirs();
+const wingetTemplate = wingetVersions.at(0) ?? "1.0.0";
+if (wingetTemplate !== nextVersion) {
+  syncWingetManifests(nextVersion, wingetTemplate);
+}
+
+updateHomebrew(nextVersion);
+
+console.log(`Release version: ${nextVersion}`);
+console.log(`Tag: v${nextVersion}`);
+writeGithubOutput(nextVersion);

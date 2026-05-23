@@ -94,13 +94,13 @@ This detector is installation-only and does not add placeholder system profiles.
 
 ### RuntimeDetector
 
-Detects runtime prerequisites needed for ADT SDK and RFC calls.
+Detects optional runtime prerequisites for ADT SDK and RFC calls. Missing JCo or `sapcrypto` does not fail setup; destinations can still be written for manual or HTTP-based auth.
 
 Lookup paths:
 
 - JCo jars from user Eclipse / p2 plugin pools
-- JCo native libraries from common user directories
-- `sapcrypto.dll` from SAP Secure Login installation
+- JCo native libraries: `sapjco3.dll`, `libsapjco3.so`, or `libsapjco3.dylib`
+- CryptoLib: `sapcrypto.dll`, `libsapcrypto.so`, `libsapcrypto.dylib`, or SAP Secure Login install paths
 - staged devcontainer runtime under `./.devcontainer/dist/` as fallback
 
 Fills:
@@ -129,9 +129,9 @@ Sets `source = "saprules"`.
 
 ### SecureLoginDetector
 
-Probes the SAP Secure Login Client local security hub at `https://127.0.0.1:34443`.
+Probes the SAP Secure Login Client local security hub at `https://127.0.0.1:34443` when installed.
 
-Does not produce system profiles. Returns `secureLogin.local_security_hub` when reachable.
+Optional. Does not produce system profiles. Returns `secureLogin.local_security_hub` when reachable.
 
 Timeout: 2 seconds.
 

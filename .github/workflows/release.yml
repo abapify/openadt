@@ -1,0 +1,132 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_bump:
+        description: Semantic version bump (from latest v* tag, or pom baseline)
+        required: true
+        type: choice
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
+          - prerelease
+          - prepatch
+          - preminor
+          - premajor
+      prerelease_id:
+        description: Pre-release identifier (rc, beta, alpha)
+        required: true
+        type: choice
+        default: rc
+        options:
+          - rc
+          - beta
+          - alpha
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    name: Bump version files
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
+      tag: ${{ steps.bump.outputs.tag }}
+      bump_sha: ${{ steps.bump_commit.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: oven-sh/setup-bun@v2
+
+      - run: bun install --frozen-lockfile
+
+      - name: Compute next version and update repo files
+        id: bump
+        run: |
+          bun tools/release-version/src/main.ts \
+            --bump="${{ inputs.version_bump }}" \
+            --prerelease-id="${{ inputs.prerelease_id }}"
+
+      - name: Commit version bump (no tag yet)
+        id: bump_commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/openadt-cli/pom.xml packaging/
+          if git diff --cached --quiet; then
+            echo "No version changes to commit."
+            exit 1
+          fi
+          git commit -m "chore(release): prepare ${{ steps.bump.outputs.tag }}"
+          git push origin HEAD:${{ github.ref_name }}
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: Build, tag, and publish release
+    needs: bump
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.bump.outputs.bump_sha }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: oven-sh/setup-bun@v2
+
+      - run: bun install --frozen-lockfile
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "8.0.x"
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+          check-latest: true
+
+      - name: Build distribution jar
+        shell: bash
+        run: |
+          cd apps/openadt-cli
+          ./mvnw -q -Pdistribution package -Dmaven.test.skip=true
+
+      - name: Package zip and refresh winget or homebrew checksums
+        env:
+          OPENADT_PACKAGE_WIN_EXE: "1"
+        run: bun run package:release -- --version=${{ needs.bump.outputs.version }}
+
+      - name: Commit checksums, create tag, push
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packaging/
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(release): checksums for ${{ needs.bump.outputs.tag }}"
+          fi
+          git tag "${{ needs.bump.outputs.tag }}"
+          git push origin HEAD:${{ github.ref_name }}
+          git push origin "${{ needs.bump.outputs.tag }}"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ needs.bump.outputs.tag }}
+          name: ${{ needs.bump.outputs.tag }}
+          files: |
+            packaging/dist/openadt-${{ needs.bump.outputs.version }}.zip
+            packaging/dist/openadt-${{ needs.bump.outputs.version }}.zip.sha256
+          generate_release_notes: true

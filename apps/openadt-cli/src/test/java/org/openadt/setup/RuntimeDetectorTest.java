@@ -56,6 +56,30 @@ class RuntimeDetectorTest {
     }
 
     @Test
+    void detectsMacOsNativeLibraries(@TempDir Path tempDir) throws IOException {
+        Path pluginsDir = tempDir.resolve("plugins");
+        Files.createDirectories(pluginsDir);
+        Files.writeString(pluginsDir.resolve("com.sap.conn.jco_3.1.13.jar"), "");
+
+        Path nativeDir = tempDir.resolve("jco-native");
+        Files.createDirectories(nativeDir);
+        Files.writeString(nativeDir.resolve("libsapjco3.dylib"), "");
+        Files.writeString(nativeDir.resolve("libsapcrypto.dylib"), "");
+
+        RuntimeDetector detector = new RuntimeDetector(
+            List.of(pluginsDir),
+            List.of(tempDir),
+            List.of()
+        );
+
+        OpenAdtConfig.RuntimeConfig runtime = detector.detect();
+
+        assertNotNull(runtime);
+        assertEquals(nativeDir.toString(), runtime.getJcoNativeDir());
+        assertEquals(nativeDir.resolve("libsapcrypto.dylib").toString(), runtime.getSapcrypto());
+    }
+
+    @Test
     void skipsNestedDevcontainerDistWhenScanningBroaderHostRoots(@TempDir Path tempDir) throws IOException {
         String originalUserDir = System.getProperty("user.dir");
         Path repoRoot = tempDir.resolve("repo");

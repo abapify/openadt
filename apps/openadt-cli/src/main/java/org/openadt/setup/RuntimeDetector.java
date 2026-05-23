@@ -131,7 +131,7 @@ public class RuntimeDetector {
     }
 
     private Optional<Path> findJcoNativeLibrary() {
-        List<String> names = List.of("sapjco3.dll", "libsapjco3.so");
+        List<String> names = List.of("sapjco3.dll", "libsapjco3.so", "libsapjco3.dylib");
         Optional<Path> match = findFirstMatch(nativeSearchRoots, names, 8);
         if (match.isPresent()) {
             return match;
@@ -145,7 +145,11 @@ public class RuntimeDetector {
                 return Optional.of(candidate);
             }
         }
-        return findFirstMatch(nativeSearchRoots, List.of("sapcrypto.dll", "libsapcrypto.so"), 6);
+        return findFirstMatch(
+            nativeSearchRoots,
+            List.of("sapcrypto.dll", "libsapcrypto.so", "libsapcrypto.dylib"),
+            6
+        );
     }
 
     private Optional<Path> findAdtPluginsDir() {

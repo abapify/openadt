@@ -2,34 +2,36 @@
 
 This guide explains how to install, configure, and use OpenADT on a developer workstation.
 
-OpenADT is a local bridge for SAP ADT traffic. It is designed for systems where Eclipse ADT works through SAP ADT SDK, SAP JCo, SNC, and SAP Secure Login Client, while another local tool needs a simple CLI or localhost HTTP endpoint.
+OpenADT is a local bridge for SAP ADT traffic on **Windows, Linux, and macOS**. Another local tool (curl, an IDE plugin, a script) can call `openadt fetch` or a localhost `openadt proxy` instead of speaking SAP authentication protocols directly.
 
-OpenADT does not include SAP software. SAP JCo, SAP ADT plugins, SAP CryptoLib, SAP Secure Login Client, and landscape data must come from the user's licensed local installation.
+OpenADT does not include SAP software. Licensed SAP JCo, ADT plugins, CryptoLib, Secure Login Client, and landscape data come from the user's machine or organization.
 
-## Recommended Runtime Shape
+## Supported Platforms
 
-For SNC SSO, run `openadt fetch` and `openadt proxy` on the OS that owns the native SAP libraries and Secure Login credentials.
+| OS      | `openadt setup`                                                    | `openadt fetch` / `openadt proxy`                              |
+| ------- | ------------------------------------------------------------------ | -------------------------------------------------------------- |
+| Windows | Detects SAP GUI / NWBC / Eclipse paths                             | Native `sapjco3.dll`, `sapcrypto.dll`                          |
+| Linux   | Detects staged or user paths; WSL can read `/mnt/c/...` for config | Native `libsapjco3.so`, `libsapcrypto.so`                      |
+| macOS   | Detects `~/Library/Application Support/SAP/...` landscape files    | Native `libsapjco3.dylib`, `libsapcrypto.dylib` when installed |
 
-Typical Windows setup:
+Run runtime commands on the OS that owns the native SAP libraries. WSL and devcontainers can prepare config, but Linux Java cannot load Windows DLLs.
 
-- SAP GUI / SAP Business Client are installed on Windows.
-- Eclipse ADT is installed on Windows and has a working connection.
-- SAP Secure Login Client is installed and can log in on Windows.
-- OpenADT runtime commands run with Windows Java.
-- WSL or a devcontainer may detect and prepare config, but should not be treated as equivalent to Windows-native SNC execution.
+## SAP Runtime: Optional, Not Mandatory
 
-Typical Linux setup:
+OpenADT **supports** the full Eclipse-style stack — SAP ADT SDK plugins, JCo, CryptoLib (`sapcrypto`), SNC, and SAP Secure Login Client — and `openadt setup` auto-detects it when present.
 
-- Linux JCo native library is available as `libsapjco3.so`.
-- Linux CryptoLib is available as `libsapcrypto.so`.
-- `SECUDIR` contains Linux-visible PSE and credential material.
-- OpenADT runtime commands run with Linux Java.
+That stack is **not required for every installation**:
 
-Devcontainer setup is useful for future Linux-native workflows and reproducible development. It is not currently the reliable path for Windows Secure Login Client SNC SSO, because Windows in-memory or Windows-token-store credentials do not automatically become Linux container credentials.
+- **SNC SSO** needs JCo, the matching native library, and `sapcrypto` on the host OS. Secure Login Client is common in corporate landscapes but not the only credential source (for example Linux `SECUDIR` with PSE material).
+- **`rest-rfc`** needs JCo (and SNC artifacts when the destination uses SNC).
+- **`http`** transport can work with a configured `discovery_url` and `MYSAPSSO2` ticket source without JCo.
+- **Proxy `--local-auth basic`** only protects the localhost listener; it is unrelated to SAP logon and does not require JCo.
 
-## Install Prerequisites On Windows
+A basic or password-based SAP destination in config is a valid choice when your landscape allows it. Prefer the full stack when you need parity with Eclipse ADT and SNC SSO.
 
-Install general tools with `winget`:
+## Install Build Tools
+
+### Windows (`winget`)
 
 ```powershell
 winget install --id EclipseAdoptium.Temurin.21.JDK --source winget
@@ -38,34 +40,60 @@ winget install --id Git.Git --source winget
 winget install --id Oven-sh.Bun --source winget
 ```
 
-Then install SAP prerequisites from SAP or your organization:
-
-- SAP GUI for Windows or SAP Business Client
-- SAP Secure Login Client
-- Eclipse with ABAP Development Tools
-- SAP JCo 3.x for the OS where runtime commands will execute
-- SAP CryptoLib / `sapcrypto`
-
-Verify Java and Maven:
+Verify:
 
 ```powershell
 java -version
 mvn -version
 ```
 
+### Linux and macOS (Homebrew)
+
+Install [Homebrew](https://brew.sh/) if needed. On Linux, use the Linuxbrew install path from the Homebrew site; the same `brew` commands apply on macOS.
+
+```bash
+brew install openjdk@21 maven git oven-sh/bun/bun
+```
+
+Verify:
+
+```bash
+java -version
+mvn -version
+```
+
 Use JDK 17 or JDK 21 for development and tests. Java versions newer than the dependency toolchain may break test-time bytecode instrumentation in some environments.
 
-## Install OpenADT Today
+## Install SAP Prerequisites (when needed)
 
-Until an official release package is published, build from source.
+Install from SAP or your organization only for the authentication path you use:
 
-```powershell
+| Component                      | When you need it                               |
+| ------------------------------ | ---------------------------------------------- |
+| SAP GUI / NWBC / Eclipse ADT   | Helpful for `openadt setup` auto-detection     |
+| SAP JCo 3.x (jar + native lib) | `sdk` or `rest-rfc` transport                  |
+| SAP CryptoLib / `sapcrypto`    | SNC-enabled destinations                       |
+| SAP Secure Login Client        | Common for Windows SNC SSO; optional otherwise |
+
+**Windows:** SAP GUI or SAP Business Client, Eclipse with ABAP Development Tools, optional Secure Login Client.
+
+**Linux:** `libsapjco3.so`, `libsapcrypto.so`, and Linux-visible `SECUDIR` when using SNC SSO.
+
+**macOS:** `libsapjco3.dylib`, `libsapcrypto.dylib`, Eclipse/ADT or manual config under `~/Library/Application Support/SAP/`.
+
+Devcontainer setup is useful for reproducible Linux-native development. It is not a substitute for Windows Secure Login credentials inside a Linux container when the usable PSE lives only in a Windows token store.
+
+## Install OpenADT Today (build from source)
+
+When winget/Homebrew packages are not published yet, build from source on any supported OS.
+
+```bash
 git clone https://github.com/abapify/openadt.git
-cd openadt\apps\openadt-cli
+cd openadt/apps/openadt-cli
 mvn package -DskipTests
 ```
 
-Create a small launcher directory:
+### Windows launcher
 
 ```powershell
 New-Item -ItemType Directory -Force C:\Tools\OpenADT | Out-Null
@@ -85,47 +113,64 @@ java -jar C:\Tools\OpenADT\openadt.jar @OpenAdtArgs
 exit $LASTEXITCODE
 ```
 
-Add the launcher to your user `PATH`:
+Add `C:\Tools\OpenADT\bin` to your user `PATH`, open a new terminal, and run `openadt --help`.
 
-```powershell
-[Environment]::SetEnvironmentVariable(
-  'Path',
-  [Environment]::GetEnvironmentVariable('Path', 'User') + ';C:\Tools\OpenADT\bin',
-  'User'
-)
+### Linux and macOS launcher
+
+```bash
+mkdir -p "$HOME/.local/share/openadt" "$HOME/.local/bin"
+cp target/openadt-1.0.0-SNAPSHOT.jar "$HOME/.local/share/openadt/openadt.jar"
+cat > "$HOME/.local/bin/openadt" <<'EOF'
+#!/usr/bin/env bash
+exec java -jar "$HOME/.local/share/openadt/openadt.jar" "$@"
+EOF
+chmod +x "$HOME/.local/bin/openadt"
 ```
 
-Open a new terminal and verify:
+Ensure `$HOME/.local/bin` is on your `PATH`, then run `openadt --help`.
+
+## Install OpenADT (winget / Homebrew)
+
+### Windows — winget
+
+Releases are published from the manual **Release** GitHub Actions workflow (choose `patch` / `minor` / `major` / prerelease bump, then the workflow tags `vX.Y.Z` and uploads assets).
 
 ```powershell
+winget install --id OpenADT.OpenADT
 openadt --help
 ```
 
-## Future Winget Package
-
-The clean Windows distribution target is a GitHub release ZIP plus a winget manifest.
-
-Expected user flow after publishing:
+From this repository (after `bun run package:release`):
 
 ```powershell
-winget install --id OpenADT.OpenADT --source winget
-openadt --help
+winget install --manifest packaging\winget\manifests -e --id OpenADT.OpenADT
 ```
 
-Expected update and uninstall:
+Update and uninstall:
 
 ```powershell
-winget upgrade --id OpenADT.OpenADT --source winget
+winget upgrade --id OpenADT.OpenADT
 winget uninstall --id OpenADT.OpenADT
 ```
 
-Winget should install only OpenADT files:
+Winget installs only OpenADT (`openadt.jar`, `openadt.cmd`, `openadt.ps1`, license). It does not install SAP JCo, ADT plugins, Secure Login, SAP GUI, CryptoLib, or landscape data.
 
-- `openadt.jar`
-- `openadt.ps1` or `openadt.cmd` launcher
-- license and notices
+### Linux and macOS — Homebrew
 
-Winget must not install, download, or redistribute SAP JCo, SAP ADT plugins, SAP Secure Login Client, SAP GUI, CryptoLib, private config, tickets, cookies, or landscape data.
+From GitHub `main` (builds the distribution jar with Maven):
+
+```bash
+brew install --HEAD --formula packaging/homebrew/openadt.rb
+openadt --help
+```
+
+From a published release zip (after `v1.0.0` is on GitHub Releases):
+
+```bash
+brew install --formula packaging/homebrew/openadt.rb
+```
+
+See [packaging/README.md](../packaging/README.md) for maintainers (`package:release`, manifest validation).
 
 ## First Setup
 
@@ -317,7 +362,7 @@ Then provide the ticket through an environment variable or a local-only config f
 $env:OPENADT_MYSAPSSO2 = "<ticket-value>"
 ```
 
-Prefer SDK mode for normal SAP GUI / Eclipse ADT / Secure Login Client setups.
+Prefer SDK mode when Eclipse ADT and the JCo/SNC stack are available. Use `http` or password-based config when that matches your landscape.
 
 ## WSL Usage
 

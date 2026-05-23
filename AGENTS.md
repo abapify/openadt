@@ -22,4 +22,33 @@ Read specs first, prefer TDD, keep SAP binaries external, never commit private S
 
 ## Skills
 
-- .agents/skills/ — Reusable agent skills for common tasks
+Reusable workflows: **`.agents/skills/<name>/`** — `SKILL.md` plus optional helpers (e.g. `act/resolve-open-threads.sh`). Index: `.agents/skills/README.md`. Copilot also reads `.github/copilot-instructions.md`.
+
+| Skill                               | Trigger                                                         |
+| ----------------------------------- | --------------------------------------------------------------- |
+| `act`                               | `/act` on a PR — fix review in code first, then resolve threads |
+| `openadt-local-sap-runtime`         | SAP runtime, fetch, proxy, setup                                |
+| `openadt-devcontainer-host-runtime` | Devcontainer / WSL vs host                                      |
+
+**GitHub Copilot** (cloud agent): `.github/copilot-instructions.md` for Copilot-only `/act` rules (MCP, firewall).
+
+**OpenAI Codex** (cloud on GitHub): reads this file and `.agents/skills/act/SKILL.md` for `@codex /act` — use the shared skill, not Copilot instructions.
+
+**Cursor** and other agents: `.agents/skills/<name>/SKILL.md`; global copies may exist under `~/.agents/skills/`.
+
+## Cloud agents on GitHub (`@codex /act`, `@claude /act`)
+
+**`/act` is not “resolve all threads”.** It means: implement review feedback in **product code**, reply in each thread, **then** resolve.
+
+Follow [`.agents/skills/act/SKILL.md`](.agents/skills/act/SKILL.md):
+
+1. List every **open** review thread and what change each requires.
+2. Fix CI (P0), then **code + in-thread reply** for P1–P3 on each thread.
+3. Only then run `resolve-open-threads.sh` (P4).
+4. Never claim merge-ready if you only closed conversations without product commits addressing the comments.
+
+Phrases like “address review comments” still mean **full `/act`** (code fixes first), not resolve-only.
+
+**Do not** use GitHub Copilot SWE rules (read-only MCP, Playwright) unless you are Copilot.
+
+If resolve fails (`gh auth` or GraphQL error), report it and list open thread URLs; still complete code/CI fixes.
