@@ -24,7 +24,7 @@ openadt setup
 openadt proxy DEV --listen 127.0.0.1:8080
 
 # Fetch a single ADT resource
-openadt fetch DEV /sap/bc/adt/core/http/systeminformation --json
+openadt fetch DEV /sap/bc/adt/core/http/systeminformation --pretty --raw
 ```
 
 For installation (winget on Windows, Homebrew on Linux/macOS), optional SAP runtime, WSL/devcontainer limits, proxy configuration, and troubleshooting, see the full [OpenADT Usage Guide](docs/usage.md).
@@ -51,7 +51,7 @@ For WSL-native SAP runtime checks, use the repo-local wrapper:
 OPENADT_CONFIG="$(pwd)/tmp/wsl-openadt-config.toml" \
   ./scripts/openadt-wsl-env \
   java -jar apps/openadt-cli/target/openadt-1.0.0-SNAPSHOT.jar \
-  fetch DEV /sap/bc/adt/core/http/systeminformation --json
+  fetch DEV /sap/bc/adt/core/http/systeminformation --pretty --raw
 ```
 
 This wrapper:
@@ -127,7 +127,7 @@ ADT requests are forwarded through the configured ADT transport. The preferred p
 ```
 openadt setup [--check] [--config <path>]
 openadt proxy <system> [--listen <host:port>] [--local-auth basic] [--local-password <pwd>]
-openadt fetch <system> <url-or-path> [--method GET] [--header "Name: Value"] [--json] [--include] [--fail] [--body @file] [--output <file>]
+openadt fetch <system> <url-or-path> [--method GET] [--header "Name: Value"] [--pretty] [--raw] [--include] [--fail] [--body @file] [--output <file>]
 ```
 
 See [`specs/cli.md`](specs/cli.md) for the full CLI contract.

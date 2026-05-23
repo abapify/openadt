@@ -164,9 +164,9 @@ Behavior:
 Fetch a single ADT resource via the configured ADT transport.
 
 ```bash
-openadt fetch DEV /sap/bc/adt/core/http/systeminformation --json
-openadt fetch DEV /sap/bc/adt/core/discovery
-openadt fetch DEV /sap/bc/adt/core/discovery --accept application/atomsvc+xml
+openadt fetch DEV /sap/bc/adt/core/http/systeminformation --pretty
+openadt fetch DEV /sap/bc/adt/core/discovery --pretty
+openadt fetch DEV /sap/bc/adt/core/http/systeminformation --pretty --raw
 openadt fetch DEV /sap/bc/adt/example --method POST --body @request.xml --header "Content-Type: application/xml"
 ```
 
@@ -184,8 +184,8 @@ Options:
 - `--output, -o <file>` — Write response body to file
 - `--include, -i` — Include response status line and headers in output
 - `--fail, -f` — Exit nonzero for HTTP status >= 400
-- `--json` — Pretty-print JSON response body (stdout only; no status tips on stderr)
-- `--raw` — Write only response body bytes (binary-safe; no status tips on stderr)
+- `--pretty` — Pretty-print JSON or XML response body
+- `--raw` — Body only on stdout; no proxy/tip messages on stderr (for scripting; combine with `--pretty`)
 - `--direct` — Call SAP via SDK/JCo even when a local `openadt proxy` is running
 - `--config, -c <path>` — Config file path (default load order: `./.openadt/config.toml`, then `~/.openadt/config.toml`)
 
@@ -197,8 +197,9 @@ Behavior:
 - `--output <file>` writes response body bytes
 - `--include` prints status and headers before body
 - `--fail` exits nonzero for HTTP status >= 400
-- `--json` pretty-prints JSON responses to stdout without proxy/tip messages on stderr
-- `--raw` writes only response body bytes without proxy/tip messages on stderr
+- `--pretty` auto-formats JSON and XML for human reading
+- `--raw` writes only the response body to stdout with no proxy/tip messages on stderr
+- `--pretty --raw` is the usual scripting combo (formatted body, clean stdout)
 - Output is binary-safe
 - `OPENADT_CONFIG` overrides default config lookup
 

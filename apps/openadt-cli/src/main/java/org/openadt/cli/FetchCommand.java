@@ -8,6 +8,7 @@ import org.openadt.core.LocalProxyRegistry;
 import org.openadt.core.OpenAdtConfig;
 import org.openadt.core.ProxyRequest;
 import org.openadt.core.ProxyResponse;
+import org.openadt.core.ResponseBodyFormatter;
 import org.openadt.core.SystemProfile;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -58,10 +59,10 @@ public class FetchCommand implements Callable<Integer> {
     @Option(names = {"--fail", "-f"}, description = "Exit nonzero for HTTP status >= 400")
     private boolean fail;
 
-    @Option(names = {"--json"}, description = "Pretty-print JSON response body")
-    private boolean json;
+    @Option(names = {"--pretty"}, description = "Pretty-print JSON or XML response body")
+    private boolean pretty;
 
-    @Option(names = {"--raw"}, description = "Write only response body bytes (no headers)")
+    @Option(names = {"--raw"}, description = "Body only on stdout; no proxy/tip messages on stderr")
     private boolean raw;
 
     @Option(names = {"--config", "-c"}, description = "Config file path")
@@ -88,7 +89,7 @@ public class FetchCommand implements Callable<Integer> {
         byte[] requestBody = resolveBody(body);
         AdtTransportClient transportClient;
         try {
-            if (!isQuietOutput()) {
+            if (!raw) {
                 if (!direct && LocalProxyRegistry.findActive(system.getAlias()).isPresent()) {
                     System.err.println("Using local openadt proxy for " + system.getAlias());
                 } else if (!direct) {
@@ -157,10 +158,6 @@ public class FetchCommand implements Callable<Integer> {
         return false;
     }
 
-    private boolean isQuietOutput() {
-        return json || raw;
-    }
-
     private byte[] resolveBody(String bodyArg) throws IOException {
         if (bodyArg == null) return new byte[0];
         if (bodyArg.startsWith("@")) {
@@ -171,26 +168,24 @@ public class FetchCommand implements Callable<Integer> {
 
     private void writeOutput(ProxyResponse response) throws IOException {
         byte[] responseBody = response.body() != null ? response.body() : new byte[0];
+        byte[] outBody = pretty
+            ? ResponseBodyFormatter.format(response.headers(), responseBody)
+            : responseBody;
 
         if (output != null) {
-            if (include) {
+            if (include && !raw) {
                 printStatusAndHeaders(response, System.out);
             }
-            Files.write(output, responseBody);
-        } else if (raw) {
+            Files.write(output, outBody);
+            return;
+        }
+
+        if (include && !raw) {
+            printStatusAndHeaders(response, System.out);
+        }
+        if (outBody.length > 0) {
+            System.out.write(outBody);
             System.out.flush();
-            System.out.write(responseBody);
-            System.out.flush();
-        } else {
-            if (include) {
-                printStatusAndHeaders(response, System.out);
-            }
-            if (json && responseBody.length > 0) {
-                System.out.println(prettyPrintJson(new String(responseBody, StandardCharsets.UTF_8)));
-            } else if (responseBody.length > 0) {
-                System.out.write(responseBody);
-                System.out.flush();
-            }
         }
     }
 
@@ -203,43 +198,6 @@ public class FetchCommand implements Callable<Integer> {
         }
         out.write(System.lineSeparator().getBytes(StandardCharsets.UTF_8));
         out.flush();
-    }
-
-    private String prettyPrintJson(String jsonText) {
-        // Simple indentation: insert newlines after { [ , and before } ]
-        // For production use, a JSON library would be preferable;
-        // this is a best-effort formatter for human-readable output.
-        StringBuilder sb = new StringBuilder();
-        int indent = 0;
-        boolean inString = false;
-        for (int i = 0; i < jsonText.length(); i++) {
-            char c = jsonText.charAt(i);
-            if (c == '"' && (i == 0 || jsonText.charAt(i - 1) != '\\')) {
-                inString = !inString;
-                sb.append(c);
-            } else if (inString) {
-                sb.append(c);
-            } else if (c == '{' || c == '[') {
-                sb.append(c);
-                sb.append('\n');
-                indent++;
-                sb.append("  ".repeat(indent));
-            } else if (c == '}' || c == ']') {
-                sb.append('\n');
-                indent--;
-                sb.append("  ".repeat(indent));
-                sb.append(c);
-            } else if (c == ',') {
-                sb.append(c);
-                sb.append('\n');
-                sb.append("  ".repeat(indent));
-            } else if (c == ':') {
-                sb.append(": ");
-            } else if (c != ' ' && c != '\n' && c != '\r' && c != '\t') {
-                sb.append(c);
-            }
-        }
-        return sb.toString();
     }
 
     private SystemProfile findSystem(OpenAdtConfig config, String alias) {
