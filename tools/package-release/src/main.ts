@@ -13,6 +13,7 @@ import { spawnSync } from "node:child_process";
 
 const root = resolve(import.meta.dir, "../../..");
 const cliDir = join(root, "apps/openadt-cli");
+const pomContent = readFileSync(join(cliDir, "pom.xml"), "utf8");
 
 const versionArg = process.argv
   .find((a) => a.startsWith("--version="))
@@ -20,8 +21,7 @@ const versionArg = process.argv
 const version = versionArg ?? process.env.OPENADT_VERSION ?? readPomVersion();
 
 function readPomVersion(): string {
-  const pom = readFileSync(join(cliDir, "pom.xml"), "utf8");
-  const match = /<version>([^<]+)<\/version>/.exec(pom);
+  const match = /<version>([^<]+)<\/version>/.exec(pomContent);
   if (!match) {
     throw new Error("Could not read version from pom.xml");
   }
@@ -29,8 +29,8 @@ function readPomVersion(): string {
 }
 
 const jarFile = (() => {
-  const pomVersion = readFileSync(join(cliDir, "pom.xml"), "utf8")
-    .match(/<version>([^<]+)<\/version>/)?.[1]
+  const pomVersion = /<version>([^<]+)<\/version>/
+    .exec(pomContent)?.[1]
     ?.trim();
   const name = pomVersion
     ? `openadt-${pomVersion}.jar`
@@ -58,6 +58,12 @@ function buildWindowsExe(target: string): void {
   });
   if (go.status === 0) {
     return;
+  }
+  if (go.stderr) {
+    const stderr = go.stderr.toString().trim();
+    if (stderr.length > 0) {
+      console.error(stderr);
+    }
   }
 
   const dotnet = spawnSync(

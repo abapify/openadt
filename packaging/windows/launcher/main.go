@@ -7,7 +7,11 @@ import (
 )
 
 func main() {
-	home, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	executablePath, err := os.Executable()
+	if err != nil {
+		os.Exit(1)
+	}
+	home, err := filepath.Abs(filepath.Dir(executablePath))
 	if err != nil {
 		os.Exit(1)
 	}
