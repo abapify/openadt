@@ -29,7 +29,7 @@ Winget installs only OpenADT (`openadt.jar` + launchers). It does not install SA
 From a git checkout:
 
 ```bash
-brew install --formula packaging/homebrew/openadt.rb
+brew install --HEAD --formula packaging/homebrew/openadt.rb
 ```
 
 After `v1.0.0` is tagged on GitHub, install from the release tarball URL in the formula (update `sha256` with `brew fetch --force openadt`).
