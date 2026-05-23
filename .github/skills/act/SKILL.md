@@ -2,83 +2,103 @@
 name: act
 description: >-
   Use when the user invokes /act on a PR/MR. Always run CI fixes, review fixes,
-  suggestions, then resolve handled threads. Keep working on code even if resolve
-  is blocked. Idempotent re-runs.
+  suggestions, then attempt resolve. Copilot often has read-only GitHub MCP only.
+  Idempotent re-runs.
 disable-model-invocation: true
 ---
 
 # /act
 
-Drive an open PR/MR toward merge-ready. **Default `/act` = all steps on** (CI → review → suggestions → resolve → summary).
-
-Re-runs must not duplicate commits or comments.
+Drive an open PR/MR toward merge-ready. **Default `/act` = all steps on** (CI → review → suggestions → resolve attempt → summary).
 
 ## Default scope (all on)
 
-| Step                                          | Required                |
-| --------------------------------------------- | ----------------------- |
-| P0 CI on HEAD                                 | yes                     |
-| P1–P3 review / suggestions                    | yes                     |
-| Reply in handled threads                      | yes                     |
-| **Resolve conversation** (current + outdated) | yes — attempt every run |
-| Closing summary                               | yes                     |
+| Step                       | Required |
+| -------------------------- | -------- |
+| P0 CI on HEAD              | yes      |
+| P1–P3 review / suggestions | yes      |
+| Resolve pass (attempt)     | yes      |
+| Closing summary            | yes      |
 
-**Never stop the whole `/act`** because resolve is hard. If resolve is blocked, still do P0–P3, then report open threads with links.
+**Never abort the whole `/act`** because resolve is blocked — still do P0–P3, then report what blocked resolve.
 
-**Do not use Playwright** for PR review, resolve, or GitHub UI. The browser is often blocked (`ERR_BLOCKED_BY_CLIENT`) and is out of scope for `/act`.
+**No Playwright** for GitHub PR UI (often `ERR_BLOCKED_BY_CLIENT`).
 
 ## Work order
 
-| P   | Tier                | Done when                                       |
-| --- | ------------------- | ----------------------------------------------- |
-| 0   | CI / merge blockers | Required checks green on HEAD (or re-run named) |
-| 1   | Blocking review     | Fix + in-thread reply + resolve                 |
-| 2   | Non-blocking review | Fix or reply + resolve                          |
-| 3   | Inline suggestions  | Apply/decline + resolve                         |
-| 4   | Hygiene             | If needed for readiness                         |
+| P   | Tier                 | Done when                                  |
+| --- | -------------------- | ------------------------------------------ |
+| 0   | CI / merge blockers  | Required checks green on HEAD              |
+| 1–3 | Review / suggestions | Fix or reply + resolve each handled thread |
+| 4   | Hygiene              | If needed                                  |
 
-Then **resolve pass** (below).
+## Copilot: check MCP tools first
 
-## Resolve pass (github-mcp-server only)
+At session start, read the **github-mcp-server tool list** from verbose logs.
 
-1. `pull_request_read` → `get_review_comments` → every `review_threads[]` with `is_resolved: false`.
-2. Per thread: in-thread reply (fix already on branch? cite commit) → **`pull_request_review_write`** with **`method: resolve_thread`** and **`threadId`** = thread **`id`** (`PRRT_…` from MCP).
-3. Re-fetch threads; report `resolved N`, `open M`.
+### Read-only MCP (~33 tools) — typical for `@copilot`
 
-**If `id` is missing on thread objects:** call **`pull_request_review_write` / `resolve_thread`** using any `PRRT_` id the tool docs expose, or list open threads in the summary with `html_url` for the author to resolve in the UI. **Do not open Playwright.**
+If the list includes `pull_request_read`, `actions_list`, … but **does NOT** include:
 
-Duplicate bot threads on the same issue: resolve **each** open thread after one fix.
+- `pull_request_review_write`
+- `add_pull_request_review_comment` (or `add_reply_to_pull_request_comment`)
+
+then the repo MCP is **read-only** (`https://api.githubcopilot.com/mcp/readonly`). The agent **cannot** call `resolve_thread` via MCP — not a skill bug.
+
+**With read-only MCP, `/act` must:**
+
+1. Still fix code / CI (git + `pull_request_read`, `actions_*`, `get_file_contents`).
+2. **Resolve pass:** use Bash only if allowed:
+
+```bash
+GH_TOKEN="$GITHUB_TOKEN" gh api graphql -f query='query($o:String!,$r:String!,$pr:Int!){
+  repository(owner:$o,name:$r){pullRequest(number:$pr){
+    reviewThreads(first:100){nodes{id isResolved}}}
+}}' -f o=OWNER -f r=REPO -F pr=NUMBER
+
+GH_TOKEN="$GITHUB_TOKEN" gh api graphql -f query='mutation($id:ID!){
+  resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -f id=PRRT_…
+```
+
+3. If GraphQL is blocked or returns 403: status **blocked (resolve)** — list each open thread `html_url`; author resolves in UI or enables write MCP.
+
+**To enable MCP resolve (repo admin):** Settings → Copilot → Cloud agent → MCP — remove `/readonly` from the GitHub MCP URL, or use `https://api.githubcopilot.com/mcp/` with header `X-MCP-Toolsets` including `pull_requests` and allow tool `pull_request_review_write`. See [GitHub docs: extend cloud agent with MCP](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/extend-cloud-agent-with-mcp).
+
+### Write MCP available
+
+If `pull_request_review_write` is in the tool list:
+
+1. `pull_request_read` → `get_review_comments` → open threads.
+2. Per thread: reply → `pull_request_review_write` → **`method: resolve_thread`**, **`threadId`** = thread **`id`** (`PRRT_…`).
+3. If `id` is missing on threads, fall back to **GraphQL** (`gh api graphql`) as above.
+
+Duplicate bot threads: resolve **each** open thread after one fix.
 
 ## Completion
 
-- **Merge-ready** only if CI green **and** `open M = 0` after resolve pass.
-- If `open M > 0` only because MCP lacks thread ids / API blocked: status **blocked (resolve)** — list thread links; still counts as incomplete `/act` but not an excuse to skip code fixes.
+- **Merge-ready:** CI green **and** `open M = 0` after resolve pass.
+- **Blocked (resolve):** code/CI done but `open M > 0` — list links + say whether MCP was read-only or GraphQL failed.
 
-One top-level PR comment does **not** replace per-thread resolve.
+One top-level PR comment ≠ per-thread resolve.
 
 ## Idempotency
 
-Skip code/commits/suggestions/resolve when already done on HEAD. No empty commits.
+Skip work already done on HEAD. No empty commits.
 
 ## PR closing summary
 
-1. Status: merge-ready / blocked (CI vs resolve)
-2. Done: P0–P3 changes (commits)
-3. Threads: resolved N, open M (with links if M > 0)
-4. CI evidence
-5. Left: empty only if merge-ready
+1. Status (merge-ready / blocked CI / blocked resolve)
+2. Commits / fixes
+3. Threads: resolved N, open M (+ MCP mode: readonly vs write)
+4. CI
+5. Left
 
-## GitHub Copilot coding agent (`@copilot /act`)
+## GitHub Copilot (`@copilot /act`)
 
-- **Reads / CI / replies:** `github-mcp-server` (`pull_request_read`, `actions_*`, `reply_to_comment`, `add_reply_to_pull_request_comment`).
-- **Resolve:** `pull_request_review_write` → **`resolve_thread`** + `threadId` from MCP. **No Playwright. No `gh pr view --json`.**
-- **Avoid** `gh api` in Bash unless resolve is impossible without GraphQL and the repo firewall allows `api.github.com`; prefer MCP first.
-- Before commit: `bunx nx format:write` on touched `tools/**/*.ts`.
+- Reads: `pull_request_read`, `actions_*`, `get_file_contents`, `list_commits`, …
+- Writes on PR reviews: only if `pull_request_review_write` appears in the MCP tool list; else GraphQL or human.
+- `bunx nx format:write` on touched `tools/**/*.ts` before commit.
 
 ## GitHub (local CLI / Cursor)
 
-```bash
-gh pr checks
-gh run view <id> --log-failed
-gh api graphql …   # list threads + resolveReviewThread when MCP ids unavailable
-```
+Full MCP or `gh api graphql` for list + `resolveReviewThread`. UI resolve is equivalent.
