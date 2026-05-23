@@ -65,7 +65,7 @@ final class HttpTlsConfigurer {
 
     private void importTruststoreEntries(KeyStore target, Path truststorePath, String password) throws Exception {
         KeyStore loaded = KeyStore.getInstance(resolveStoreType(truststorePath));
-        char[] passphrase = password != null ? password.toCharArray() : new char[0];
+        char[] passphrase = password != null ? password.toCharArray() : null;
         try (InputStream stream = Files.newInputStream(truststorePath)) {
             loaded.load(stream, passphrase);
         }

@@ -139,6 +139,9 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
     }
 
     private static URI originUri(URI uri) {
+        if (uri.getScheme() == null || uri.getScheme().isBlank()) {
+            throw new IllegalStateException("HTTP ADT frontend URL must include scheme (https://): " + uri);
+        }
         if (uri.getAuthority() == null || uri.getAuthority().isBlank()) {
             throw new IllegalStateException("HTTP ADT frontend URL must include host[:port]: " + uri);
         }

@@ -157,7 +157,9 @@ public class FetchCommand implements Callable<Integer> {
         try {
             response = transportClient.execute(system, request);
         } catch (Exception error) {
-            System.err.println(error.getMessage() != null ? error.getMessage() : error.getClass().getSimpleName());
+            String detail = error.getMessage() != null ? error.getMessage() : error.getClass().getSimpleName();
+            String alias = system != null && system.getAlias() != null ? system.getAlias() : "direct-http";
+            System.err.println("Fetch failed for " + alias + " " + adtPath + ": " + detail);
             if (Boolean.parseBoolean(System.getenv().getOrDefault("OPENADT_VERBOSE", "false"))) {
                 error.printStackTrace(System.err);
             }
