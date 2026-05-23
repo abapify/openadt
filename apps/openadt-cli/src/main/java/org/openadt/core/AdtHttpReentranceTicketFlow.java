@@ -192,7 +192,8 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
             }
             System.err.println("Desktop browse action is not supported. Open this URL manually: " + uri);
         } catch (IOException error) {
-            throw new IllegalStateException("Desktop browser is available but failed to open URL: " + uri, error);
+            System.err.println("Failed to open desktop browser automatically (" + error.getMessage()
+                + "). Open this URL manually: " + uri);
         }
     }
 }

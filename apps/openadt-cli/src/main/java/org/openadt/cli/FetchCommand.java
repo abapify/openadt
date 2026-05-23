@@ -93,7 +93,7 @@ public class FetchCommand implements Callable<Integer> {
     private String httpTruststorePassword;
 
     @Option(names = {"--callback-port"}, description = "Local callback port for browser reentrance-ticket flow (0 = random)", defaultValue = "0")
-    private String callbackPort;
+    private int callbackPort;
 
     @Override
     public Integer call() throws Exception {
@@ -158,7 +158,7 @@ public class FetchCommand implements Callable<Integer> {
             response = transportClient.execute(system, request);
         } catch (Exception error) {
             String detail = error.getMessage() != null ? error.getMessage() : error.getClass().getSimpleName();
-            String alias = system != null && system.getAlias() != null ? system.getAlias() : "direct-http";
+            String alias = effectiveAlias(system);
             System.err.println("Fetch failed for " + alias + " " + adtPath + ": " + detail);
             if (Boolean.parseBoolean(System.getenv().getOrDefault("OPENADT_VERBOSE", "false"))) {
                 error.printStackTrace(System.err);
@@ -279,7 +279,7 @@ public class FetchCommand implements Callable<Integer> {
         runtime.setHttpCaCert(httpCaCert);
         runtime.setHttpTruststore(httpTruststore);
         runtime.setHttpTruststorePassword(httpTruststorePassword);
-        runtime.setHttpCallbackPort(callbackPort);
+        runtime.setHttpCallbackPort(Integer.toString(callbackPort));
         config.setRuntime(runtime);
         return config;
     }
@@ -288,7 +288,7 @@ public class FetchCommand implements Callable<Integer> {
         if ((httpCaCert == null || httpCaCert.isBlank())
             && (httpTruststore == null || httpTruststore.isBlank())
             && (httpTruststorePassword == null || httpTruststorePassword.isBlank())
-            && (callbackPort == null || callbackPort.isBlank() || "0".equals(callbackPort))) {
+            && callbackPort == 0) {
             return;
         }
         OpenAdtConfig.RuntimeConfig runtime = config.getRuntime();
@@ -305,8 +305,8 @@ public class FetchCommand implements Callable<Integer> {
         if (httpTruststorePassword != null && !httpTruststorePassword.isBlank()) {
             runtime.setHttpTruststorePassword(httpTruststorePassword);
         }
-        if (callbackPort != null && !callbackPort.isBlank()) {
-            runtime.setHttpCallbackPort(callbackPort);
+        if (callbackPort >= 0) {
+            runtime.setHttpCallbackPort(Integer.toString(callbackPort));
         }
     }
 
@@ -320,5 +320,12 @@ public class FetchCommand implements Callable<Integer> {
         adt.setDiscoveryUrl(baseUrl);
         system.setAdt(adt);
         return system;
+    }
+
+    private String effectiveAlias(SystemProfile system) {
+        if (system == null || system.getAlias() == null || system.getAlias().isBlank()) {
+            return "direct-http";
+        }
+        return system.getAlias();
     }
 }
