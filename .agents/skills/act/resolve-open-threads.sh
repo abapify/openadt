@@ -65,7 +65,6 @@ done < <(
     | .id
   '
 )
-)
 
 open_count="${#open_ids[@]}"
 echo "open_threads=$open_count"
