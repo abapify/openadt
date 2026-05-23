@@ -10,7 +10,7 @@ This directory contains reusable agent skills for common OpenADT development tas
   - Split config (WSL/container) vs host-native `fetch`/`proxy`; bootstrap paths; anti-patterns.
 - `act`
   - **`/act`** on PRs/MRs: priority queue P0 CI → P1 blocking review → P2 nits → P3 suggestions; all threads answered/resolved; idempotent re-runs.
-  - Copilot discovery copy: [`.github/skills/act/SKILL.md`](../../.github/skills/act/SKILL.md) (keep in sync with this directory).
+  - Resolve helper: [`act/resolve-open-threads.sh`](act/resolve-open-threads.sh) (same directory as `SKILL.md`)
 
 When changing transport, logon, or setup detectors, update the relevant skill in the same PR as code/spec changes.
 

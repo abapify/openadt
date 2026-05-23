@@ -22,7 +22,7 @@ Read specs first, prefer TDD, keep SAP binaries external, never commit private S
 
 ## Skills
 
-Reusable workflows: **`.agents/skills/<name>/SKILL.md`** (index: `.agents/skills/README.md`). Copilot also reads **`.github/skills/<name>/SKILL.md`** (e.g. `act` — keep copies in sync).
+Reusable workflows: **`.agents/skills/<name>/`** — `SKILL.md` plus optional helpers (e.g. `act/resolve-open-threads.sh`). Index: `.agents/skills/README.md`. Copilot also reads `.github/copilot-instructions.md`.
 
 | Skill                               | Trigger                                                        |
 | ----------------------------------- | -------------------------------------------------------------- |
@@ -30,4 +30,22 @@ Reusable workflows: **`.agents/skills/<name>/SKILL.md`** (index: `.agents/skills
 | `openadt-local-sap-runtime`         | SAP runtime, fetch, proxy, setup                               |
 | `openadt-devcontainer-host-runtime` | Devcontainer / WSL vs host                                     |
 
-**GitHub Copilot** (cloud agent, code review): also reads `.github/copilot-instructions.md` and path rules under `.github/instructions/`. **Cursor** loads the same skill files via the agent skills system; global copies may exist under `~/.agents/skills/`.
+**GitHub Copilot** (cloud agent): `.github/copilot-instructions.md` for Copilot-only `/act` rules (MCP, firewall).
+
+**OpenAI Codex** (cloud on GitHub): reads this file and `.agents/skills/act/SKILL.md` for `@codex /act` — use the shared skill, not Copilot instructions.
+
+**Cursor** and other agents: `.agents/skills/<name>/SKILL.md`; global copies may exist under `~/.agents/skills/`.
+
+## Codex (`@codex /act` on a pull request)
+
+When a comment says **`@codex /act`** (or `/act` on a PR), run the full **`act`** workflow in [`.agents/skills/act/SKILL.md`](.agents/skills/act/SKILL.md):
+
+1. Fix CI on HEAD, then all actionable review items (P0→P3).
+2. **Resolve pass:** run `bash .agents/skills/act/resolve-open-threads.sh OWNER REPO NUMBER` when `gh` is installed and authenticated.
+3. Report merge-ready only when CI is green and open review threads = 0.
+
+Codex may also support phrasing like “address unresolved review comments” — treat that the same as the resolve pass in the act skill.
+
+**Do not** use GitHub Copilot SWE rules (read-only MCP, Playwright) unless you are Copilot.
+
+If resolve fails (`gh auth` or GraphQL error), report it and list open thread URLs; still complete code/CI fixes.
