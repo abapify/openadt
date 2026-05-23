@@ -1,65 +1,124 @@
 ---
 name: act
 description: >-
-  Use when the user invokes /act on a PR/MR (Cursor, Codex, Copilot, or local gh).
-  CI, review fixes, resolve open threads via gh CLI/script. Idempotent re-runs.
+  Use when the user invokes /act on a PR/MR. Primary job: fix CI and implement
+  review feedback in product code. Resolve threads only after each item is fixed
+  or answered. Never resolve-only.
 disable-model-invocation: true
 ---
 
 # /act
 
-**Default `/act` = all steps on:** CI → review fixes → **resolve pass** → summary.
+**`/act` means fix the PR, not hide review comments.**
 
-Applies to **`/act`**, **`@codex /act`**, **`@copilot /act`**, and local agent sessions — unless the user narrows scope in the same message.
+The main work is **P0–P3**: read each review thread, change **product code** (or post a substantive in-thread reply), commit, then close threads.  
+Running the resolve script **without** doing that first is **wrong** — same as clicking “Resolve conversation” on every thread with no code changes.
+
+Applies to `/act`, `@claude /act`, `@codex /act`, `@copilot /act`.
 
 **No Playwright** for GitHub PR UI.
 
-## Resolve pass (all runtimes)
+## Wrong vs right
 
-After P0–P3, close **every** open review thread (current + outdated; duplicate bot threads each get resolved after one fix).
+| Wrong (do not do this) | Right |
+|------------------------|--------|
+| Run `resolve-open-threads.sh` to clear open threads | Read threads → fix code → reply in thread → then resolve |
+| One PR comment “addressed feedback” | Per-thread fix or per-thread reply, then resolve that thread |
+| Only touch `.agents/skills/` or the resolve script | Change `apps/`, `tools/`, `specs/`, `packaging/`, workflows per feedback |
+| “Merge-ready” because `open_threads=0` | Merge-ready only if feedback is **implemented** and CI green on HEAD |
 
-**Prerequisite:** `gh` installed and authenticated (`gh auth status`).
+## On start
 
-```bash
-bash .agents/skills/act/resolve-open-threads.sh --dry-run OWNER REPO NUMBER
-bash .agents/skills/act/resolve-open-threads.sh OWNER REPO NUMBER
+1. React 👀 (or 👍).
+2. **HEAD SHA** — `gh pr view NUMBER --json headRefOid,statusCheckRollup,url`.
+3. **Inventory open threads** — for each unresolved thread, capture: file/line, reviewer ask, whether it needs a **code change** or a **written answer**.
+
+Build a short **thread plan** before editing (can be in your working notes / final summary):
+
+```text
+Thread 1 (path: …): [fix code | reply only] — what you will do
+Thread 2 …
 ```
 
-**If MCP exposes `pull_request_review_write`:** may use `resolve_thread` when thread `id` is available; otherwise use the script.
+Do not start the resolve script until every open thread has a planned action and you have executed P0–P3.
 
-Never skip P0–P3 because resolve failed. One top-level PR comment ≠ per-thread resolve.
+## Work order (mandatory sequence)
 
-## Work order
+| Step | What | Done when |
+|------|------|-----------|
+| **P0** | CI / merge blockers on **HEAD** | Required checks green on **current** HEAD |
+| **P1** | Blocking review (“must fix”, changes requested) | **Code fixed** on branch + **reply in that thread** |
+| **P2** | Nits, questions, style | **Fix or answer in thread** (not silent) |
+| **P3** | Inline suggestions | **Applied in code** or declined with reason **in thread** |
+| **P4** | Resolve pass | Only after P0–P3 for **all** open threads |
+| **P5** | Hygiene | Optional cleanup after the above |
 
-| P | Tier |
-|---|------|
-| 0 | CI green on HEAD |
-| 1–3 | Review / suggestions (fix + in-thread reply when possible) |
-| — | Resolve pass |
-| 4 | Hygiene |
+**Resolve is step P4, not step 1.**  
+If you cannot fix something in-repo, say so **in that thread**; do not resolve it without a visible reply.
 
-## Completion
+## Per-thread loop (repeat for each open thread)
 
-- **Merge-ready:** CI green **and** `open M = 0` (verify with script `--dry-run`).
-- **Blocked (resolve):** list open thread URLs + attach `gh`/GraphQL error output.
+1. **Read** the full thread (all comments).
+2. **Act on substance:**
+   - Bug / design / correctness → edit product files, run relevant checks.
+   - Question → answer in the thread with specifics.
+   - Suggestion → apply diff or explain why not.
+3. **Commit** product changes (group sensibly; no empty commits).
+4. **Reply in the thread** pointing to the commit or your decision (short, factual).
+5. **Then** mark that thread resolved (see P4).
+
+Skipping steps 2–4 and only running the batch resolve script **violates `/act`**.
+
+## What to change
+
+**In scope:** `apps/`, `tools/`, `specs/`, `packaging/`, `.github/workflows/`, etc.
+
+**Out of scope for “addressing review”:** `.agents/skills/`, `resolve-open-threads.sh` — unless the script literally cannot run (`bash -n` fails).
+
+## Resolve pass (P4 only)
+
+**Prerequisites (all must be true):**
+
+- Every open thread has a **commit** and/or **in-thread reply** for its feedback.
+- `gh auth status` succeeds.
+
+```bash
+bash -n .agents/skills/act/resolve-open-threads.sh
+bash .agents/skills/act/resolve-open-threads.sh --dry-run OWNER REPO NUMBER
+bash .agents/skills/act/resolve-open-threads.sh OWNER REPO NUMBER
+bash .agents/skills/act/resolve-open-threads.sh --dry-run OWNER REPO NUMBER
+```
+
+The script only clicks “Resolve conversation” in GitHub — it does **not** implement review fixes.  
+Resolve outdated threads too, but only after the underlying comment was handled on the branch.
+
+## Merge-ready
+
+Say **merge-ready** only when:
+
+1. Review feedback is **done in code** (or explicitly declined in threads with reason).
+2. CI required checks **success on current HEAD**.
+3. `open_threads=0` from final `--dry-run`.
+4. Summary lists **what you changed per theme/file**, not only “resolved N threads”.
 
 ## PR closing summary
 
-1. Status (merge-ready / blocked CI / blocked resolve)
-2. Commits / fixes
-3. Threads: resolved N, open M
-4. CI
-5. Left
+1. Status  
+2. **HEAD** SHA  
+3. **Review fixes** (bullet per theme / file — this is the main section)  
+4. Threads: how many resolved **after** fixes; `open_threads=0`  
+5. CI on HEAD  
+6. Left  
 
 ## Idempotency
 
-Skip work already on HEAD. No empty commits.
+If feedback is already fixed on HEAD and threads are closed → short “already done”, no resolve-only rerun.
 
 ## Validation
 
-- `bunx nx format:write` on touched `tools/**/*.ts` before commit (CI runs `nx format:check`).
+`bunx nx format:write` on touched `tools/**/*.ts` before commit.
 
 ## Runtime extras
 
-- **Copilot SWE:** [`.github/copilot-instructions.md`](../../../.github/copilot-instructions.md) (read-only MCP, firewall) — not for Codex/Cursor.
-- **Codex on GitHub:** [AGENTS.md](../../../AGENTS.md) § Codex.
+- **Copilot SWE:** [`.github/copilot-instructions.md`](../../../.github/copilot-instructions.md)
+- **Codex / Claude:** [AGENTS.md](../../../AGENTS.md) § Cloud agents on GitHub

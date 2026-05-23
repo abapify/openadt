@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Resolve all open PR review threads via gh CLI (GraphQL).
-# Requires: gh, jq, and gh auth with permission to resolve PR review threads.
-# Usage: resolve-open-threads.sh [--dry-run] OWNER REPO PR_NUMBER
+# Mark open PR review threads as resolved in GitHub (GraphQL only).
+# Does NOT implement review feedback — run only after code fixes / in-thread replies (/act P4).
+# Requires: gh, jq, gh auth. Usage: resolve-open-threads.sh [--dry-run] OWNER REPO PR_NUMBER
 set -euo pipefail
 
 DRY_RUN=false

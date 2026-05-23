@@ -6,7 +6,7 @@ applyTo: ".github/**,specs/**,apps/**,.agents/**,tools/**"
 
 Read **[`.agents/skills/act/SKILL.md`](../../.agents/skills/act/SKILL.md)** before changing code.
 
-- Full `/act` = CI → review fixes → resolve pass → summary.
-- **Resolve:** `bash .agents/skills/act/resolve-open-threads.sh OWNER REPO NUMBER` when `gh` is available.
+- **`/act` ≠ resolve-only.** Fix review feedback in `apps/`, `tools/`, etc., reply in each thread, **then** run the resolve script.
+- Resolve script last; never use it as a substitute for code changes.
 - **`bunx nx format:write`** on touched `tools/**/*.ts` before commit.
 - **Copilot SWE only:** [`.github/copilot-instructions.md`](../copilot-instructions.md) (MCP, firewall).

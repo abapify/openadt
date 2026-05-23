@@ -24,11 +24,11 @@ Read specs first, prefer TDD, keep SAP binaries external, never commit private S
 
 Reusable workflows: **`.agents/skills/<name>/`** — `SKILL.md` plus optional helpers (e.g. `act/resolve-open-threads.sh`). Index: `.agents/skills/README.md`. Copilot also reads `.github/copilot-instructions.md`.
 
-| Skill                               | Trigger                                                        |
-| ----------------------------------- | -------------------------------------------------------------- |
-| `act`                               | `/act` on a PR — CI, review, **Resolve conversation** required |
-| `openadt-local-sap-runtime`         | SAP runtime, fetch, proxy, setup                               |
-| `openadt-devcontainer-host-runtime` | Devcontainer / WSL vs host                                     |
+| Skill                               | Trigger                                                         |
+| ----------------------------------- | --------------------------------------------------------------- |
+| `act`                               | `/act` on a PR — fix review in code first, then resolve threads |
+| `openadt-local-sap-runtime`         | SAP runtime, fetch, proxy, setup                                |
+| `openadt-devcontainer-host-runtime` | Devcontainer / WSL vs host                                      |
 
 **GitHub Copilot** (cloud agent): `.github/copilot-instructions.md` for Copilot-only `/act` rules (MCP, firewall).
 
@@ -36,15 +36,18 @@ Reusable workflows: **`.agents/skills/<name>/`** — `SKILL.md` plus optional he
 
 **Cursor** and other agents: `.agents/skills/<name>/SKILL.md`; global copies may exist under `~/.agents/skills/`.
 
-## Codex (`@codex /act` on a pull request)
+## Cloud agents on GitHub (`@codex /act`, `@claude /act`)
 
-When a comment says **`@codex /act`** (or `/act` on a PR), run the full **`act`** workflow in [`.agents/skills/act/SKILL.md`](.agents/skills/act/SKILL.md):
+**`/act` is not “resolve all threads”.** It means: implement review feedback in **product code**, reply in each thread, **then** resolve.
 
-1. Fix CI on HEAD, then all actionable review items (P0→P3).
-2. **Resolve pass:** run `bash .agents/skills/act/resolve-open-threads.sh OWNER REPO NUMBER` when `gh` is installed and authenticated.
-3. Report merge-ready only when CI is green and open review threads = 0.
+Follow [`.agents/skills/act/SKILL.md`](.agents/skills/act/SKILL.md):
 
-Codex may also support phrasing like “address unresolved review comments” — treat that the same as the resolve pass in the act skill.
+1. List every **open** review thread and what change each requires.
+2. Fix CI (P0), then **code + in-thread reply** for P1–P3 on each thread.
+3. Only then run `resolve-open-threads.sh` (P4).
+4. Never claim merge-ready if you only closed conversations without product commits addressing the comments.
+
+Phrases like “address review comments” still mean **full `/act`** (code fixes first), not resolve-only.
 
 **Do not** use GitHub Copilot SWE rules (read-only MCP, Playwright) unless you are Copilot.
 

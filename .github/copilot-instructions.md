@@ -22,15 +22,21 @@ Index: [`.agents/skills/README.md`](../.agents/skills/README.md).
 
 Read-only GitHub MCP (~33 tools): no `pull_request_review_write` — use **`gh`** for resolve. **No Playwright** on github.com. **No** `gh pr view --json` from Bash if the agent firewall blocks GraphQL.
 
-Assume **`gh` is installed and authenticated** in the agent environment (`gh auth status`). After code fixes:
+Assume **`gh` is installed and authenticated** (`gh auth status`).
+
+## PR / review workflow (`/act`)
+
+Follow [`.agents/skills/act/SKILL.md`](../.agents/skills/act/SKILL.md).
+
+**Do not** run `resolve-open-threads.sh` until review comments are **fixed in code** (or answered in each thread). The script only closes GitHub UI state; it does not implement feedback.
+
+Order: read threads → product commits → reply in threads → then:
 
 ```bash
 bash .agents/skills/act/resolve-open-threads.sh abapify openadt 2
 ```
 
-## PR / review workflow (`/act`)
-
-Follow [`.agents/skills/act/SKILL.md`](../.agents/skills/act/SKILL.md). **Bare `/act` = all steps on.** Never abort the run because resolve is blocked; fix code first, then resolve pass. Before pushing TS under `tools/`: `bunx nx format:write`.
+Before pushing TS under `tools/`: `bunx nx format:write`.
 
 ## Build and validate
 
