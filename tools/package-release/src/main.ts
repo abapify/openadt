@@ -124,6 +124,17 @@ function updateHomebrewSha256(sha256: string): void {
   writeFileSync(formulaPath, ruby);
 }
 
+function updateScoopSha256(sha256: string): void {
+  const manifestPath = join(root, "packaging/scoop/openadt.json");
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
+    architecture: { "64bit": { url: string; hash: string } };
+  };
+  manifest.architecture["64bit"].url =
+    `https://github.com/abapify/openadt/releases/download/v${version}/${zipName}`;
+  manifest.architecture["64bit"].hash = sha256.toLowerCase();
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 4)}\n`);
+}
+
 function updateWingetInstaller(sha256: string): void {
   const installerPath = join(
     root,
@@ -181,6 +192,7 @@ const sha256 = sha256File(zipPath);
 writeFileSync(`${zipPath}.sha256`, `${sha256}  ${zipName}\n`);
 updateWingetInstaller(sha256);
 updateHomebrewSha256(sha256);
+updateScoopSha256(sha256);
 
 console.log(`Packaged ${zipPath}`);
 console.log(`SHA256 ${sha256}`);

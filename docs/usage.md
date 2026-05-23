@@ -129,7 +129,31 @@ chmod +x "$HOME/.local/bin/openadt"
 
 Ensure `$HOME/.local/bin` is on your `PATH`, then run `openadt --help`.
 
-## Install OpenADT (winget / Homebrew)
+## Install OpenADT (Scoop / winget / Homebrew)
+
+### Windows — Scoop (recommended)
+
+No community catalog PR — install directly from the manifest in this repository:
+
+```powershell
+scoop install https://raw.githubusercontent.com/abapify/openadt/main/packaging/scoop/openadt.json
+openadt --version
+```
+
+From a git checkout:
+
+```powershell
+scoop install .\packaging\scoop\openadt.json
+```
+
+Upgrade and uninstall:
+
+```powershell
+scoop update openadt
+scoop uninstall openadt
+```
+
+Scoop installs OpenADT and suggests JDK 21 (`java/openjdk21` bucket). SAP JCo, ADT plugins, Secure Login, and landscape data are not bundled.
 
 ### Windows — winget
 

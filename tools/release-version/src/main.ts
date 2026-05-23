@@ -226,6 +226,21 @@ function updateHomebrew(version: string): void {
   writeFileSync(formulaPath, formula);
 }
 
+function updateScoop(version: string): void {
+  const manifestPath = join(root, "packaging/scoop/openadt.json");
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
+    version: string;
+    extract_dir: string;
+    architecture: { "64bit": { url: string; hash: string } };
+  };
+  manifest.version = version;
+  manifest.extract_dir = `openadt-${version}`;
+  manifest.architecture["64bit"].url =
+    `https://github.com/abapify/openadt/releases/download/v${version}/openadt-${version}.zip`;
+  manifest.architecture["64bit"].hash = "PLACEHOLDER_RUN_PACKAGE_RELEASE";
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 4)}\n`);
+}
+
 function writeGithubOutput(version: string): void {
   const output = process.env.GITHUB_OUTPUT;
   if (!output) {
@@ -252,6 +267,7 @@ if (wingetTemplate !== nextVersion) {
 }
 
 updateHomebrew(nextVersion);
+updateScoop(nextVersion);
 
 console.log(`Release version: ${nextVersion}`);
 console.log(`Tag: v${nextVersion}`);

@@ -4,9 +4,10 @@ OpenADT ships as a portable ZIP (`openadt.jar` + launchers). SAP binaries are ne
 
 ## Windows
 
-- Manifests: `packaging/winget/manifests/o/OpenADT/OpenADT/<version>/`
-- Install: `winget install --id OpenADT.OpenADT`
-- Maintainer: `bun run package:release -- --version=<semver>` then `winget validate --manifest packaging/winget/manifests`
+- **Scoop** (simplest): `packaging/scoop/openadt.json` — install with one command, no community PR
+- **Winget**: manifests under `packaging/winget/manifests/o/OpenADT/OpenADT/<version>/`
+- Install: `scoop install https://raw.githubusercontent.com/abapify/openadt/main/packaging/scoop/openadt.json` or `winget install --id OpenADT.OpenADT` (after winget-pkgs merge)
+- Maintainer: `bun run package:release -- --version=<semver>` then validate winget manifest if needed
 
 ## Linux / macOS
 
@@ -24,8 +25,8 @@ Manual **Release** workflow (Actions → Release → Run workflow):
 
 1. Choose **version bump**: `patch`, `minor`, `major`, `prerelease`, `prepatch`, `preminor`, `premajor`
 2. Choose **prerelease id** when applicable: `rc`, `beta`, `alpha`
-3. Job `bump` reads the latest `v*` tag (or `pom.xml` baseline), bumps `pom.xml`, winget manifests, and Homebrew `STABLE`, then commits and pushes the version-bump commit
-4. Job `publish` checks out that bump commit, builds, runs `package:release`, commits winget/homebrew SHA256 updates, tags `vX.Y.Z`, pushes, and publishes GitHub Release assets
+3. Job `bump` reads the latest `v*` tag (or `pom.xml` baseline), bumps `pom.xml`, winget manifests, Homebrew `STABLE`, and Scoop `openadt.json`, then commits and pushes the version-bump commit
+4. Job `publish` checks out that bump commit, builds, runs `package:release`, commits winget/homebrew/scoop checksum updates, tags `vX.Y.Z`, pushes, and publishes GitHub Release assets
 
 Local dry-run (no git writes):
 

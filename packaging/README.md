@@ -1,5 +1,28 @@
 # OpenADT packaging
 
+## Windows (Scoop) — recommended
+
+One manifest in this repo; no fork of `winget-pkgs` or Scoop buckets required.
+
+```powershell
+scoop install https://raw.githubusercontent.com/abapify/openadt/main/packaging/scoop/openadt.json
+openadt --version
+```
+
+From a git checkout (before publish):
+
+```powershell
+scoop install .\packaging\scoop\openadt.json
+```
+
+Upgrade:
+
+```powershell
+scoop update openadt
+```
+
+Scoop installs OpenADT (`openadt.jar` + `openadt.exe`) and suggests JDK 21. SAP JCo, Secure Login, and landscape data are not bundled.
+
 ## Windows (winget)
 
 From a repo root with a built jar:
@@ -41,5 +64,6 @@ After `v1.0.0` is tagged on GitHub, install from the release tarball URL in the 
 - `packaging/dist/openadt-<version>.zip`
 - `packaging/dist/openadt-<version>.zip.sha256`
 - updates `InstallerSha256` in the winget installer manifest
+- updates `hash` in `packaging/scoop/openadt.json`
 
 GitHub Actions **Release** workflow is manual (`workflow_dispatch`) with a version bump dropdown; it tags the repo and publishes the GitHub Release.
