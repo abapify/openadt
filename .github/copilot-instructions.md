@@ -29,11 +29,9 @@ The SWE agent runs behind a **firewall**. Bash/`gh` calls to `api.github.com` / 
 
 ## PR / review workflow (`/act`)
 
-Follow [`.github/skills/act/SKILL.md`](skills/act/SKILL.md):
+Follow [`.github/skills/act/SKILL.md`](skills/act/SKILL.md). **Bare `/act` = full pipeline; all steps are on by default** (CI, review fixes, suggestions, **resolve every handled thread** including outdated). Do not narrow scope unless the user explicitly says so in the same message. Ignore `--ci` / `--resolve-threads` unless literally typed.
 
-- Priority: CI (HEAD) → blocking review → nits/suggestions
-- **Resolve conversation** on GitHub for every handled thread (mandatory)
-- Minimal fixes; idempotent re-runs (no duplicate commits or summaries)
+- After code changes: mandatory **resolve pass** (`resolve_thread` MCP or Playwright) until open thread count is 0
 - Before pushing TS under `tools/`: `bunx nx format:write`
 
 ## Build and validate

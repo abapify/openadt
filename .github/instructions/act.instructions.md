@@ -12,8 +12,8 @@ When the user invokes **`/act`** or **`@copilot /act`**, read **[`.github/skills
 - **Always** `github-mcp-server` for PR/CI/review; **resolve** via `pull_request_review_write` → `resolve_thread`, or Playwright **Resolve conversation**.
 - Run `bunx nx format:write` on touched `tools/**/*.ts` before commit.
 
-## Queue
+## Default `/act` (everything on)
 
-- P0 CI → P1 blocking review → P2 nits → P3 suggestions
-- Reply in thread, then **Resolve conversation** for every handled thread
-- Do not claim merge-ready while unresolved review threads remain
+CI → review fixes → suggestions → **mandatory resolve pass** (all open threads, including outdated) → summary with **open 0**.
+
+Do not skip resolve. Do not use optional flags unless the user literally typed them.
