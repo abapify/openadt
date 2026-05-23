@@ -2,17 +2,12 @@
 
 ## Windows (Scoop) — recommended
 
-One manifest in this repo; no fork of `winget-pkgs` or Scoop buckets required.
+One-time bucket setup, then plain `scoop install openadt`:
 
 ```powershell
-scoop install https://raw.githubusercontent.com/abapify/openadt/main/packaging/scoop/openadt.json
+scoop bucket add openadt https://github.com/abapify/openadt.git#scoop-bucket
+scoop install openadt
 openadt --version
-```
-
-From a git checkout (before publish):
-
-```powershell
-scoop install .\packaging\scoop\openadt.json
 ```
 
 Upgrade:
@@ -20,6 +15,14 @@ Upgrade:
 ```powershell
 scoop update openadt
 ```
+
+Alternative without adding a bucket (manifest URL):
+
+```powershell
+scoop install https://raw.githubusercontent.com/abapify/openadt/main/packaging/scoop/openadt.json
+```
+
+The `scoop-bucket` git branch holds `openadt.json` at repo root; the Release workflow syncs it from `packaging/scoop/openadt.json` after each publish.
 
 Scoop installs OpenADT (`openadt.jar` + `openadt.exe`) and suggests JDK 21. SAP JCo, Secure Login, and landscape data are not bundled.
 

@@ -133,11 +133,18 @@ Ensure `$HOME/.local/bin` is on your `PATH`, then run `openadt --help`.
 
 ### Windows — Scoop (recommended)
 
-No community catalog PR — install directly from the manifest in this repository:
+One-time bucket setup, then plain `scoop install openadt`:
+
+```powershell
+scoop bucket add openadt https://github.com/abapify/openadt.git#scoop-bucket
+scoop install openadt
+openadt --version
+```
+
+Without adding a bucket (manifest URL):
 
 ```powershell
 scoop install https://raw.githubusercontent.com/abapify/openadt/main/packaging/scoop/openadt.json
-openadt --version
 ```
 
 From a git checkout:

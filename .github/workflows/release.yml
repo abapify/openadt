@@ -121,6 +121,10 @@ jobs:
           git push origin HEAD:${{ github.ref_name }}
           git push origin "${{ needs.bump.outputs.tag }}"
 
+      - name: Sync scoop-bucket branch (scoop install openadt)
+        shell: bash
+        run: bash tools/sync-scoop-bucket/sync.sh
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@v3
         with:
