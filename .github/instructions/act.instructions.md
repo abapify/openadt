@@ -6,15 +6,13 @@ applyTo: ".github/**,specs/**,apps/**,.agents/**,tools/**"
 
 Read **[`.github/skills/act/SKILL.md`](../skills/act/SKILL.md)** before changing code.
 
-## Copilot: resolve with gh CLI
+## Copilot: resolve needs OPENADT_GH_PR_TOKEN
 
-Read-only MCP cannot resolve threads. After P0–P3:
+`GITHUB_TOKEN` cannot resolve threads. Agents secret **OPENADT_GH_PR_TOKEN** (PAT: Pull requests Read+Write). Then:
 
 ```bash
 bash .github/skills/act/resolve-open-threads.sh abapify openadt <PR>
 ```
-
-No Playwright. `bunx nx format:write` on touched `tools/**/*.ts` before commit.
 
 ## Default `/act`
 

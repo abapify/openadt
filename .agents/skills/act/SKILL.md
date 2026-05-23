@@ -1,96 +1,69 @@
 ---
 name: act
 description: >-
-  Use when the user invokes /act on a PR/MR. CI, review fixes, then resolve open
-  threads. Copilot: read-only MCP + gh api graphql (or resolve-open-threads.sh).
-  Idempotent re-runs.
+  Use when the user invokes /act on a PR/MR. CI, review fixes, resolve threads via
+  gh CLI with OPENADT_GH_PR_TOKEN (GITHUB_TOKEN cannot resolve). Idempotent re-runs.
 disable-model-invocation: true
 ---
 
 # /act
 
-**Default `/act` = all steps on:** CI → review fixes → **resolve pass (gh CLI)** → summary.
+**Default `/act` = all steps on:** CI → review fixes → **resolve pass** → summary. **No Playwright.**
 
-Never skip code fixes because resolve is hard. **No Playwright.**
+## Token for resolve (Copilot)
 
-## Resolve pass (required every run)
+`GITHUB_TOKEN` in the Copilot agent can **push commits** but usually **cannot** `resolveReviewThread` (GraphQL: insufficient permissions).
 
-After P0–P3, close review threads. **Prefer GitHub CLI** — it returns `PRRT_…` ids that read-only MCP omits.
+**One-time setup (repo admin):**
 
-### 1. Check MCP tool list (verbose logs)
+1. Create a **fine-grained PAT** (user account): repository **abapify/openadt**, permission **Pull requests: Read and write** (Contents: Read is enough for resolve).
+2. Repo → **Settings → Secrets and variables → Agents** (not Actions) → secret **`OPENADT_GH_PR_TOKEN`** = PAT.
+3. Copilot exposes Agents secrets as env vars in the agent VM.
+
+Resolve script picks tokens in order: `OPENADT_GH_PR_TOKEN` → `GH_AW_GITHUB_TOKEN` → `GH_TOKEN` → `GITHUB_TOKEN`.
+
+**Local / Cursor:** `export GH_TOKEN=$(gh auth token)` or use `OPENADT_GH_PR_TOKEN` the same way.
+
+**Alternative:** enable write GitHub MCP (`pull_request_review_write`) with `COPILOT_MCP_GITHUB_PERSONAL_ACCESS_TOKEN` in MCP config (same PAT). See [extend cloud agent with MCP](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/extend-cloud-agent-with-mcp).
+
+## Resolve pass (after P0–P3)
 
 | MCP has `pull_request_review_write`? | Resolve via |
 |--------------------------------------|-------------|
-| **Yes** | MCP `pull_request_review_write` → `method: resolve_thread` + `threadId` |
-| **No** (~33 read-only tools) | **`gh api graphql`** or repo script (below) |
-
-### 2. Read-only MCP — use gh CLI (primary)
-
-`GITHUB_TOKEN` is in the agent environment. **Always attempt** before claiming resolve blocked:
+| **Yes** | MCP `resolve_thread` + `threadId` |
+| **No** (~33 read-only tools) | **`bash .github/skills/act/resolve-open-threads.sh`** |
 
 ```bash
-# List open threads (note PRRT_ ids — MCP get_review_comments often omits these)
-GH_TOKEN="$GITHUB_TOKEN" gh api graphql -f query='query($o:String!,$r:String!,$pr:Int!){
-  repository(owner:$o,name:$r){pullRequest(number:$pr){
-    reviewThreads(first:100){nodes{id isResolved isOutdated path}}
-}}' -f o=OWNER -f r=REPO -F pr=NUMBER
-
-# Resolve one thread
-GH_TOKEN="$GITHUB_TOKEN" gh api graphql -f query='mutation($id:ID!){
-  resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -f id=PRRT_kwDO…
+bash .github/skills/act/resolve-open-threads.sh --dry-run abapify openadt 2
+bash .github/skills/act/resolve-open-threads.sh abapify openadt 2
 ```
 
-**Batch resolve all open threads** (preferred in Copilot after fixes are on branch):
+Script uses `OPENADT_GH_PR_TOKEN` automatically. Do **not** pass only `GITHUB_TOKEN` and expect resolve to work.
 
-```bash
-bash .github/skills/act/resolve-open-threads.sh --dry-run OWNER REPO NUMBER   # inspect
-bash .github/skills/act/resolve-open-threads.sh OWNER REPO NUMBER             # resolve all open
-```
-
-- **Do not** use `gh pr view --json` (GraphQL via different path; use `gh api graphql` or the script).
-- **Do not** skip this step** because MCP lacks write tools — that is exactly when gh CLI is required.
-- If `gh api graphql` returns **403** / DNS proxy block: report **blocked (resolve)**, list thread URLs, suggest repo firewall allowlist for `api.github.com` or enable write MCP.
-
-### 3. Write MCP available
-
-Use MCP `resolve_thread` when `pull_request_review_write` is listed; if thread `id` missing in MCP response, fall back to **§2 gh CLI**.
-
-Resolve **every** open duplicate bot thread (same path, different bots).
+If resolve still fails: paste GraphQL error; verify PAT has **Pull requests: Write** on this repo.
 
 ## Work order
 
 | P | Tier |
 |---|------|
 | 0 | CI green on HEAD |
-| 1–3 | Review / suggestions (fix + reply in thread when possible) |
-| — | **Resolve pass (gh or MCP)** |
+| 1–3 | Review / suggestions |
+| — | Resolve pass |
 | 4 | Hygiene |
+
+Never skip P0–P3 because resolve failed.
 
 ## Completion
 
-- **Merge-ready:** CI green **and** `open M = 0` (verify with script `--dry-run` or graphql list).
-- **Blocked (resolve):** only after **attempted** `resolve-open-threads.sh` or manual `gh api graphql` with error output attached.
-
-One PR comment ≠ per-thread resolve.
-
-## Idempotency
-
-Skip fixes/commits already on HEAD. Re-running resolve on resolved threads is a no-op (script skips `isResolved: true`).
-
-## PR closing summary
-
-1. Status
-2. Commits / fixes
-3. Threads: `resolved N`, `open M` (include gh command or script output)
-4. CI
-5. Left
+- **Merge-ready:** CI green **and** `open M = 0` after resolve script or MCP resolve.
+- **Blocked (resolve):** list open thread URLs + token hint if permissions error.
 
 ## GitHub Copilot (`@copilot /act`)
 
-- **Read PR/CI:** MCP `pull_request_read`, `actions_*`, …
-- **Resolve:** **`gh api graphql`** or `bash .github/skills/act/resolve-open-threads.sh …` — mandatory when MCP is read-only
-- `bunx nx format:write` on touched `tools/**/*.ts` before commit
+- Read PR/CI: MCP `pull_request_read`, `actions_*`
+- Resolve: **`resolve-open-threads.sh`** (needs `OPENADT_GH_PR_TOKEN`)
+- `bunx nx format:write` on touched `tools/**/*.ts`
 
 ## GitHub (local / Cursor)
 
-Same resolve script or `gh api graphql`. `gh pr checks`, `gh run view` for CI.
+`gh auth login` with repo scope, or `OPENADT_GH_PR_TOKEN`, then the same script.

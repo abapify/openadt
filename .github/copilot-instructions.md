@@ -18,16 +18,20 @@ Index: [`.agents/skills/README.md`](../.agents/skills/README.md).
 
 **On `/act`:** load the **`act` skill file first** (full body), then execute it. Do not use a generic built-in `act` shortcut without reading this repo’s skill.
 
-## Copilot coding agent — resolve via gh CLI
+## Copilot coding agent — resolve needs a PAT secret
 
-Read-only MCP (~33 tools) has **no** `pull_request_review_write`. **Resolve with GitHub CLI**, not Playwright:
+`GITHUB_TOKEN` **cannot** resolve PR review threads (insufficient permissions). Read-only MCP has no `pull_request_review_write`.
+
+**Required once:** Agents secret **`OPENADT_GH_PR_TOKEN`** — fine-grained PAT with **Pull requests: Read and write** on this repo.  
+Settings → Secrets and variables → **Agents** (not Actions).
+
+After code fixes:
 
 ```bash
-bash .github/skills/act/resolve-open-threads.sh --dry-run abapify openadt 2
 bash .github/skills/act/resolve-open-threads.sh abapify openadt 2
 ```
 
-Uses `GH_TOKEN=$GITHUB_TOKEN` and `gh api graphql`. **Always run** after code fixes; only report blocked if gh returns 403. Optional: enable write MCP (`pull_request_review_write`) in Copilot → Cloud agent → MCP config.
+No Playwright. Script prefers `OPENADT_GH_PR_TOKEN` over `GITHUB_TOKEN`.
 
 ## PR / review workflow (`/act`)
 
