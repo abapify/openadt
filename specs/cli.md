@@ -165,7 +165,8 @@ Fetch a single ADT resource via the configured ADT transport.
 
 ```bash
 openadt fetch DEV /sap/bc/adt/core/http/systeminformation --json
-openadt fetch DEV /sap/bc/adt/discovery --header "Accept: application/atomsvc+xml"
+openadt fetch DEV /sap/bc/adt/core/discovery
+openadt fetch DEV /sap/bc/adt/core/discovery --accept application/atomsvc+xml
 openadt fetch DEV /sap/bc/adt/example --method POST --body @request.xml --header "Content-Type: application/xml"
 ```
 
@@ -178,12 +179,13 @@ Options:
 
 - `--method, -X <method>` — HTTP method (default: `GET`)
 - `--header, -H "Name: Value"` — Add request header (repeatable)
+- `--accept, -A <type>` — Set `Accept` header (repeatable; discovery defaults to `application/atomsvc+xml`)
 - `--body, -d <text|@file>` — Request body text or `@file` to read from file
 - `--output, -o <file>` — Write response body to file
 - `--include, -i` — Include response status line and headers in output
 - `--fail, -f` — Exit nonzero for HTTP status >= 400
-- `--json` — Pretty-print JSON response body
-- `--raw` — Write only response body bytes (binary-safe)
+- `--json` — Pretty-print JSON response body (stdout only; no status tips on stderr)
+- `--raw` — Write only response body bytes (binary-safe; no status tips on stderr)
 - `--direct` — Call SAP via SDK/JCo even when a local `openadt proxy` is running
 - `--config, -c <path>` — Config file path (default load order: `./.openadt/config.toml`, then `~/.openadt/config.toml`)
 
@@ -195,8 +197,8 @@ Behavior:
 - `--output <file>` writes response body bytes
 - `--include` prints status and headers before body
 - `--fail` exits nonzero for HTTP status >= 400
-- `--json` pretty-prints JSON responses
-- `--raw` writes only response body bytes
+- `--json` pretty-prints JSON responses to stdout without proxy/tip messages on stderr
+- `--raw` writes only response body bytes without proxy/tip messages on stderr
 - Output is binary-safe
 - `OPENADT_CONFIG` overrides default config lookup
 
@@ -206,7 +208,7 @@ SDK transport (default when `adt_plugins_dir` is configured; `adt.transport = "s
 - Prepares runtime once per process: native JCo/SNC, headless `com.sap.conn.jco.eclipse`, ADT communication activator, Secure Login Web Adapter hub
 - Resolves destination in order: Eclipse workspace `.destination.properties` for the system SID, else `[destinations.<alias>]` from config
 - `fetch` and `proxy` share `AdtSdkTransportClient` — identical logon and request path
-- Some ADT resources need specific `Accept` headers (e.g. `systeminformation`); override with `-H`
+- Some ADT resources need specific `Accept` headers; use `--accept` or `-H "Accept: ..."` (discovery paths get `application/atomsvc+xml` by default)
 - Set `OPENADT_VERBOSE=true` for stderr diagnostics (no secrets)
 
 HTTP transport (`adt.transport = "http"`):

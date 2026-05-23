@@ -1,5 +1,6 @@
 package org.openadt.cli;
 
+import org.openadt.core.AdtAcceptHeaders;
 import org.openadt.core.AdtTransportClient;
 import org.openadt.core.ConfigLoader;
 import org.openadt.core.FetchTransportResolver;
@@ -42,6 +43,9 @@ public class FetchCommand implements Callable<Integer> {
     @Option(names = {"--header", "-H"}, description = "Add header (\"Name: Value\"), repeatable")
     private List<String> headers = new ArrayList<>();
 
+    @Option(names = {"--accept", "-A"}, description = "Accept header value (repeatable for multiple types)")
+    private List<String> accept = new ArrayList<>();
+
     @Option(names = {"--body", "-d"}, description = "Request body text or @file path")
     private String body;
 
@@ -80,14 +84,17 @@ public class FetchCommand implements Callable<Integer> {
 
         String adtPath = resolveAdtPath(urlOrPath);
         Map<String, String> headerMap = parseHeaders(this.headers);
+        applyAcceptHeaders(headerMap, adtPath);
         byte[] requestBody = resolveBody(body);
         AdtTransportClient transportClient;
         try {
-            if (!direct && LocalProxyRegistry.findActive(system.getAlias()).isPresent()) {
-                System.err.println("Using local openadt proxy for " + system.getAlias());
-            } else if (!direct) {
-                System.err.println("Tip: run 'openadt proxy " + system.getAlias()
-                    + "' in another terminal; fetch will reuse it and start faster.");
+            if (!isQuietOutput()) {
+                if (!direct && LocalProxyRegistry.findActive(system.getAlias()).isPresent()) {
+                    System.err.println("Using local openadt proxy for " + system.getAlias());
+                } else if (!direct) {
+                    System.err.println("Tip: run 'openadt proxy " + system.getAlias()
+                        + "' in another terminal; fetch will reuse it and start faster.");
+                }
             }
             transportClient = FetchTransportResolver.resolve(config, system, direct);
         } catch (IllegalStateException e) {
@@ -130,6 +137,28 @@ public class FetchCommand implements Callable<Integer> {
             }
         }
         return map;
+    }
+
+    private void applyAcceptHeaders(Map<String, String> headerMap, String adtPath) {
+        if (!accept.isEmpty() && !hasHeader(headerMap, "Accept")) {
+            headerMap.put("Accept", String.join(", ", accept));
+        }
+        if (!hasHeader(headerMap, "Accept")) {
+            headerMap.put("Accept", AdtAcceptHeaders.defaultAcceptHeaderValue(adtPath));
+        }
+    }
+
+    private static boolean hasHeader(Map<String, String> headerMap, String name) {
+        for (String key : headerMap.keySet()) {
+            if (key.equalsIgnoreCase(name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isQuietOutput() {
+        return json || raw;
     }
 
     private byte[] resolveBody(String bodyArg) throws IOException {

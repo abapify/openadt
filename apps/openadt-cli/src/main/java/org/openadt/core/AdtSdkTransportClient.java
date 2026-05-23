@@ -213,7 +213,7 @@ public class AdtSdkTransportClient implements AdtTransportClient {
         if (request.headers() == null || request.getHeader("Accept") == null) {
             headers.addField(com.sap.adt.communication.message.HeadersFactory.newField(
                 "Accept",
-                defaultAccept(request.uri())
+                AdtAcceptHeaders.defaultAccept(request.uri())
             ));
         }
         if (request.headers() != null) {
@@ -296,17 +296,6 @@ public class AdtSdkTransportClient implements AdtTransportClient {
         if (!status.isOK()) {
             throw new IllegalStateException(context + ": " + status.getMessage());
         }
-    }
-
-    private static String[] defaultAccept(String uri) {
-        if (uri != null && uri.contains("/sap/bc/adt/core/http/systeminformation")) {
-            return new String[]{"application/vnd.sap.adt.core.http.systeminformation.v1+json"};
-        }
-        return new String[]{
-            "application/atom+xml;type=feed",
-            "application/xml",
-            "application/vnd.sap.adt.core+xml"
-        };
     }
 
     private static void log(String message) {
