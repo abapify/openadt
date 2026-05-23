@@ -136,7 +136,7 @@ Ensure `$HOME/.local/bin` is on your `PATH`, then run `openadt --help`.
 One-time bucket setup, then plain `scoop install openadt`:
 
 ```powershell
-scoop bucket add openadt https://github.com/abapify/openadt.git#scoop-bucket
+scoop bucket add openadt https://github.com/abapify/scoop-bucket.git
 scoop install openadt
 openadt --version
 ```
