@@ -133,12 +133,28 @@ Ensure `$HOME/.local/bin` is on your `PATH`, then run `openadt --help`.
 
 ### Windows — Scoop (recommended)
 
-One-time bucket setup, then plain `scoop install openadt`:
+Three steps: **install → setup → fetch/proxy**.
 
 ```powershell
 scoop bucket add openadt https://github.com/abapify/scoop-bucket.git
 scoop install openadt
-openadt --version
+openadt setup
+openadt fetch DEV /sap/bc/adt/core/http/systeminformation --json
+```
+
+`openadt setup` runs **config bootstrap** (detect SAP paths, write config) and **config build** (full SDK runtime jar into `~\.openadt\runtime\`). First build can take a few minutes. After upgrading OpenADT, run `openadt config build`.
+
+Inspect config anytime:
+
+```powershell
+openadt config
+```
+
+Bootstrap or build separately:
+
+```powershell
+openadt config bootstrap
+openadt config build
 ```
 
 Without adding a bucket (manifest URL):
@@ -205,10 +221,17 @@ See [packaging/README.md](../packaging/README.md) for maintainers (`package:rele
 
 ## First Setup
 
-Run setup from the host OS first:
+Run setup from the host OS first (bootstrap + SDK build):
 
 ```powershell
 openadt setup
+```
+
+Or step by step:
+
+```powershell
+openadt config bootstrap
+openadt config build
 ```
 
 This detects local SAP configuration and writes fragments under:
@@ -219,10 +242,15 @@ This detects local SAP configuration and writes fragments under:
 ~\.openadt\local.openadt.toml
 ```
 
+On Windows, when `adt_plugins_dir` is detected, `openadt setup` also builds the full SAP SDK runtime jar for `fetch`/`proxy`. Use `--skip-build` to save config only. After upgrading OpenADT, run `openadt config build`.
+
 Use check mode to inspect without writing:
 
 ```powershell
 openadt setup --check
+openadt config bootstrap --check
+openadt config
+openadt setup --skip-build
 ```
 
 Use a custom config path when testing:

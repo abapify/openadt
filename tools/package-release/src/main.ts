@@ -89,9 +89,18 @@ function buildWindowsExe(target: string): void {
 function writeLaunchers(base: string): void {
   mkdirSync(join(base, "bin"), { recursive: true });
 
+  cpSync(
+    join(root, "packaging/windows/openadt-launcher.ps1"),
+    join(base, "bin/openadt-launcher.ps1"),
+  );
+  cpSync(
+    join(root, "packaging/windows/prepare-openadt-runtime.ps1"),
+    join(base, "bin/prepare-openadt-runtime.ps1"),
+  );
+
   writeFileSync(
     join(base, "bin/openadt.cmd"),
-    `@echo off\r\nsetlocal\r\nset "OPENADT_HOME=%~dp0.."\r\njava -jar "%OPENADT_HOME%\\openadt.jar" %*\r\nexit /b %ERRORLEVEL%\r\n`,
+    `@echo off\r\nsetlocal\r\nset "OPENADT_HOME=%~dp0.."\r\npowershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0openadt-launcher.ps1" %*\r\nexit /b %ERRORLEVEL%\r\n`,
   );
 
   writeFileSync(
@@ -100,8 +109,8 @@ function writeLaunchers(base: string): void {
   [Parameter(ValueFromRemainingArguments = $true)]
   [string[]] $OpenAdtArgs
 )
-$OpenAdtHome = Split-Path -Parent $PSScriptRoot
-java -jar (Join-Path $OpenAdtHome 'openadt.jar') @OpenAdtArgs
+$env:OPENADT_HOME = Split-Path -Parent $PSScriptRoot
+& (Join-Path $PSScriptRoot 'openadt-launcher.ps1') @OpenAdtArgs
 exit $LASTEXITCODE
 `,
   );

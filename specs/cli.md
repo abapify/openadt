@@ -13,20 +13,71 @@ Options:
 
 ---
 
-### openadt setup
+### openadt config
 
-Auto-detect SAP systems and runtime prerequisites from local tooling and write them to config.
+Show the effective merged configuration (paths, systems, runtime — no secrets).
 
 ```bash
-openadt setup
-openadt setup --check
-openadt setup --config <path>
+openadt config
+openadt config --config <path>
+```
+
+---
+
+### openadt config bootstrap
+
+Auto-detect SAP systems and runtime prerequisites and write config fragments. Does **not** build the SDK runtime jar.
+
+```bash
+openadt config bootstrap
+openadt config bootstrap --check
+openadt config bootstrap --config <path>
 ```
 
 Options:
 
 - `--check` — Show detected systems and validate without writing config
 - `--config, -c <path>` — Config file path (default write target: `~/.openadt/config.toml`)
+
+Detectors and outputs: same as legacy setup (see below).
+
+---
+
+### openadt config build
+
+Build the full SAP SDK runtime jar into `~/.openadt/runtime/` for `fetch`/`proxy` (Windows; uses `adt_plugins_dir` from config).
+
+```bash
+openadt config build
+openadt config build --force
+openadt config build --config <path>
+```
+
+Options:
+
+- `--force` — Rebuild even when the runtime jar already matches the installed OpenADT version
+- `--config, -c <path>` — Config file path
+
+---
+
+### openadt setup
+
+Shorthand for **`config bootstrap` + `config build`**: detect, save config, then build the SDK runtime when `adt_plugins_dir` is present.
+
+```bash
+openadt setup
+openadt setup --check
+openadt setup --skip-build
+openadt setup --config <path>
+```
+
+Options:
+
+- `--check` — Detect and print only; no save, no build
+- `--skip-build` — Save config without building the SDK runtime jar
+- `--config, -c <path>` — Config file path
+
+After `openadt setup`, run `openadt config` to inspect paths and SDK runtime status.
 
 Detectors (in order):
 
