@@ -20,19 +20,15 @@ Index: [`.agents/skills/README.md`](../.agents/skills/README.md).
 
 ## Copilot coding agent — GitHub API access
 
-The SWE agent runs behind a **firewall**. Bash/`gh` calls to `api.github.com` / GraphQL return **403** (`Blocked by DNS monitoring proxy`).
+Use **`github-mcp-server`** for PR/CI/review (`pull_request_read`, `pull_request_review_write`, `actions_*`, `reply_to_comment`).
 
-- **Do not** use `gh api`, `gh api graphql`, or `gh pr view --json`.
-- **Do not** add `api.github.com` to the custom firewall allowlist to work around this.
-- **Do** use the **`github-mcp-server`** tools (`pull_request_read`, `pull_request_review_write`, `actions_*`, `reply_to_comment`).
-- **Resolve conversation** via MCP `pull_request_review_write` → `resolve_thread` with `threadId` from `get_review_comments` (`PRRT_…`), or **Playwright** on the PR page if thread `id` is unavailable.
+- **Do not** use **Playwright** for `/act` (GitHub UI is often `ERR_BLOCKED_BY_CLIENT`).
+- **Do not** use `gh pr view --json` from Bash.
+- **Resolve threads** only via MCP `pull_request_review_write` → `resolve_thread` + `threadId` (`PRRT_…`). If MCP omits thread `id`, say so in the summary with thread links — still finish code/CI work.
 
 ## PR / review workflow (`/act`)
 
-Follow [`.github/skills/act/SKILL.md`](skills/act/SKILL.md). **Bare `/act` = full pipeline; all steps are on by default** (CI, review fixes, suggestions, **resolve every handled thread** including outdated). Do not narrow scope unless the user explicitly says so in the same message. Ignore `--ci` / `--resolve-threads` unless literally typed.
-
-- After code changes: mandatory **resolve pass** (`resolve_thread` MCP or Playwright) until open thread count is 0
-- Before pushing TS under `tools/`: `bunx nx format:write`
+Follow [`.github/skills/act/SKILL.md`](skills/act/SKILL.md). **Bare `/act` = all steps on.** Never abort the run because resolve is blocked; fix code first, then resolve pass. Before pushing TS under `tools/`: `bunx nx format:write`.
 
 ## Build and validate
 

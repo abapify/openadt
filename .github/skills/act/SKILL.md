@@ -1,147 +1,84 @@
 ---
 name: act
 description: >-
-  Use when the user invokes /act on a PR/MR. Always run the full pipeline: CI,
-  all review fixes, suggestions, and resolve every handled thread until
-  merge-ready. Idempotent re-runs. Do not narrow scope unless the user explicitly
-  names a subset in the same message.
+  Use when the user invokes /act on a PR/MR. Always run CI fixes, review fixes,
+  suggestions, then resolve handled threads. Keep working on code even if resolve
+  is blocked. Idempotent re-runs.
 disable-model-invocation: true
 ---
 
 # /act
 
-Drive an open PR/MR to merge-ready. **Default `/act` runs every step below — nothing is optional.**
+Drive an open PR/MR toward merge-ready. **Default `/act` = all steps on** (CI → review → suggestions → resolve → summary).
 
 Re-runs must not duplicate commits or comments.
 
-## Default scope (all true)
+## Default scope (all on)
 
-Unless the user **explicitly** asks for a subset in the **same** message (e.g. “only fix CI”), treat every step as **required**:
+| Step                                          | Required                |
+| --------------------------------------------- | ----------------------- |
+| P0 CI on HEAD                                 | yes                     |
+| P1–P3 review / suggestions                    | yes                     |
+| Reply in handled threads                      | yes                     |
+| **Resolve conversation** (current + outdated) | yes — attempt every run |
+| Closing summary                               | yes                     |
 
-| Step                                                                       | Always on for `/act` |
-| -------------------------------------------------------------------------- | -------------------- |
-| Fix CI on HEAD (P0)                                                        | yes                  |
-| Fix blocking review (P1)                                                   | yes                  |
-| Fix non-blocking review / nits (P2)                                        | yes                  |
-| Apply or decline inline suggestions (P3)                                   | yes                  |
-| Reply in each handled thread                                               | yes                  |
-| **Resolve conversation** on each handled thread (current **and** outdated) | yes                  |
-| Post structured closing summary                                            | yes                  |
+**Never stop the whole `/act`** because resolve is hard. If resolve is blocked, still do P0–P3, then report open threads with links.
 
-**Do not** skip resolve because code is already fixed. **Do not** skip outdated threads if the fix is on HEAD. **Do not** treat a single PR comment as a substitute for per-thread resolve.
-
-Optional narrowing flags (`--ci`, etc.) are **deprecated in prompts** — ignore them unless the user literally typed that flag text.
-
-## On start
-
-1. React 👀 (or 👍/👎).
-2. Snapshot PR state: checks on **HEAD**, **all** review threads (`resolved` / `outdated` / `path` / `id`), inline suggestions.
-3. Build a work queue (P0→P3). Skip items already done (idempotency table).
+**Do not use Playwright** for PR review, resolve, or GitHub UI. The browser is often blocked (`ERR_BLOCKED_BY_CLIENT`) and is out of scope for `/act`.
 
 ## Work order
 
-Do not skip a tier while a higher tier still blocks merge. After code/suggestions, run a **dedicated resolve pass** (see below) before claiming done.
+| P   | Tier                | Done when                                       |
+| --- | ------------------- | ----------------------------------------------- |
+| 0   | CI / merge blockers | Required checks green on HEAD (or re-run named) |
+| 1   | Blocking review     | Fix + in-thread reply + resolve                 |
+| 2   | Non-blocking review | Fix or reply + resolve                          |
+| 3   | Inline suggestions  | Apply/decline + resolve                         |
+| 4   | Hygiene             | If needed for readiness                         |
 
-| P   | Tier                                                     | Done when                                                  |
-| --- | -------------------------------------------------------- | ---------------------------------------------------------- |
-| 0   | **Merge blockers** — CI, conflicts, broken build on HEAD | Required checks green on latest commit (or re-run named)   |
-| 1   | **Blocking review**                                      | Fix on branch + in-thread reply + **Resolve conversation** |
-| 2   | **Non-blocking review**                                  | Fix or explicit reply + **Resolve conversation**           |
-| 3   | **Inline suggestions**                                   | Apply/decline + **Resolve conversation**                   |
-| 4   | **Hygiene**                                              | Only if still blocking readiness                           |
+Then **resolve pass** (below).
 
-## Mandatory resolve pass (after P0–P3)
+## Resolve pass (github-mcp-server only)
 
-1. List **every** thread with `is_resolved: false` (include **outdated**).
-2. For each: if fix/reply already on branch → short in-thread reply → **`resolve_thread`** (MCP) or UI **Resolve conversation** (Playwright).
-3. Re-list threads; **unresolved count must be 0** for handled feedback before “merge-ready”.
+1. `pull_request_read` → `get_review_comments` → every `review_threads[]` with `is_resolved: false`.
+2. Per thread: in-thread reply (fix already on branch? cite commit) → **`pull_request_review_write`** with **`method: resolve_thread`** and **`threadId`** = thread **`id`** (`PRRT_…` from MCP).
+3. Re-fetch threads; report `resolved N`, `open M`.
 
-Duplicate threads (same path/issue from different bots): one fix → resolve **all** matching open threads.
+**If `id` is missing on thread objects:** call **`pull_request_review_write` / `resolve_thread`** using any `PRRT_` id the tool docs expose, or list open threads in the summary with `html_url` for the author to resolve in the UI. **Do not open Playwright.**
 
-## Completion rule
+Duplicate bot threads on the same issue: resolve **each** open thread after one fix.
 
-Before finishing `/act`:
+## Completion
 
-- [ ] Required CI on HEAD: passing or re-run pending (name the run).
-- [ ] **Every** actionable review thread: answered + **resolved** (not only Cubic; include Copilot/Gemini/Amazon Q).
-- [ ] Inline suggestions: applied or declined + resolved.
-- [ ] Closing summary lists **resolved N / open 0** (with evidence).
+- **Merge-ready** only if CI green **and** `open M = 0` after resolve pass.
+- If `open M > 0` only because MCP lacks thread ids / API blocked: status **blocked (resolve)** — list thread links; still counts as incomplete `/act` but not an excuse to skip code fixes.
 
-Replying in one PR comment without resolving threads = **failed `/act`**.
-
-**Stop early** only if the user explicitly scoped down in the same message — never because of time, CI pending, or “mostly done”.
+One top-level PR comment does **not** replace per-thread resolve.
 
 ## Idempotency
 
-| Action     | Skip when                        |
-| ---------- | -------------------------------- |
-| Code fix   | Already on branch                |
-| Commit     | Clean tree / same fix in HEAD    |
-| Suggestion | Hunk already matches             |
-| Resolve    | `is_resolved` already true       |
-| PR summary | Post delta vs last agent summary |
-
-No empty commits. No “merge-ready” while any addressable thread stays open.
+Skip code/commits/suggestions/resolve when already done on HEAD. No empty commits.
 
 ## PR closing summary
 
-1. **Status:** merge-ready / blocked
-2. **Done this run:** P0…P3 + resolve pass (bullets)
-3. **Threads:** resolved N, **open 0** (or list blockers)
-4. **CI:** pass / failing / re-run
-5. **Left:** must be empty for merge-ready
-
-## Principles
-
-- Act on existing review findings; do not open a new broad review.
-- Minimal diffs.
-- Do not claim green CI without evidence.
-- Leaving addressable threads **unresolved** is a failed `/act`.
+1. Status: merge-ready / blocked (CI vs resolve)
+2. Done: P0–P3 changes (commits)
+3. Threads: resolved N, open M (with links if M > 0)
+4. CI evidence
+5. Left: empty only if merge-ready
 
 ## GitHub Copilot coding agent (`@copilot /act`)
 
-Firewall blocks Bash → `api.github.com` / GraphQL (`403`, DNS monitoring proxy). **Do not** whitelist `api.github.com` to fix this.
-
-**Forbidden:** `gh api`, `gh api graphql`, `gh pr view --json`.
-
-**Required:** `github-mcp-server` for PR/CI/review/resolve.
-
-| Task        | MCP                                                                                                   |
-| ----------- | ----------------------------------------------------------------------------------------------------- |
-| Threads     | `pull_request_read` → `get_review_comments` → `review_threads[]` (`id`, `is_resolved`, `is_outdated`) |
-| CI          | `get_check_runs`, `actions_list`                                                                      |
-| Reply       | `reply_to_comment` / `add_reply_to_pull_request_comment`                                              |
-| **Resolve** | `pull_request_review_write` → **`resolve_thread`**, `threadId` = `PRRT_…` from response               |
-
-Resolve loop is **mandatory**, not a separate optional mode. If `id` is missing, use **Playwright** → **Resolve conversation** on each handled thread.
-
-Before commit: `bunx nx format:write` on touched `tools/**/*.ts`.
+- **Reads / CI / replies:** `github-mcp-server` (`pull_request_read`, `actions_*`, `reply_to_comment`, `add_reply_to_pull_request_comment`).
+- **Resolve:** `pull_request_review_write` → **`resolve_thread`** + `threadId` from MCP. **No Playwright. No `gh pr view --json`.**
+- **Avoid** `gh api` in Bash unless resolve is impossible without GraphQL and the repo firewall allows `api.github.com`; prefer MCP first.
+- Before commit: `bunx nx format:write` on touched `tools/**/*.ts`.
 
 ## GitHub (local CLI / Cursor)
 
 ```bash
-gh pr view --json number,statusCheckRollup,reviewDecision
 gh pr checks
-gh run list --branch "$(git branch --show-current)" --limit 3
 gh run view <id> --log-failed
-```
-
-Resolve via GraphQL or UI after each handled thread:
-
-```bash
-gh api graphql -f query='
-query($owner:String!, $repo:String!, $pr:Int!) {
-  repository(owner:$owner, name:$repo) {
-    pullRequest(number:$pr) {
-      reviewThreads(first:100) {
-        nodes { id isResolved isOutdated path }
-      }
-    }
-  }
-}' -f owner=ORG -f repo=REPO -F pr=NUMBER
-
-gh api graphql -f query='
-mutation($id:ID!) {
-  resolveReviewThread(input:{threadId:$id}) { thread { isResolved } }
-}' -f id=THREAD_ID
+gh api graphql …   # list threads + resolveReviewThread when MCP ids unavailable
 ```
