@@ -92,7 +92,7 @@ function Invoke-SdkOpenAdt {
   if ($sapJars.Count -eq 0) {
     Write-Error "No SAP ADT bundles in $adtPluginsDir"
   }
-  $cp = @($FullJar)
+  $cp = @($LiteJar, $FullJar)
   $jcoCorePattern = '^(?:com\.sap\.conn\.jco_\d|jco-\d[\d.]*)\.jar$'
   $jcoJars = @($sapJars | Where-Object { $_.Name -match $jcoCorePattern })
   $nonJcoJars = @($sapJars | Where-Object { $_.Name -notmatch $jcoCorePattern })
