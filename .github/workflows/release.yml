@@ -123,6 +123,7 @@ jobs:
 
       - name: Sync scoop-bucket branch (scoop install openadt)
         shell: bash
+        continue-on-error: true
         run: bash tools/sync-scoop-bucket/sync.sh
 
       - name: Create GitHub release

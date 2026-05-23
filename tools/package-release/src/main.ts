@@ -100,7 +100,7 @@ function writeLaunchers(base: string): void {
 
   writeFileSync(
     join(base, "bin/openadt.cmd"),
-    `@echo off\r\nsetlocal\r\nset "OPENADT_HOME=%~dp0.."\r\npowershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0openadt-launcher.ps1" %*\r\nexit /b %ERRORLEVEL%\r\n`,
+    `@echo off\r\nsetlocal EnableDelayedExpansion\r\nset "OPENADT_HOME=%~dp0.."\r\nset "OPENADT_ARG_COUNT=0"\r\n:openadt_args\r\nif "%~1"=="" goto openadt_run\r\nset "OPENADT_ARG_!OPENADT_ARG_COUNT!=%~1"\r\nset /a OPENADT_ARG_COUNT+=1\r\nshift\r\ngoto openadt_args\r\n:openadt_run\r\npowershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0openadt-launcher.ps1"\r\nexit /b %ERRORLEVEL%\r\n`,
   );
 
   writeFileSync(

@@ -4,10 +4,18 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+if ((-not $OpenAdtArgs -or $OpenAdtArgs.Count -eq 0) -and $env:OPENADT_ARG_COUNT) {
+  $count = [int]$env:OPENADT_ARG_COUNT
+  $OpenAdtArgs = @()
+  for ($i = 0; $i -lt $count; $i++) {
+    $OpenAdtArgs += (Get-ChildItem -Path "Env:OPENADT_ARG_$i").Value
+  }
+}
+
 $OpenAdtHome = if ($env:OPENADT_HOME) { $env:OPENADT_HOME } else { Split-Path -Parent $PSScriptRoot }
 $LiteJar = Join-Path $OpenAdtHome "openadt.jar"
 $FullJar = Join-Path $env:USERPROFILE ".openadt/runtime/openadt-full.jar"
-$LauncherRoot = $PSScriptRoot
 
 function Get-JavaExe {
   if ($env:JAVA_HOME) {
@@ -29,12 +37,12 @@ function Get-JavaExe {
 }
 
 function Invoke-LiteOpenAdt {
-  param([string[]] $Args)
+  param([string[]] $CliArgs)
   $javaExe = Get-JavaExe
   if (-not $javaExe) {
     Write-Error "java not found on PATH; install JDK 21 (for example Temurin or Microsoft Build of OpenJDK)"
   }
-  & $javaExe -jar $LiteJar @Args
+  & $javaExe -jar $LiteJar @CliArgs
   exit $LASTEXITCODE
 }
 
@@ -54,7 +62,7 @@ function Resolve-CanonicalJcoJar([System.IO.FileInfo]$Jar) {
 }
 
 function Invoke-SdkOpenAdt {
-  param([string[]] $Args)
+  param([string[]] $CliArgs)
   if (-not (Test-Path $FullJar)) {
     Write-Host "Full SAP SDK runtime is not prepared yet." -ForegroundColor Yellow
     Write-Host "Run: openadt config build" -ForegroundColor Yellow
@@ -93,18 +101,18 @@ function Invoke-SdkOpenAdt {
   if (-not $javaExe) {
     Write-Error "java not found on PATH; install JDK 21"
   }
-  & $javaExe -cp ($cp -join ";") org.openadt.cli.OpenAdtCommand @Args
+  & $javaExe -cp ($cp -join ";") org.openadt.cli.OpenAdtCommand @CliArgs
   exit $LASTEXITCODE
 }
 
 $env:OPENADT_HOME = $OpenAdtHome
-if ($OpenAdtArgs.Count -eq 0) {
-  Invoke-LiteOpenAdt @OpenAdtArgs
+if (-not $OpenAdtArgs -or $OpenAdtArgs.Count -eq 0) {
+  Invoke-LiteOpenAdt @()
 }
 
 $subcommand = $OpenAdtArgs[0]
 if ($subcommand -in @("fetch", "proxy")) {
-  Invoke-SdkOpenAdt @OpenAdtArgs
+  Invoke-SdkOpenAdt $OpenAdtArgs
 }
 
-Invoke-LiteOpenAdt @OpenAdtArgs
+Invoke-LiteOpenAdt $OpenAdtArgs
