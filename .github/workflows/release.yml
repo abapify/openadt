@@ -69,7 +69,7 @@ jobs:
             exit 1
           fi
           git commit -m "chore(release): prepare ${{ steps.bump.outputs.tag }}"
-          git push origin HEAD
+          git push origin HEAD:${{ github.ref_name }}
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
   publish:
@@ -118,7 +118,7 @@ jobs:
             git commit -m "chore(release): checksums for ${{ needs.bump.outputs.tag }}"
           fi
           git tag "${{ needs.bump.outputs.tag }}"
-          git push origin HEAD
+          git push origin HEAD:${{ github.ref_name }}
           git push origin "${{ needs.bump.outputs.tag }}"
 
       - name: Create GitHub release

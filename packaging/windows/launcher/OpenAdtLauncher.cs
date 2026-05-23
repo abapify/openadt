@@ -34,7 +34,10 @@ internal static class Program
             Console.Error.WriteLine("Failed to start java process.");
             return 1;
         }
-        process.WaitForExit();
-        return process.ExitCode;
+        using (process)
+        {
+            process.WaitForExit();
+            return process.ExitCode;
+        }
     }
 }
