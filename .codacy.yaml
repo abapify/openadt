@@ -1,0 +1,7 @@
+---
+# Repository Codacy configuration (see https://docs.codacy.com/repositories-configure/codacy-configuration-file/)
+engines:
+  opengrep:
+    exclude_paths:
+      # Dedicated loopback TLS probe for Secure Login hub cert capture; not user-controlled egress.
+      - "apps/openadt-cli/src/main/java/org/openadt/core/LoopbackHubTlsProbe.java"
