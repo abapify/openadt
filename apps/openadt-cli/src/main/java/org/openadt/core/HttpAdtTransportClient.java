@@ -16,6 +16,7 @@ import java.util.Map;
 
 public class HttpAdtTransportClient implements AdtTransportClient {
     private static final String DEFAULT_VERSION = "HTTP/1.1";
+    private static final String HEADER_COOKIE = "Cookie";
     private static final String WELL_KNOWN_INFO_CONTENT_TYPE = "application/vnd.com.sap.adt.wellknowninfo.v1+json";
     private final HttpClient httpClient;
     private final AdtHttpCookieProvider cookieProvider;
@@ -69,10 +70,10 @@ public class HttpAdtTransportClient implements AdtTransportClient {
                 response.body()
             );
         } catch (IOException e) {
-            throw new RuntimeException("Failed to execute HTTP ADT call: " + e.getMessage(), e);
+            throw new OpenAdtException("Failed to execute HTTP ADT call: " + e.getMessage(), e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new RuntimeException("Interrupted while executing HTTP ADT call", e);
+            throw new OpenAdtException("Interrupted while executing HTTP ADT call", e);
         }
     }
 
@@ -81,7 +82,7 @@ public class HttpAdtTransportClient implements AdtTransportClient {
             .timeout(Duration.ofSeconds(60));
 
         request.headers().forEach(builder::header);
-        builder.header("Cookie", buildCookieHeader(system));
+        builder.header(HEADER_COOKIE, buildCookieHeader(system));
 
         byte[] body = request.body() != null ? request.body() : new byte[0];
         if (body.length == 0) {
@@ -162,7 +163,7 @@ public class HttpAdtTransportClient implements AdtTransportClient {
             HttpRequest request = HttpRequest.newBuilder(uri)
                 .timeout(Duration.ofSeconds(30))
                 .header("Accept", WELL_KNOWN_INFO_CONTENT_TYPE)
-                .header("Cookie", buildCookieHeader(system))
+                .header(HEADER_COOKIE, buildCookieHeader(system))
                 .GET()
                 .build();
             HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
@@ -172,6 +173,9 @@ public class HttpAdtTransportClient implements AdtTransportClient {
             JsonNode root = objectMapper.readTree(response.body());
             JsonNode serviceEndpoint = root.path("resource").path("service_endpoint");
             return serviceEndpoint.isTextual() ? serviceEndpoint.asText() : null;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return null;
         } catch (Exception e) {
             return null;
         }
@@ -181,7 +185,7 @@ public class HttpAdtTransportClient implements AdtTransportClient {
         try {
             HttpRequest request = HttpRequest.newBuilder(uri)
                 .timeout(Duration.ofSeconds(30))
-                .header("Cookie", buildCookieHeader(system))
+                .header(HEADER_COOKIE, buildCookieHeader(system))
                 .GET()
                 .build();
             HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
@@ -191,6 +195,9 @@ public class HttpAdtTransportClient implements AdtTransportClient {
             JsonNode root = objectMapper.readTree(response.body());
             JsonNode api = root.path("relatedUrls").path("api");
             return api.isTextual() ? api.asText() : null;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return null;
         } catch (Exception e) {
             return null;
         }

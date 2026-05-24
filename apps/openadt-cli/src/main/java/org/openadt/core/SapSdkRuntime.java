@@ -22,15 +22,11 @@ public final class SapSdkRuntime {
             }
             JCoRuntimeBootstrap.prepare(config.getRuntime());
             AdtCommunicationBootstrap.prepare();
-            String systemId = system != null && system.getSystemId() != null
-                ? system.getSystemId()
-                : (system != null ? system.getAlias() : null);
             SecureLoginBootstrap.prepareForJco(
                 config,
                 SecureLoginBootstrap.hubBrowserMonitorEnabled(),
                 false,
-                false,
-                systemId
+                false
             );
             prepared = true;
         }

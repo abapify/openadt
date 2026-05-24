@@ -139,17 +139,17 @@ class AdtProxyHandlerTest {
         @Override public URI getRequestURI() { return uri; }
         @Override public String getRequestMethod() { return method; }
         @Override public HttpContext getHttpContext() { return null; }
-        @Override public void close() {}
+        @Override public void close() { /* test double noop */ }
         @Override public InputStream getRequestBody() { return new ByteArrayInputStream(requestBody); }
         @Override public OutputStream getResponseBody() { return responseBody; }
-        @Override public void sendResponseHeaders(int responseCode, long responseLength) {}
+        @Override public void sendResponseHeaders(int responseCode, long responseLength) { /* test double noop */ }
         @Override public int getResponseCode() { return 0; }
         @Override public InetSocketAddress getRemoteAddress() { return null; }
         @Override public InetSocketAddress getLocalAddress() { return null; }
         @Override public String getProtocol() { return "HTTP/1.1"; }
         @Override public Object getAttribute(String name) { return null; }
-        @Override public void setAttribute(String name, Object value) {}
-        @Override public void setStreams(InputStream input, OutputStream output) {}
+        @Override public void setAttribute(String name, Object value) { /* test double noop */ }
+        @Override public void setStreams(InputStream input, OutputStream output) { /* test double noop */ }
         @Override public com.sun.net.httpserver.HttpPrincipal getPrincipal() { return null; }
     }
 }

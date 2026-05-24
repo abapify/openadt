@@ -2,6 +2,7 @@ package org.openadt.cli;
 
 import org.openadt.core.AdtAcceptHeaders;
 import org.openadt.core.AdtTransportClient;
+import org.openadt.core.CliLog;
 import org.openadt.core.ConfigLoader;
 import org.openadt.core.DestinationProfileResolver;
 import org.openadt.core.FetchTransportResolver;
@@ -33,6 +34,8 @@ import java.util.concurrent.Callable;
     description = "Fetch an ADT resource from an SAP system"
 )
 public class FetchCommand implements Callable<Integer> {
+    private static final String HEADER_ACCEPT = "Accept";
+
     @Parameters(index = "0", arity = "0..1", description = "System alias")
     private String systemAlias;
 
@@ -102,7 +105,7 @@ public class FetchCommand implements Callable<Integer> {
     @Override
     public Integer call() throws Exception {
         if (isDirectHttpMode() && profile != null && !profile.isBlank()) {
-            System.err.println("--profile cannot be used with --base-url direct HTTP mode.");
+            CliLog.error("--profile cannot be used with --base-url direct HTTP mode.");
             return 1;
         }
         ConfigLoader loader = new ConfigLoader();
@@ -111,20 +114,20 @@ public class FetchCommand implements Callable<Integer> {
         String adtPath;
         if (isDirectHttpMode()) {
             if (explicitClient == null || explicitClient.isBlank()) {
-                System.err.println("Missing SAP client. Use --client with --base-url.");
+                CliLog.error("Missing SAP client. Use --client with --base-url.");
                 return 1;
             }
             config = explicitHttpConfig();
             system = explicitHttpSystem();
             String rawPath = explicitPath != null ? explicitPath : urlOrPath;
             if (rawPath == null || rawPath.isBlank()) {
-                System.err.println("Missing ADT path. Use --path with --base-url.");
+                CliLog.error("Missing ADT path. Use --path with --base-url.");
                 return 1;
             }
             adtPath = resolveAdtPath(rawPath);
         } else {
             if (systemAlias == null || systemAlias.isBlank() || urlOrPath == null || urlOrPath.isBlank()) {
-                System.err.println("Usage: openadt fetch <SYSTEM> <URL-OR-PATH> (or use --base-url with --path)");
+                CliLog.error("Usage: openadt fetch <SYSTEM> <URL-OR-PATH> (or use --base-url with --path)");
                 return 1;
             }
             Path effectivePath = configPath != null ? configPath : loader.getDefaultConfigPath();
@@ -134,7 +137,7 @@ public class FetchCommand implements Callable<Integer> {
             try {
                 system = DestinationProfileResolver.resolve(config, systemAlias, profile);
             } catch (IllegalArgumentException e) {
-                System.err.println(e.getMessage());
+                CliLog.error(e.getMessage());
                 return 1;
             }
             adtPath = resolveAdtPath(urlOrPath);
@@ -147,22 +150,22 @@ public class FetchCommand implements Callable<Integer> {
         try {
             if (!raw && !isDirectHttpMode()) {
                 if (!direct && LocalProxyRegistry.findActive(system.getAlias(), profile).isPresent()) {
-                    System.err.println("Using local openadt proxy for " + system.getAlias()
+                    CliLog.error("Using local openadt proxy for " + system.getAlias()
                         + (profile != null && !profile.isBlank() ? " (profile " + profile + ")" : ""));
                 } else if (!direct) {
                     String profileHint = profile != null && !profile.isBlank()
                         ? " --profile=" + profile
                         : "";
-                    System.err.println("Tip: run 'openadt proxy " + system.getAlias()
+                    CliLog.error("Tip: run 'openadt proxy " + system.getAlias()
                         + profileHint + "' in another terminal; fetch will reuse it and start faster.");
                 }
             }
             transportClient = FetchTransportResolver.resolve(config, system, direct, profile);
         } catch (IllegalStateException e) {
-            System.err.println(e.getMessage());
+            CliLog.error(e.getMessage());
             return 1;
         } catch (Exception e) {
-            System.err.println(e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
+            CliLog.error(e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
             return 1;
         }
 
@@ -173,9 +176,9 @@ public class FetchCommand implements Callable<Integer> {
         } catch (Exception error) {
             String detail = error.getMessage() != null ? error.getMessage() : error.getClass().getSimpleName();
             String alias = effectiveAlias(system);
-            System.err.println("Fetch failed for " + alias + " " + adtPath + ": " + detail);
+            CliLog.error("Fetch failed for " + alias + " " + adtPath + ": " + detail);
             if (Boolean.parseBoolean(System.getenv().getOrDefault("OPENADT_VERBOSE", "false"))) {
-                error.printStackTrace(System.err);
+                error.printStackTrace(CliLog.stderr());
             }
             return 1;
         }
@@ -212,11 +215,11 @@ public class FetchCommand implements Callable<Integer> {
     }
 
     private void applyAcceptHeaders(Map<String, String> headerMap, String adtPath) {
-        if (!accept.isEmpty() && !hasHeader(headerMap, "Accept")) {
-            headerMap.put("Accept", String.join(", ", accept));
+        if (!accept.isEmpty() && !hasHeader(headerMap, HEADER_ACCEPT)) {
+            headerMap.put(HEADER_ACCEPT, String.join(", ", accept));
         }
-        if (!hasHeader(headerMap, "Accept")) {
-            headerMap.put("Accept", AdtAcceptHeaders.defaultAcceptHeaderValue(adtPath));
+        if (!hasHeader(headerMap, HEADER_ACCEPT)) {
+            headerMap.put(HEADER_ACCEPT, AdtAcceptHeaders.defaultAcceptHeaderValue(adtPath));
         }
     }
 
@@ -245,18 +248,18 @@ public class FetchCommand implements Callable<Integer> {
 
         if (output != null) {
             if (include && !raw) {
-                printStatusAndHeaders(response, System.out);
+                printStatusAndHeaders(response, CliLog.stdout());
             }
             Files.write(output, outBody);
             return;
         }
 
         if (include && !raw) {
-            printStatusAndHeaders(response, System.out);
+            printStatusAndHeaders(response, CliLog.stdout());
         }
         if (outBody.length > 0) {
-            System.out.write(outBody);
-            System.out.flush();
+            CliLog.stdout().write(outBody);
+            CliLog.stdout().flush();
         }
     }
 

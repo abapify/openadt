@@ -30,39 +30,56 @@ public final class ResponseBodyFormatter {
 
     static String prettyPrintJson(String jsonText) {
         StringBuilder sb = new StringBuilder();
-        int indent = 0;
-        boolean inString = false;
+        JsonPrettyState state = new JsonPrettyState();
         for (int i = 0; i < jsonText.length(); i++) {
-            char c = jsonText.charAt(i);
-            if (c == '"' && (i == 0 || jsonText.charAt(i - 1) != '\\')) {
-                inString = !inString;
-                sb.append(c);
-            } else if (inString) {
-                sb.append(c);
-            } else if (c == '{' || c == '[') {
-                sb.append(c);
-                sb.append('\n');
-                indent++;
-                sb.append("  ".repeat(indent));
-            } else if (c == '}' || c == ']') {
-                sb.append('\n');
-                indent--;
-                sb.append("  ".repeat(indent));
-                sb.append(c);
-            } else if (c == ',') {
-                sb.append(c);
-                sb.append('\n');
-                sb.append("  ".repeat(indent));
-            } else if (c == ':') {
-                sb.append(": ");
-            } else if (c != ' ' && c != '\n' && c != '\r' && c != '\t') {
-                sb.append(c);
-            }
+            appendPrettyJsonChar(jsonText, i, sb, state);
         }
         if (!sb.isEmpty() && sb.charAt(sb.length() - 1) != '\n') {
             sb.append('\n');
         }
         return sb.toString();
+    }
+
+    private static void appendPrettyJsonChar(String jsonText, int index, StringBuilder sb, JsonPrettyState state) {
+        char c = jsonText.charAt(index);
+        if (c == '"' && (index == 0 || jsonText.charAt(index - 1) != '\\')) {
+            state.inString = !state.inString;
+            sb.append(c);
+            return;
+        }
+        if (state.inString) {
+            sb.append(c);
+            return;
+        }
+        if (c == '{' || c == '[') {
+            sb.append(c).append('\n');
+            state.indent++;
+            sb.append("  ".repeat(state.indent));
+            return;
+        }
+        if (c == '}' || c == ']') {
+            sb.append('\n');
+            state.indent--;
+            sb.append("  ".repeat(state.indent));
+            sb.append(c);
+            return;
+        }
+        if (c == ',') {
+            sb.append(c).append('\n').append("  ".repeat(state.indent));
+            return;
+        }
+        if (c == ':') {
+            sb.append(": ");
+            return;
+        }
+        if (c != ' ' && c != '\n' && c != '\r' && c != '\t') {
+            sb.append(c);
+        }
+    }
+
+    private static final class JsonPrettyState {
+        private int indent;
+        private boolean inString;
     }
 
     static byte[] prettyPrintXml(byte[] body) {

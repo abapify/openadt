@@ -15,19 +15,18 @@ public final class SecureLoginBootstrap {
     }
 
     public static void prepareForJco(OpenAdtConfig config) {
-        prepareForJco(config, hubBrowserMonitorEnabled(), false, false, null);
+        prepareForJco(config, hubBrowserMonitorEnabled(), false, false);
     }
 
     public static void prepareForJco(OpenAdtConfig config, boolean hubBrowserMonitor) {
-        prepareForJco(config, hubBrowserMonitor, false, false, null);
+        prepareForJco(config, hubBrowserMonitor, false, false);
     }
 
     public static void prepareForJco(
         OpenAdtConfig config,
         boolean hubBrowserMonitor,
         boolean openMfaBrowser,
-        boolean forceHubLogin,
-        String systemId
+        boolean forceHubLogin
     ) {
         OpenAdtConfig.SecureLoginConfig secureLogin = resolveSecureLogin(config);
         if (secureLogin == null) {
@@ -57,10 +56,13 @@ public final class SecureLoginBootstrap {
             }
             hub.ensureWebAdapterLoggedIn(profileId, hubBrowserMonitor, forceHubLogin);
             log("Secure Login Web Adapter status: LOGGED_IN");
-        } catch (IOException | InterruptedException error) {
-            if (error instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
+        } catch (IOException error) {
+            throw new IllegalStateException(
+                "Secure Login hub login failed: " + error.getMessage(),
+                error
+            );
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
             throw new IllegalStateException(
                 "Secure Login hub login failed: " + error.getMessage(),
                 error
@@ -157,8 +159,8 @@ public final class SecureLoginBootstrap {
     }
 
     private static void log(String message) {
-        System.err.println("[openadt sdk] " + message);
-        System.err.flush();
+        CliLog.error("[openadt sdk] " + message);
+        CliLog.stderr().flush();
     }
 
     /**
@@ -173,57 +175,86 @@ public final class SecureLoginBootstrap {
                 return java.util.Optional.empty();
             }
             try {
-                Process process = new ProcessBuilder(
-                    "reg", "query", "HKCU\\Software\\SAP\\SecureLogin\\groups\\user\\profiles", "/s"
-                ).redirectErrorStream(true).start();
-                String output = new String(process.getInputStream().readAllBytes());
-                process.waitFor();
-                if (process.exitValue() != 0 || !output.contains("enrollURL")) {
+                String output = queryRegistry();
+                if (output == null) {
                     return java.util.Optional.empty();
                 }
-                String profileId = null;
-                String origin = null;
-                int webAdapterIndex = output.indexOf("profiles\\Web Adapter");
-                if (webAdapterIndex < 0) {
-                    webAdapterIndex = output.indexOf("profiles/Web Adapter");
-                }
-                String webAdapterSection = webAdapterIndex >= 0
-                    ? output.substring(webAdapterIndex, Math.min(output.length(), webAdapterIndex + 4096))
-                    : output;
-                String enrollUrl = parseRegistryUrl(webAdapterSection, "enrollURL0");
-                String ssoUrl = parseRegistryUrl(webAdapterSection, "ssoURL");
-                profileId = profileIdFromUrl(enrollUrl);
-                if (profileId == null) {
-                    Matcher profileMatcher = PROFILE_ID_PATTERN.matcher(webAdapterSection);
-                    if (profileMatcher.find()) {
-                        profileId = profileMatcher.group(1);
-                    }
-                }
-                Matcher originMatcher = ORIGIN_PATTERN.matcher(
-                    ssoUrl != null ? ssoUrl : (enrollUrl != null ? enrollUrl : webAdapterSection)
-                );
-                if (originMatcher.find()) {
-                    origin = originMatcher.group(1);
-                }
-                if (profileId == null) {
-                    return java.util.Optional.empty();
-                }
-                OpenAdtConfig.SecureLoginConfig secureLogin = new OpenAdtConfig.SecureLoginConfig();
-                secureLogin.setLocalSecurityHub(SecureLoginHubClient.DEFAULT_HUB_URL);
-                if (origin != null) {
-                    secureLogin.setOrigin(origin);
-                    secureLogin.setReferer(origin + "/");
-                }
-                secureLogin.setWebAdapterProfileId(profileId);
-                secureLogin.setEnrollUrl(enrollUrl);
-                secureLogin.setSsoUrl(ssoUrl);
-                return java.util.Optional.of(secureLogin);
-            } catch (IOException | InterruptedException error) {
-                if (error instanceof InterruptedException) {
-                    Thread.currentThread().interrupt();
-                }
+                return parseRegistryOutput(output);
+            } catch (IOException error) {
+                return java.util.Optional.empty();
+            } catch (InterruptedException error) {
+                Thread.currentThread().interrupt();
                 return java.util.Optional.empty();
             }
+        }
+
+        private static String queryRegistry() throws IOException, InterruptedException {
+            Process process = new ProcessBuilder(
+                "reg", "query", "HKCU\\Software\\SAP\\SecureLogin\\groups\\user\\profiles", "/s"
+            ).redirectErrorStream(true).start();
+            String output = new String(process.getInputStream().readAllBytes());
+            process.waitFor();
+            if (process.exitValue() != 0 || !output.contains("enrollURL")) {
+                return null;
+            }
+            return output;
+        }
+
+        private static java.util.Optional<OpenAdtConfig.SecureLoginConfig> parseRegistryOutput(String output) {
+            String webAdapterSection = extractWebAdapterSection(output);
+            String enrollUrl = parseRegistryUrl(webAdapterSection, "enrollURL0");
+            String ssoUrl = parseRegistryUrl(webAdapterSection, "ssoURL");
+            String profileId = resolveProfileId(webAdapterSection, enrollUrl);
+            if (profileId == null) {
+                return java.util.Optional.empty();
+            }
+            String origin = resolveOrigin(ssoUrl, enrollUrl, webAdapterSection);
+            OpenAdtConfig.SecureLoginConfig secureLogin = new OpenAdtConfig.SecureLoginConfig();
+            secureLogin.setLocalSecurityHub(SecureLoginHubClient.DEFAULT_HUB_URL);
+            if (origin != null) {
+                secureLogin.setOrigin(origin);
+                secureLogin.setReferer(origin + "/");
+            }
+            secureLogin.setWebAdapterProfileId(profileId);
+            secureLogin.setEnrollUrl(enrollUrl);
+            secureLogin.setSsoUrl(ssoUrl);
+            return java.util.Optional.of(secureLogin);
+        }
+
+        private static String extractWebAdapterSection(String output) {
+            int webAdapterIndex = output.indexOf("profiles\\Web Adapter");
+            if (webAdapterIndex < 0) {
+                webAdapterIndex = output.indexOf("profiles/Web Adapter");
+            }
+            if (webAdapterIndex < 0) {
+                return output;
+            }
+            return output.substring(webAdapterIndex, Math.min(output.length(), webAdapterIndex + 4096));
+        }
+
+        private static String resolveProfileId(String webAdapterSection, String enrollUrl) {
+            String profileId = profileIdFromUrl(enrollUrl);
+            if (profileId != null) {
+                return profileId;
+            }
+            Matcher profileMatcher = PROFILE_ID_PATTERN.matcher(webAdapterSection);
+            return profileMatcher.find() ? profileMatcher.group(1) : null;
+        }
+
+        private static String resolveOrigin(String ssoUrl, String enrollUrl, String webAdapterSection) {
+            String originSource = firstNonNull(ssoUrl, enrollUrl, webAdapterSection);
+            Matcher originMatcher = ORIGIN_PATTERN.matcher(originSource);
+            return originMatcher.find() ? originMatcher.group(1) : null;
+        }
+
+        private static String firstNonNull(String primary, String secondary, String fallback) {
+            if (primary != null) {
+                return primary;
+            }
+            if (secondary != null) {
+                return secondary;
+            }
+            return fallback;
         }
 
         private static String profileIdFromUrl(String url) {

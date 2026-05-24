@@ -17,6 +17,9 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 public class ConfigLoader {
+    private static final String VERSION_LINE = "version = 1";
+    private static final String DESTINATIONS_PREFIX = "[destinations.";
+
     private final TomlMapper mapper;
     private final Path workingDirectory;
     private final Path homeDirectory;
@@ -696,7 +699,7 @@ public class ConfigLoader {
     private void writeEntrypoint(Path path, List<String> includes) throws IOException {
         Files.createDirectories(path.getParent());
         List<String> lines = new ArrayList<>();
-        lines.add("version = 1");
+        lines.add(VERSION_LINE);
         lines.add("");
         lines.add("[merge]");
         lines.add("strategy = \"last-wins\"");
@@ -712,7 +715,7 @@ public class ConfigLoader {
     private void writeDestinationsFragment(Path path, List<SystemProfile> systems) throws IOException {
         Files.createDirectories(path.getParent());
         List<String> lines = new ArrayList<>();
-        lines.add("version = 1");
+        lines.add(VERSION_LINE);
         if (systems != null) {
             for (SystemProfile system : systems) {
                 String alias = system.getAlias() != null ? system.getAlias() : system.getSystemId();
@@ -720,7 +723,7 @@ public class ConfigLoader {
                     continue;
                 }
                 lines.add("");
-                lines.add("[destinations." + quoteKey(alias) + "]");
+                lines.add(DESTINATIONS_PREFIX + quoteKey(alias) + "]");
                 writeString(lines, "alias", system.getAlias());
                 writeString(lines, "source", system.getSource());
                 writeString(lines, "description", system.getDescription());
@@ -732,7 +735,7 @@ public class ConfigLoader {
 
                 if (system.getJco() != null) {
                     lines.add("");
-                    lines.add("[destinations." + quoteKey(alias) + ".jco]");
+                    lines.add(DESTINATIONS_PREFIX + quoteKey(alias) + ".jco]");
                     writeString(lines, "mshost", system.getJco().getMshost());
                     writeString(lines, "msserv", system.getJco().getMsserv());
                     writeString(lines, "r3name", system.getJco().getR3name());
@@ -749,7 +752,7 @@ public class ConfigLoader {
 
                 if (system.getAdt() != null) {
                     lines.add("");
-                    lines.add("[destinations." + quoteKey(alias) + ".adt]");
+                    lines.add(DESTINATIONS_PREFIX + quoteKey(alias) + ".adt]");
                     writeString(lines, "transport", system.getAdt().getTransport());
                     writeString(lines, "ashost", system.getAdt().getAshost());
                     writeString(lines, "discovery_url", system.getAdt().getDiscoveryUrl());
@@ -764,7 +767,7 @@ public class ConfigLoader {
                         if (profile == null) {
                             continue;
                         }
-                        String profilePrefix = "[destinations." + quoteKey(alias) + ".profiles." + quoteKey(profileName) + "]";
+                        String profilePrefix = DESTINATIONS_PREFIX + quoteKey(alias) + ".profiles." + quoteKey(profileName) + "]";
                         lines.add("");
                         lines.add(profilePrefix);
                         writeString(lines, "transport", profile.getTransport());
@@ -775,7 +778,7 @@ public class ConfigLoader {
 
                         if (profile.getJco() != null) {
                             lines.add("");
-                            lines.add("[destinations." + quoteKey(alias) + ".profiles." + quoteKey(profileName) + ".jco]");
+                            lines.add(DESTINATIONS_PREFIX + quoteKey(alias) + ".profiles." + quoteKey(profileName) + ".jco]");
                             writeString(lines, "mshost", profile.getJco().getMshost());
                             writeString(lines, "msserv", profile.getJco().getMsserv());
                             writeString(lines, "r3name", profile.getJco().getR3name());
@@ -792,7 +795,7 @@ public class ConfigLoader {
 
                         if (profile.getAdt() != null) {
                             lines.add("");
-                            lines.add("[destinations." + quoteKey(alias) + ".profiles." + quoteKey(profileName) + ".adt]");
+                            lines.add(DESTINATIONS_PREFIX + quoteKey(alias) + ".profiles." + quoteKey(profileName) + ".adt]");
                             writeString(lines, "transport", profile.getAdt().getTransport());
                             writeString(lines, "ashost", profile.getAdt().getAshost());
                             writeString(lines, "discovery_url", profile.getAdt().getDiscoveryUrl());
@@ -809,7 +812,7 @@ public class ConfigLoader {
     private void writeLocalFragment(Path path, OpenAdtConfig config) throws IOException {
         Files.createDirectories(path.getParent());
         List<String> lines = new ArrayList<>();
-        lines.add("version = 1");
+        lines.add(VERSION_LINE);
         if (config.getRuntime() != null) {
             lines.add("");
             lines.add("[runtime]");

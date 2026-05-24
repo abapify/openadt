@@ -99,7 +99,7 @@ public final class AdtSdkClassLoaderFactory {
         if (!matcher.find()) {
             return List.of();
         }
-        String[] parts = matcher.group(1).split("[^0-9]+");
+        String[] parts = matcher.group(1).split("\\D+");
         List<Integer> key = new ArrayList<>(parts.length);
         for (String part : parts) {
             if (!part.isBlank()) {

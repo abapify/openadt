@@ -27,7 +27,7 @@ final class SsoCallbackRegistry {
             Files.createDirectories(runtimeDir());
             MAPPER.writerWithDefaultPrettyPrinter().writeValue(runtimeFile().toFile(), active);
         } catch (IOException error) {
-            System.err.println("Warning: could not write SSO callback registry: " + error.getMessage());
+            CliLog.error("Warning: could not write SSO callback registry: " + error.getMessage());
         }
     }
 
@@ -35,7 +35,7 @@ final class SsoCallbackRegistry {
         try {
             Files.deleteIfExists(runtimeFile());
         } catch (IOException error) {
-            System.err.println("Warning: could not clear SSO callback registry: " + error.getMessage());
+            CliLog.error("Warning: could not clear SSO callback registry: " + error.getMessage());
         }
     }
 

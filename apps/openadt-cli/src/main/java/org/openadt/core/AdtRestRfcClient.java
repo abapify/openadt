@@ -29,6 +29,8 @@ import java.util.Map;
  */
 public class AdtRestRfcClient implements AdtTransportClient {
     private static final String RFC_FUNCTION = "SADT_REST_RFC_ENDPOINT";
+    private static final String METHOD_GET_STRUCTURE = "getStructure";
+    private static final String METHOD_SET_VALUE = "setValue";
 
     private final JCoDestinationFactory destinationFactory;
 
@@ -53,27 +55,27 @@ public class AdtRestRfcClient implements AdtTransportClient {
             Object importParams = getImportMethod.invoke(function);
 
             // REQUEST structure
-            Method getStructMethod = importParams.getClass().getMethod("getStructure", String.class);
+            Method getStructMethod = importParams.getClass().getMethod(METHOD_GET_STRUCTURE, String.class);
             Object requestStruct = getStructMethod.invoke(importParams, "REQUEST");
 
             // REQUEST.REQUEST_LINE nested structure
-            Method getNestedStructMethod = requestStruct.getClass().getMethod("getStructure", String.class);
+            Method getNestedStructMethod = requestStruct.getClass().getMethod(METHOD_GET_STRUCTURE, String.class);
             Object requestLine = getNestedStructMethod.invoke(requestStruct, "REQUEST_LINE");
 
-            Method setValueMethod = requestLine.getClass().getMethod("setValue", String.class, Object.class);
+            Method setValueMethod = requestLine.getClass().getMethod(METHOD_SET_VALUE, String.class, Object.class);
             setValueMethod.invoke(requestLine, "METHOD", request.method());
             setValueMethod.invoke(requestLine, "URI", request.uri());
             setValueMethod.invoke(requestLine, "VERSION", request.version() != null ? request.version() : "HTTP/1.1");
 
             // REQUEST.MESSAGE_BODY
-            Method setBodyMethod = requestStruct.getClass().getMethod("setValue", String.class, Object.class);
+            Method setBodyMethod = requestStruct.getClass().getMethod(METHOD_SET_VALUE, String.class, Object.class);
             setBodyMethod.invoke(requestStruct, "MESSAGE_BODY", request.body() != null ? request.body() : new byte[0]);
 
             // REQUEST.HEADER_FIELDS table
             Method getTableMethod = requestStruct.getClass().getMethod("getTable", String.class);
             Object headersTable = getTableMethod.invoke(requestStruct, "HEADER_FIELDS");
             Method appendRowMethod = headersTable.getClass().getMethod("appendRow");
-            Method setValueOnRowMethod = headersTable.getClass().getMethod("setValue", String.class, Object.class);
+            Method setValueOnRowMethod = headersTable.getClass().getMethod(METHOD_SET_VALUE, String.class, Object.class);
 
             for (Map.Entry<String, String> entry : request.headers().entrySet()) {
                 appendRowMethod.invoke(headersTable);
@@ -89,11 +91,11 @@ public class AdtRestRfcClient implements AdtTransportClient {
             Method getExportMethod = function.getClass().getMethod("getExportParameterList");
             Object exportParams = getExportMethod.invoke(function);
 
-            Method getExportStructMethod = exportParams.getClass().getMethod("getStructure", String.class);
+            Method getExportStructMethod = exportParams.getClass().getMethod(METHOD_GET_STRUCTURE, String.class);
             Object responseStruct = getExportStructMethod.invoke(exportParams, "RESPONSE");
 
             // RESPONSE.STATUS_LINE
-            Method getStatusLineMethod = responseStruct.getClass().getMethod("getStructure", String.class);
+            Method getStatusLineMethod = responseStruct.getClass().getMethod(METHOD_GET_STRUCTURE, String.class);
             Object statusLine = getStatusLineMethod.invoke(responseStruct, "STATUS_LINE");
 
             Method getStringMethod = statusLine.getClass().getMethod("getString", String.class);
@@ -130,9 +132,9 @@ public class AdtRestRfcClient implements AdtTransportClient {
             );
 
         } catch (ClassNotFoundException e) {
-            throw new RuntimeException("SAP JCo library not found. Please configure jco_jar in config.", e);
+            throw new OpenAdtException("SAP JCo library not found. Please configure jco_jar in config.", e);
         } catch (Exception e) {
-            throw new RuntimeException("Failed to execute RFC call: " + e.getMessage(), e);
+            throw new OpenAdtException("Failed to execute RFC call: " + e.getMessage(), e);
         }
     }
 

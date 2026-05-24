@@ -20,16 +20,56 @@ public final class LocalProxyRegistry {
     private LocalProxyRegistry() {
     }
 
-    public record ProxyEndpoint(
-        String systemAlias,
-        String profileName,
-        String host,
-        int port,
-        boolean basicAuth,
-        String username
-    ) {
+    public static final class ProxyEndpoint {
+        private final String systemAlias;
+        private final String profileName;
+        private final String host;
+        private final int port;
+        private final boolean basicAuth;
+        private final String username;
+
+        public ProxyEndpoint(
+            String systemAlias,
+            String profileName,
+            String host,
+            int port,
+            boolean basicAuth,
+            String username
+        ) {
+            this.systemAlias = systemAlias;
+            this.profileName = profileName;
+            this.host = host;
+            this.port = port;
+            this.basicAuth = basicAuth;
+            this.username = username;
+        }
+
         public ProxyEndpoint(String systemAlias, String host, int port, boolean basicAuth, String username) {
             this(systemAlias, null, host, port, basicAuth, username);
+        }
+
+        public String getSystemAlias() {
+            return systemAlias;
+        }
+
+        public String getProfileName() {
+            return profileName;
+        }
+
+        public String getHost() {
+            return host;
+        }
+
+        public int getPort() {
+            return port;
+        }
+
+        public boolean isBasicAuth() {
+            return basicAuth;
+        }
+
+        public String getUsername() {
+            return username;
         }
     }
 
@@ -47,7 +87,10 @@ public final class LocalProxyRegistry {
 
     public static void register(ProxyEndpoint endpoint) throws IOException {
         Files.createDirectories(registryDirectory());
-        MAPPER.writeValue(registryFile(endpoint.systemAlias(), endpoint.profileName()).toFile(), endpoint);
+        MAPPER.writeValue(
+            registryFile(endpoint.getSystemAlias(), endpoint.getProfileName()).toFile(),
+            endpoint
+        );
     }
 
     public static void unregister(String systemAlias) throws IOException {
@@ -68,7 +111,8 @@ public final class LocalProxyRegistry {
             return Optional.empty();
         }
         try {
-            ProxyEndpoint endpoint = MAPPER.readValue(file.toFile(), ProxyEndpointRecord.class).toEndpoint(systemAlias, profileName);
+            ProxyEndpoint endpoint = MAPPER.readValue(file.toFile(), ProxyEndpointRecord.class)
+                .toEndpoint(systemAlias, profileName);
             return Optional.of(endpoint);
         } catch (IOException error) {
             return Optional.empty();
@@ -88,11 +132,11 @@ public final class LocalProxyRegistry {
     }
 
     public static boolean isAlive(ProxyEndpoint endpoint) {
-        if (endpoint == null || endpoint.host() == null || endpoint.port() <= 0) {
+        if (endpoint == null || endpoint.getHost() == null || endpoint.getPort() <= 0) {
             return false;
         }
         try (Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress(endpoint.host(), endpoint.port()), 500);
+            socket.connect(new InetSocketAddress(endpoint.getHost(), endpoint.getPort()), 500);
             return true;
         } catch (IOException error) {
             return false;

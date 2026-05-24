@@ -137,30 +137,49 @@ public class SetupAnalyzer {
         if (blank(system.getLanguage())) {
             system.setLanguage("EN");
         }
-        if (system.getJco() != null) {
-            if ("1".equals(system.getJco().getSncSso())) {
-                if (blank(system.getJco().getSticky())) {
-                    system.getJco().setSticky("1");
-                }
-                if (blank(system.getJco().getDenyInitialPassword())) {
-                    system.getJco().setDenyInitialPassword("1");
-                }
-            }
+        applyJcoSsoDefaults(system);
+        ensureAdtConfig(system);
+        applyAdtTransportDefault(system, runtime);
+        applySsoAuthenticationKind(system);
+    }
+
+    private void applyJcoSsoDefaults(SystemProfile system) {
+        SystemProfile.JcoConfig jco = system.getJco();
+        if (jco == null || !"1".equals(jco.getSncSso())) {
+            return;
         }
+        if (blank(jco.getSticky())) {
+            jco.setSticky("1");
+        }
+        if (blank(jco.getDenyInitialPassword())) {
+            jco.setDenyInitialPassword("1");
+        }
+    }
+
+    private void ensureAdtConfig(SystemProfile system) {
         if (system.getAdt() == null) {
             system.setAdt(new SystemProfile.AdtConfig());
         }
-        if (blank(system.getAdt().getTransport())) {
-            if (runtime != null && !blank(runtime.getAdtPluginsDir())) {
-                system.getAdt().setTransport("sdk");
-            } else if (runtime != null && !blank(runtime.getJcoJar())) {
-                system.getAdt().setTransport("rest-rfc");
-            } else {
-                system.getAdt().setTransport("sdk");
-            }
+    }
+
+    private void applyAdtTransportDefault(SystemProfile system, OpenAdtConfig.RuntimeConfig runtime) {
+        if (!blank(system.getAdt().getTransport())) {
+            return;
         }
-        if (blank(system.getAdt().getAuthenticationKind()) && system.getJco() != null
-            && "1".equals(system.getJco().getSncSso())) {
+        if (runtime != null && !blank(runtime.getAdtPluginsDir())) {
+            system.getAdt().setTransport("sdk");
+        } else if (runtime != null && !blank(runtime.getJcoJar())) {
+            system.getAdt().setTransport("rest-rfc");
+        } else {
+            system.getAdt().setTransport("sdk");
+        }
+    }
+
+    private void applySsoAuthenticationKind(SystemProfile system) {
+        if (!blank(system.getAdt().getAuthenticationKind())) {
+            return;
+        }
+        if (system.getJco() != null && "1".equals(system.getJco().getSncSso())) {
             system.getAdt().setAuthenticationKind("sso");
         }
     }

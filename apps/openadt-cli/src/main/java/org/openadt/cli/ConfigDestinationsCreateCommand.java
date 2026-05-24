@@ -1,5 +1,6 @@
 package org.openadt.cli;
 
+import org.openadt.core.CliLog;
 import org.openadt.core.ConfigLoader;
 import org.openadt.core.SystemProfile;
 import picocli.CommandLine.Command;
@@ -81,8 +82,8 @@ public class ConfigDestinationsCreateCommand implements Callable<Integer> {
 
         List<String> missing = missingRequiredFlags();
         if (!missing.isEmpty()) {
-            System.err.println("Missing required options: " + String.join(", ", missing));
-            System.err.println("Pass all required flags or run in an interactive terminal.");
+            CliLog.error("Missing required options: " + String.join(", ", missing));
+            CliLog.error("Pass all required flags or run in an interactive terminal.");
             return 1;
         }
 
@@ -129,7 +130,7 @@ public class ConfigDestinationsCreateCommand implements Callable<Integer> {
             profileConfig,
             defaultProfile
         );
-        System.out.println("Wrote destination profile to " + written);
+        CliLog.info("Wrote destination profile to " + written);
         return 0;
     }
 

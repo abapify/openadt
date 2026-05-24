@@ -4,7 +4,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.function.Function;
+import java.util.function.UnaryOperator;
 
 /**
  * Resolves the {@code MYSAPSSO2} value used by HTTP ADT transport.
@@ -14,18 +14,18 @@ import java.util.function.Function;
  * {@code MYSAPSSO2} for direct HTTP calls unless you supply the ticket explicitly.
  */
 public class AdtHttpCookieProvider {
-    private final Function<String, String> envProvider;
+    private final UnaryOperator<String> envProvider;
     private final AdtHttpTicketProvider ticketProvider;
 
     public AdtHttpCookieProvider() {
         this(System::getenv, null);
     }
 
-    AdtHttpCookieProvider(Function<String, String> envProvider) {
+    AdtHttpCookieProvider(UnaryOperator<String> envProvider) {
         this(envProvider, null);
     }
 
-    AdtHttpCookieProvider(Function<String, String> envProvider, AdtHttpTicketProvider ticketProvider) {
+    AdtHttpCookieProvider(UnaryOperator<String> envProvider, AdtHttpTicketProvider ticketProvider) {
         this.envProvider = envProvider;
         this.ticketProvider = ticketProvider != null
             ? ticketProvider
@@ -79,10 +79,13 @@ public class AdtHttpCookieProvider {
         }
         try {
             hub.ensureWebAdapterLoggedIn(profileId);
-        } catch (IOException | InterruptedException error) {
-            if (error instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(
+                "Secure Login hub is reachable but Web Adapter login could not be verified: " + error.getMessage(),
+                error
+            );
+        } catch (IOException error) {
             throw new IllegalStateException(
                 "Secure Login hub is reachable but Web Adapter login could not be verified: " + error.getMessage(),
                 error

@@ -61,10 +61,10 @@ public class SecureLoginHubClient {
                 .build();
             httpClient.send(request, HttpResponse.BodyHandlers.discarding());
             return true;
-        } catch (IOException | InterruptedException e) {
-            if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
+        } catch (IOException e) {
+            return false;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             return false;
         }
     }
@@ -131,12 +131,17 @@ public class SecureLoginHubClient {
         if (!"LOGGED_IN".equalsIgnoreCase(status)) {
             throw new IllegalStateException(
                 "Secure Login Web Adapter profile is not LOGGED_IN (status=" + status + "). "
-                    + (browserMonitor
-                        ? "Complete MFA in the browser window that Secure Login opened, then retry."
-                        : "Open SAP Secure Login Client and sign in to the Web Adapter profile first, "
-                            + "or retry with hub browser login enabled.")
+                    + webAdapterLoginHint(browserMonitor)
             );
         }
+    }
+
+    private static String webAdapterLoginHint(boolean browserMonitor) {
+        if (browserMonitor) {
+            return "Complete MFA in the browser window that Secure Login opened, then retry.";
+        }
+        return "Open SAP Secure Login Client and sign in to the Web Adapter profile first, "
+            + "or retry with hub browser login enabled.";
     }
 
     private HttpRequest.Builder hubRequest(URI uri) {
@@ -151,13 +156,13 @@ public class SecureLoginHubClient {
     }
 
     private static String normalizeHubBase(String hubBaseUrl) {
-        String value = hubBaseUrl.endsWith("/") ? hubBaseUrl.substring(0, hubBaseUrl.length() - 1) : hubBaseUrl;
-        return value;
+        return hubBaseUrl.endsWith("/") ? hubBaseUrl.substring(0, hubBaseUrl.length() - 1) : hubBaseUrl;
     }
 
     private static HttpClient createHttpClient(String hubBaseUrl) {
         HttpClient.Builder builder = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5));
         if (isLoopbackHub(hubBaseUrl)) {
+            // Trust-all TLS is intentional: the Secure Login hub listens on 127.0.0.1 with a self-signed cert.
             builder.sslContext(trustLocalHub());
         }
         return builder.build();
@@ -175,17 +180,19 @@ public class SecureLoginHubClient {
         }
     }
 
-    @SuppressWarnings("java/insecure-trustmanager")
+    @SuppressWarnings({"java:S4830", "java:S1186"})
     private static SSLContext trustLocalHub() {
         try {
             TrustManager[] trustAll = new TrustManager[]{
                 new X509TrustManager() {
                     @Override
                     public void checkClientTrusted(X509Certificate[] chain, String authType) {
+                        // No-op: loopback hub only; client certs are not used.
                     }
 
                     @Override
                     public void checkServerTrusted(X509Certificate[] chain, String authType) {
+                        // No-op: accept the hub self-signed certificate on 127.0.0.1.
                     }
 
                     @Override

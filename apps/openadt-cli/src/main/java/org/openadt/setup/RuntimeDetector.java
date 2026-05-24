@@ -85,21 +85,25 @@ public class RuntimeDetector {
     }
 
     private Optional<Path> findLatestJcoJar() {
-        List<Path> candidates = new ArrayList<>();
+        Path latest = null;
         for (Path root : jcoJarRoots) {
             if (!Files.isDirectory(root)) {
                 continue;
             }
             try (Stream<Path> stream = Files.list(root)) {
-                stream
-                    .filter(Files::isRegularFile)
-                    .filter(path -> JCO_JAR_PATTERN.matcher(path.getFileName().toString()).matches())
-                    .forEach(candidates::add);
+                for (Path candidate : stream.filter(Files::isRegularFile).toList()) {
+                    if (!JCO_JAR_PATTERN.matcher(candidate.getFileName().toString()).matches()) {
+                        continue;
+                    }
+                    if (latest == null || compareJcoVersions(candidate, latest) > 0) {
+                        latest = candidate;
+                    }
+                }
             } catch (IOException ignored) {
                 // Best-effort discovery only.
             }
         }
-        return candidates.stream().max(this::compareJcoVersions);
+        return Optional.ofNullable(latest);
     }
 
     private List<Integer> jcoVersionKey(Path path) {
@@ -193,9 +197,9 @@ public class RuntimeDetector {
                 continue;
             }
             try {
-                Path match = findFirstMatch(root, normalizedNames, maxDepth);
-                if (match != null) {
-                    return Optional.of(match);
+                Optional<Path> match = findFirstMatchUnderRoot(root, normalizedNames, maxDepth);
+                if (match.isPresent()) {
+                    return match;
                 }
             } catch (IOException ignored) {
                 // Best-effort discovery only.
@@ -204,7 +208,8 @@ public class RuntimeDetector {
         return Optional.empty();
     }
 
-    private Path findFirstMatch(Path root, List<String> normalizedNames, int maxDepth) throws IOException {
+    private Optional<Path> findFirstMatchUnderRoot(Path root, List<String> normalizedNames, int maxDepth)
+        throws IOException {
         Path[] match = new Path[1];
         Files.walkFileTree(root, java.util.Set.of(), maxDepth, new SimpleFileVisitor<>() {
             @Override
@@ -233,6 +238,6 @@ public class RuntimeDetector {
                 return FileVisitResult.SKIP_SUBTREE;
             }
         });
-        return match[0];
+        return Optional.ofNullable(match[0]);
     }
 }

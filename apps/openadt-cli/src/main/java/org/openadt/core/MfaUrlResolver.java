@@ -24,25 +24,46 @@ public final class MfaUrlResolver {
     }
 
     public static String resolveAdtDiscoveryUrl(OpenAdtConfig config, String systemId) {
-        if (systemId != null && !systemId.isBlank() && config != null && config.getSystems() != null) {
-            for (SystemProfile system : config.getSystems()) {
-                if (!matchesSystem(system, systemId)) {
-                    continue;
-                }
-                if (system.getAdt() != null && system.getAdt().getDiscoveryUrl() != null
-                    && !system.getAdt().getDiscoveryUrl().isBlank()) {
-                    return system.getAdt().getDiscoveryUrl().trim();
-                }
-            }
+        String fromConfig = findDiscoveryUrlInConfig(config, systemId);
+        if (fromConfig != null) {
+            return fromConfig;
         }
+        return findDiscoveryUrlInSapRules(systemId);
+    }
+
+    private static String findDiscoveryUrlInConfig(OpenAdtConfig config, String systemId) {
+        if (systemId == null || systemId.isBlank() || config == null || config.getSystems() == null) {
+            return null;
+        }
+        for (SystemProfile system : config.getSystems()) {
+            if (!matchesSystem(system, systemId)) {
+                continue;
+            }
+            return discoveryUrlFromSystem(system);
+        }
+        return null;
+    }
+
+    private static String discoveryUrlFromSystem(SystemProfile system) {
+        if (system.getAdt() == null || system.getAdt().getDiscoveryUrl() == null
+            || system.getAdt().getDiscoveryUrl().isBlank()) {
+            return null;
+        }
+        return system.getAdt().getDiscoveryUrl().trim();
+    }
+
+    private static String findDiscoveryUrlInSapRules(String systemId) {
         String normalized = systemId == null ? null : systemId.trim().toUpperCase(Locale.ROOT);
+        if (normalized == null || normalized.isBlank()) {
+            return null;
+        }
         for (SystemProfile detected : new SapRulesDetector().detect()) {
-            if (normalized != null && !normalized.isBlank()
-                && normalized.equalsIgnoreCase(detected.getSystemId())
-                && detected.getAdt() != null
-                && detected.getAdt().getDiscoveryUrl() != null
-                && !detected.getAdt().getDiscoveryUrl().isBlank()) {
-                return detected.getAdt().getDiscoveryUrl().trim();
+            if (!normalized.equalsIgnoreCase(detected.getSystemId())) {
+                continue;
+            }
+            String url = discoveryUrlFromSystem(detected);
+            if (url != null) {
+                return url;
             }
         }
         return null;

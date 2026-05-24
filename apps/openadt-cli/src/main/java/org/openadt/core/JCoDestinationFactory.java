@@ -95,22 +95,34 @@ public class JCoDestinationFactory {
     Properties buildProperties(SystemProfile system) {
         Properties props = new Properties();
         SystemProfile.JcoConfig jco = system.getJco();
-        if (jco != null) {
-            if (jco.getAshost() != null) props.setProperty("jco.client.ashost", jco.getAshost());
-            if (jco.getSysnr() != null) props.setProperty("jco.client.sysnr", jco.getSysnr());
-            if (jco.getMshost() != null) props.setProperty("jco.client.mshost", jco.getMshost());
-            if (jco.getMsserv() != null) props.setProperty("jco.client.msserv", jco.getMsserv());
-            if (jco.getR3name() != null) props.setProperty("jco.client.r3name", jco.getR3name());
-            if (jco.getGroup() != null) props.setProperty("jco.client.group", jco.getGroup());
-            if (jco.getSncMode() != null) props.setProperty("jco.client.snc_mode", jco.getSncMode());
-            if (jco.getSncQop() != null) props.setProperty("jco.client.snc_qop", jco.getSncQop());
-            if (jco.getSncPartnername() != null) props.setProperty("jco.client.snc_partnername", jco.getSncPartnername());
-            if (jco.getSncSso() != null) props.setProperty("jco.client.snc_sso", jco.getSncSso());
-            if (jco.getSticky() != null) props.setProperty("jco.client.sticky", jco.getSticky());
-            if (jco.getDenyInitialPassword() != null) {
-                props.setProperty("jco.client.deny_initial_password", jco.getDenyInitialPassword());
-            }
+        applyJcoClientProperties(props, jco);
+        applyUserProperties(props, system);
+        applyDestinationProperties(props, system);
+        applyAdtProperties(props, system, jco);
+        return props;
+    }
+
+    private void applyJcoClientProperties(Properties props, SystemProfile.JcoConfig jco) {
+        if (jco == null) {
+            return;
         }
+        if (jco.getAshost() != null) props.setProperty("jco.client.ashost", jco.getAshost());
+        if (jco.getSysnr() != null) props.setProperty("jco.client.sysnr", jco.getSysnr());
+        if (jco.getMshost() != null) props.setProperty("jco.client.mshost", jco.getMshost());
+        if (jco.getMsserv() != null) props.setProperty("jco.client.msserv", jco.getMsserv());
+        if (jco.getR3name() != null) props.setProperty("jco.client.r3name", jco.getR3name());
+        if (jco.getGroup() != null) props.setProperty("jco.client.group", jco.getGroup());
+        if (jco.getSncMode() != null) props.setProperty("jco.client.snc_mode", jco.getSncMode());
+        if (jco.getSncQop() != null) props.setProperty("jco.client.snc_qop", jco.getSncQop());
+        if (jco.getSncPartnername() != null) props.setProperty("jco.client.snc_partnername", jco.getSncPartnername());
+        if (jco.getSncSso() != null) props.setProperty("jco.client.snc_sso", jco.getSncSso());
+        if (jco.getSticky() != null) props.setProperty("jco.client.sticky", jco.getSticky());
+        if (jco.getDenyInitialPassword() != null) {
+            props.setProperty("jco.client.deny_initial_password", jco.getDenyInitialPassword());
+        }
+    }
+
+    private void applyUserProperties(Properties props, SystemProfile system) {
         if (system.getClient() != null) props.setProperty("jco.client.client", system.getClient());
         if (system.getUser() != null) {
             props.setProperty("jco.client.user", system.getUser());
@@ -118,32 +130,36 @@ public class JCoDestinationFactory {
             props.setProperty("jco.destination.auth_type", "CONFIGURED_USER");
         }
         if (system.getLanguage() != null) props.setProperty("jco.client.lang", system.getLanguage());
+    }
 
+    private void applyDestinationProperties(Properties props, SystemProfile system) {
         if (runtimeConfig != null && runtimeConfig.getSapcrypto() != null) {
             props.setProperty("jco.client.snc_lib", runtimeConfig.getSapcrypto());
         }
-
         String destinationId = buildDestinationId(system);
         if (destinationId != null) {
             props.setProperty("jco.client.destination", destinationId);
         }
+    }
 
+    private void applyAdtProperties(Properties props, SystemProfile system, SystemProfile.JcoConfig jco) {
         SystemProfile.AdtConfig adt = system.getAdt();
-        if (adt != null) {
-            if (adt.getAshost() != null) props.setProperty("adt.ashost", adt.getAshost());
-            if (adt.getAuthenticationKind() != null) {
-                props.setProperty("adt.jco.client.authenticationKind", adt.getAuthenticationKind());
-            }
-            if (destinationId != null) {
-                props.setProperty("adt.jco.client.destination", destinationId);
-            }
-            if (jco != null && jco.getR3name() != null) {
-                props.setProperty("adt.r3name", jco.getR3name());
-            } else if (system.getSystemId() != null) {
-                props.setProperty("adt.r3name", system.getSystemId());
-            }
+        if (adt == null) {
+            return;
         }
-        return props;
+        if (adt.getAshost() != null) props.setProperty("adt.ashost", adt.getAshost());
+        if (adt.getAuthenticationKind() != null) {
+            props.setProperty("adt.jco.client.authenticationKind", adt.getAuthenticationKind());
+        }
+        String destinationId = buildDestinationId(system);
+        if (destinationId != null) {
+            props.setProperty("adt.jco.client.destination", destinationId);
+        }
+        if (jco != null && jco.getR3name() != null) {
+            props.setProperty("adt.r3name", jco.getR3name());
+        } else if (system.getSystemId() != null) {
+            props.setProperty("adt.r3name", system.getSystemId());
+        }
     }
 
     private String buildDestinationId(SystemProfile system) {

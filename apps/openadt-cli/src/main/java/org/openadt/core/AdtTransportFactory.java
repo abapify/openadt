@@ -56,7 +56,7 @@ public final class AdtTransportFactory {
             if (cause instanceof Exception exception) {
                 throw exception;
             }
-            throw new RuntimeException(cause);
+            throw new OpenAdtException(cause.getMessage() != null ? cause.getMessage() : cause.toString(), cause);
         }
     }
 }

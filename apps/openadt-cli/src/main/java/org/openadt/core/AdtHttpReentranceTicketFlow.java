@@ -50,9 +50,9 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
             callbackUrl = buildCallbackUrl(callbackHost, actualPort);
             SsoCallbackRegistry.markActive(callbackUrl, actualPort);
             URI reentranceUrl = buildReentranceTicketUrl(frontend, system, callbackUrl);
-            System.err.println("Local callback listening on " + callbackUrl + " (keep this terminal open until redirect completes)");
+            CliLog.error("Local callback listening on " + callbackUrl + " (keep this terminal open until redirect completes)");
             waitBeforeReentranceStep();
-            System.err.println(
+            CliLog.error(
                 "Step 3/3: open reentrance-ticket (expect redirect to the callback URL above): "
                     + reentranceUrl
             );
@@ -166,7 +166,7 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
         int totalSteps = (landingUrl != null ? 1 : 0) + (bridgeUrl != null ? 1 : 0);
 
         if (landingUrl != null) {
-            System.err.println(
+            CliLog.error(
                 "Step " + step + "/" + totalSteps + ": optional Okta/corporate landing (only when configured): "
                     + landingUrl
             );
@@ -180,7 +180,7 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
         }
 
         if (bridgeUrl != null) {
-            System.err.println(
+            CliLog.error(
                 "Step " + step + "/" + totalSteps
                     + ": open ADT entry (expect SAML/redirect here, not Fiori shell home): "
                     + bridgeUrl
@@ -207,7 +207,7 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
         if (wait.isZero() || wait.isNegative()) {
             return;
         }
-        System.err.println(
+        CliLog.error(
             "Non-interactive terminal: waiting "
                 + wait.toSeconds()
                 + "s for browser SAML on ADT entry before opening reentrance-ticket..."
@@ -440,7 +440,7 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
 
     static void openInDesktopBrowser(URI uri) {
         if (!Desktop.isDesktopSupported()) {
-            System.err.println("Desktop browser integration is not available. Open this URL manually: " + uri);
+            CliLog.error("Desktop browser integration is not available. Open this URL manually: " + uri);
             return;
         }
         try {
@@ -448,9 +448,9 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
                 Desktop.getDesktop().browse(uri);
                 return;
             }
-            System.err.println("Desktop browse action is not supported. Open this URL manually: " + uri);
+            CliLog.error("Desktop browse action is not supported. Open this URL manually: " + uri);
         } catch (IOException error) {
-            System.err.println("Failed to open desktop browser automatically (" + error.getMessage()
+            CliLog.error("Failed to open desktop browser automatically (" + error.getMessage()
                 + "). Open this URL manually: " + uri);
         }
     }

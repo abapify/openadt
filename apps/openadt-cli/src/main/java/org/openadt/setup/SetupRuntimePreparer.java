@@ -1,5 +1,7 @@
 package org.openadt.setup;
 
+import org.openadt.core.CliLog;
+
 import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -9,6 +11,8 @@ import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 public final class SetupRuntimePreparer {
+    private static final String USER_HOME_PROPERTY = "user.home";
+
     private SetupRuntimePreparer() {
     }
 
@@ -18,15 +22,15 @@ public final class SetupRuntimePreparer {
 
     public static int prepare(String adtPluginsDir, String version, boolean force) throws IOException, InterruptedException {
         if (!System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("windows")) {
-            System.err.println("Automatic runtime prepare is supported on Windows only.");
-            System.err.println("Use scripts/openadt-sdk.ps1 from a git checkout for fetch/proxy.");
+            CliLog.error("Automatic runtime prepare is supported on Windows only.");
+            CliLog.error("Use scripts/openadt-sdk.ps1 from a git checkout for fetch/proxy.");
             return 1;
         }
         Path home = openAdtHome();
         Path script = home.resolve("bin/prepare-openadt-runtime.ps1");
         if (!Files.isRegularFile(script)) {
-            System.err.println("Missing runtime prepare script: " + script);
-            System.err.println("Reinstall OpenADT or run from a git checkout.");
+            CliLog.error("Missing runtime prepare script: " + script);
+            CliLog.error("Reinstall OpenADT or run from a git checkout.");
             return 1;
         }
         ProcessBuilder builder = new ProcessBuilder(
@@ -49,7 +53,7 @@ public final class SetupRuntimePreparer {
         Process process = builder.start();
         if (!process.waitFor(30, TimeUnit.MINUTES)) {
             process.destroyForcibly();
-            System.err.println("Runtime prepare timed out.");
+            CliLog.error("Runtime prepare timed out.");
             return 1;
         }
         return process.exitValue();
@@ -60,7 +64,7 @@ public final class SetupRuntimePreparer {
         if (fromJar != null && !fromJar.isBlank()) {
             return normalizeReleaseVersion(fromJar);
         }
-        Path marker = Path.of(System.getProperty("user.home"), ".openadt/runtime/version.txt");
+        Path marker = Path.of(System.getProperty(USER_HOME_PROPERTY), ".openadt/runtime/version.txt");
         if (Files.isRegularFile(marker)) {
             return Files.readString(marker, StandardCharsets.UTF_8).trim();
         }
@@ -77,11 +81,11 @@ public final class SetupRuntimePreparer {
     }
 
     public static boolean runtimeJarReady(String version) {
-        Path jar = Path.of(System.getProperty("user.home"), ".openadt/runtime/openadt-full.jar");
+        Path jar = Path.of(System.getProperty(USER_HOME_PROPERTY), ".openadt/runtime/openadt-full.jar");
         if (!Files.isRegularFile(jar)) {
             return false;
         }
-        Path marker = Path.of(System.getProperty("user.home"), ".openadt/runtime/version.txt");
+        Path marker = Path.of(System.getProperty(USER_HOME_PROPERTY), ".openadt/runtime/version.txt");
         if (!Files.isRegularFile(marker)) {
             return false;
         }

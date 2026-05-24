@@ -1,7 +1,5 @@
 package org.openadt.core;
 
-import org.openadt.core.LocalProxyRegistry.ProxyEndpoint;
-
 /**
  * Resolves the transport for {@code fetch}: warm local proxy when available, otherwise SAP SDK.
  */

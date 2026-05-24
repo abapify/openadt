@@ -41,7 +41,7 @@ public final class EclipseDestinationLoader {
     }
 
     private static ISystemConfiguration createSystemConfiguration(
-        String destinationId,
+        String _destinationId,
         String configurationName,
         Properties properties
     ) {

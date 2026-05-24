@@ -27,18 +27,18 @@ public final class MfaBrowserLauncher {
                 Desktop.getDesktop().browse(uri);
                 return;
             } catch (Exception error) {
-                System.err.println("[openadt sdk] Desktop.browse failed: " + error.getMessage());
+                CliLog.error("[openadt sdk] Desktop.browse failed: " + error.getMessage());
             }
         }
         openViaOsShell(uri, os);
     }
 
     private static void openWindows(URI uri) throws IOException {
-        Process process = new ProcessBuilder("cmd", "/c", "start", "", uri.toString())
+        new ProcessBuilder("cmd", "/c", "start", "", uri.toString())
             .redirectErrorStream(true)
             .start();
-        System.err.println("[openadt sdk] started browser via: cmd /c start " + uri);
-        System.err.flush();
+        CliLog.error("[openadt sdk] started browser via: cmd /c start " + uri);
+        CliLog.stderr().flush();
     }
 
     private static void openViaOsShell(URI uri, String os) throws IOException {

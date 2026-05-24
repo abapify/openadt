@@ -17,7 +17,6 @@ class LocalProxyRegistryTest {
 
     @Test
     void registerReadAndUnregisterRoundTrip() throws IOException {
-        Path runtime = tempHome.resolve(".openadt/runtime");
         System.setProperty("user.home", tempHome.toString());
         try {
             LocalProxyRegistry.ProxyEndpoint endpoint = new LocalProxyRegistry.ProxyEndpoint(
@@ -29,7 +28,7 @@ class LocalProxyRegistryTest {
             );
             LocalProxyRegistry.register(endpoint);
             assertTrue(LocalProxyRegistry.read("DEV").isPresent());
-            assertEquals(8079, LocalProxyRegistry.read("DEV").orElseThrow().port());
+            assertEquals(8079, LocalProxyRegistry.read("DEV").orElseThrow().getPort());
             LocalProxyRegistry.unregister("DEV");
             assertFalse(LocalProxyRegistry.read("DEV").isPresent());
         } finally {
