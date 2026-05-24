@@ -235,6 +235,33 @@ class ConfigLoaderTest {
     }
 
     @Test
+    void mergesHttpCallbackHostFromIncludedFragments(@TempDir Path tempDir) throws IOException {
+        Path configDir = tempDir.resolve(".openadt");
+        Path entrypoint = configDir.resolve("config.toml");
+        Path runtimeFragment = configDir.resolve("local.openadt.toml");
+        Files.createDirectories(configDir);
+
+        Files.writeString(entrypoint, """
+            version = 1
+
+            [merge]
+            strategy = "last-wins"
+            includes = ["local.openadt.toml"]
+            """);
+        Files.writeString(runtimeFragment, """
+            version = 1
+
+            [runtime]
+            http_callback_host = "localhost"
+            """);
+
+        ConfigLoader loader = new ConfigLoader(tempDir, tempDir.resolve("home"));
+        OpenAdtConfig config = loader.load(entrypoint);
+
+        assertEquals("localhost", config.getRuntime().getHttpCallbackHost());
+    }
+
+    @Test
     void setupDefaultsToHomeConfigPath(@TempDir Path tempDir) {
         Path projectDir = tempDir.resolve("project");
         Path homeDir = tempDir.resolve("home");

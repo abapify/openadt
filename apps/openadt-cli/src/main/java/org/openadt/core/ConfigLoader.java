@@ -123,11 +123,16 @@ public class ConfigLoader {
         Path normalizedPath = configPath.toAbsolutePath().normalize();
         Path writeTarget = resolveManualWriteTarget(normalizedPath);
 
-        OpenAdtConfig existing = Files.exists(writeTarget) ? load(writeTarget) : new OpenAdtConfig();
+        OpenAdtConfig existing = Files.exists(normalizedPath) ? load(normalizedPath) : new OpenAdtConfig();
         LinkedHashMap<String, SystemProfile> systems = loadExistingSystems(existing);
         prepareTargetSystem(systems, destination, profileName, profile, setDefaultProfile);
 
-        writeDestinationsFragment(writeTarget, new ArrayList<>(systems.values()));
+        if (writeTarget.equals(normalizedPath)) {
+            existing.setSystems(new ArrayList<>(systems.values()));
+            writeFlatConfig(writeTarget, existing);
+        } else {
+            writeDestinationsFragment(writeTarget, new ArrayList<>(systems.values()));
+        }
         return writeTarget;
     }
 
@@ -454,6 +459,9 @@ public class ConfigLoader {
         if (source.getHttpCallbackPort() != null) {
             runtime.setHttpCallbackPort(source.getHttpCallbackPort());
         }
+        if (source.getHttpCallbackHost() != null) {
+            runtime.setHttpCallbackHost(source.getHttpCallbackHost());
+        }
     }
 
     private void mergeRuntimeLastWins(OpenAdtConfig target, OpenAdtConfig.RuntimeConfig source) {
@@ -746,6 +754,47 @@ public class ConfigLoader {
         Files.writeString(path, String.join(System.lineSeparator(), lines) + System.lineSeparator());
     }
 
+    private void writeFlatConfig(Path path, OpenAdtConfig config) throws IOException {
+        Files.createDirectories(path.getParent());
+        List<String> lines = new ArrayList<>();
+        lines.add(VERSION_LINE);
+        if (config.getRuntime() != null) {
+            lines.add("");
+            lines.add("[runtime]");
+            writeString(lines, "jco_jar", config.getRuntime().getJcoJar());
+            writeString(lines, "jco_native_dir", config.getRuntime().getJcoNativeDir());
+            writeString(lines, "sapcrypto", config.getRuntime().getSapcrypto());
+            writeString(lines, "adt_plugins_dir", config.getRuntime().getAdtPluginsDir());
+            writeString(lines, "http_ca_cert", config.getRuntime().getHttpCaCert());
+            writeString(lines, "http_truststore", config.getRuntime().getHttpTruststore());
+            writeString(lines, "http_truststore_password", config.getRuntime().getHttpTruststorePassword());
+            writeString(lines, "http_callback_port", config.getRuntime().getHttpCallbackPort());
+            writeString(lines, "http_callback_host", config.getRuntime().getHttpCallbackHost());
+        }
+        if (config.getSecureLogin() != null) {
+            lines.add("");
+            lines.add("[secure_login]");
+            writeString(lines, "local_security_hub", config.getSecureLogin().getLocalSecurityHub());
+            writeString(lines, "origin", config.getSecureLogin().getOrigin());
+            writeString(lines, "referer", config.getSecureLogin().getReferer());
+            writeString(lines, "web_adapter_profile_id", config.getSecureLogin().getWebAdapterProfileId());
+            writeString(lines, "mysapsso2", config.getSecureLogin().getMysapsso2());
+        }
+        if (config.getProxy() != null) {
+            lines.add("");
+            lines.add("[proxy]");
+            writeString(lines, "listen", config.getProxy().getListen());
+            writeString(lines, "auth", config.getProxy().getAuth());
+            writeString(lines, "username", config.getProxy().getUsername());
+        }
+        if (config.getSystems() != null) {
+            for (SystemProfile system : config.getSystems()) {
+                writeSystemDestination(lines, system);
+            }
+        }
+        Files.writeString(path, String.join(System.lineSeparator(), lines) + System.lineSeparator());
+    }
+
     private void writeDestinationsFragment(Path path, List<SystemProfile> systems) throws IOException {
         Files.createDirectories(path.getParent());
         List<String> lines = new ArrayList<>();
@@ -867,6 +916,7 @@ public class ConfigLoader {
             writeString(lines, "http_truststore", config.getRuntime().getHttpTruststore());
             writeString(lines, "http_truststore_password", config.getRuntime().getHttpTruststorePassword());
             writeString(lines, "http_callback_port", config.getRuntime().getHttpCallbackPort());
+            writeString(lines, "http_callback_host", config.getRuntime().getHttpCallbackHost());
         }
         if (config.getSecureLogin() != null) {
             lines.add("");
@@ -898,7 +948,13 @@ public class ConfigLoader {
     }
 
     private String quoteValue(String value) {
-        return "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
+        return "\""
+            + value.replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\t", "\\t")
+                .replace("\r", "\\r")
+            + "\"";
     }
 
     private List<Path> configSearchPaths() {

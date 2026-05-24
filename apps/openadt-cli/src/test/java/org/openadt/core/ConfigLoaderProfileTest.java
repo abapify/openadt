@@ -120,6 +120,44 @@ class ConfigLoaderProfileTest {
     }
 
     @Test
+    void saveManualDestinationProfilePreservesFlatConfigSections(@TempDir Path tempDir) throws IOException {
+        Path configFile = tempDir.resolve("config.toml");
+        Files.writeString(configFile, """
+            version = 1
+
+            [runtime]
+            jco_jar = "/path/to/jco.jar"
+
+            [proxy]
+            listen = "127.0.0.1:8080"
+            auth = "basic"
+
+            [destinations.DEV]
+            alias = "DEV"
+            client = "100"
+            """);
+
+        ConfigLoader loader = new ConfigLoader(tempDir, tempDir.resolve("home"));
+        SystemProfile destination = new SystemProfile();
+        destination.setAlias("DEV");
+        destination.setClient("100");
+        destination.setLanguage("EN");
+
+        SystemProfile.ProfileConfig profile = new SystemProfile.ProfileConfig();
+        profile.setTransport("http");
+        profile.setAuthenticationKind("browser-sso");
+        profile.setDiscoveryUrl("https://dev-adt.example.com/sap/bc/adt");
+
+        loader.saveManualDestinationProfile(configFile, destination, "sso", profile, true);
+
+        OpenAdtConfig loaded = loader.load(configFile);
+        assertEquals("/path/to/jco.jar", loaded.getRuntime().getJcoJar());
+        assertEquals("127.0.0.1:8080", loaded.getProxy().getListen());
+        assertEquals("sso", loaded.getSystems().get(0).getDefaultProfile());
+        assertEquals("http", loaded.getSystems().get(0).getProfiles().get("sso").getTransport());
+    }
+
+    @Test
     void repeatedSaveUpdatesExistingProfile(@TempDir Path tempDir) throws IOException {
         Path configFile = tempDir.resolve("config.toml");
         ConfigLoader loader = new ConfigLoader(tempDir, tempDir.resolve("home"));

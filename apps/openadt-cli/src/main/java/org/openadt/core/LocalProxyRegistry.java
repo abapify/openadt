@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.file.Files;
@@ -135,9 +136,15 @@ public final class LocalProxyRegistry {
         if (endpoint == null || endpoint.getHost() == null || endpoint.getPort() <= 0) {
             return false;
         }
-        try (Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress(endpoint.getHost(), endpoint.getPort()), 500);
-            return true;
+        try {
+            InetAddress address = InetAddress.getByName(endpoint.getHost());
+            if (!address.isLoopbackAddress()) {
+                return false;
+            }
+            try (Socket socket = new Socket()) {
+                socket.connect(new InetSocketAddress(address, endpoint.getPort()), 500);
+                return true;
+            }
         } catch (IOException error) {
             return false;
         }

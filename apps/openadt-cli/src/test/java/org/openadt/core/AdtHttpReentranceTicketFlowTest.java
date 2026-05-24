@@ -9,8 +9,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class AdtHttpReentranceTicketFlowTest {
     @Test
     void buildsCallbackUrlWithLocalhostHost() {
-        URI callback = AdtHttpReentranceTicketFlow.buildCallbackUrl("localhost", 18080);
-        assertTrue(callback.toString().equals("http://localhost:18080/adt/redirect"));
+        URI callback = AdtHttpReentranceTicketFlow.buildCallbackUrl("localhost", 18080, "test-state");
+        assertTrue(callback.toString().equals("http://localhost:18080/adt/redirect?state=test-state"));
     }
 
     @Test

@@ -28,11 +28,11 @@ class AdtHttpReentranceCallbackIntegrationTest {
             uri -> { }
         );
 
-        int port = startCallbackServer(flow, ticketFuture);
-        URI callback = AdtHttpReentranceTicketFlow.buildCallbackUrl("localhost", port);
+        int port = startCallbackServer(flow, ticketFuture, "integration-state");
+        URI callback = AdtHttpReentranceTicketFlow.buildCallbackUrl("localhost", port, "integration-state");
         HttpClient client = HttpClient.newHttpClient();
         HttpRequest request = HttpRequest.newBuilder(
-            URI.create(callback + "?reentrance-ticket=integration-ticket-value")
+            URI.create(callback + "&reentrance-ticket=integration-ticket-value")
         ).GET().build();
 
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
@@ -43,17 +43,18 @@ class AdtHttpReentranceCallbackIntegrationTest {
     }
 
   /** Mirrors package-private callback wiring without launching browser SSO. */
-    private static int startCallbackServer(AdtHttpReentranceTicketFlow flow, CompletableFuture<String> ticketFuture)
+    private static int startCallbackServer(AdtHttpReentranceTicketFlow flow, CompletableFuture<String> ticketFuture, String csrfState)
         throws Exception {
         var method = AdtHttpReentranceTicketFlow.class.getDeclaredMethod(
             "createCallbackServer",
             String.class,
             int.class,
-            CompletableFuture.class
+            CompletableFuture.class,
+            String.class
         );
         method.setAccessible(true);
         com.sun.net.httpserver.HttpServer server =
-            (com.sun.net.httpserver.HttpServer) method.invoke(flow, "localhost", 0, ticketFuture);
+            (com.sun.net.httpserver.HttpServer) method.invoke(flow, "localhost", 0, ticketFuture, csrfState);
         server.start();
         int port = server.getAddress().getPort();
         Runtime.getRuntime().addShutdownHook(new Thread(() -> server.stop(0)));

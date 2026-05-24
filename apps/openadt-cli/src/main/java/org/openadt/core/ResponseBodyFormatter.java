@@ -28,6 +28,14 @@ public final class ResponseBodyFormatter {
         return body;
     }
 
+    private static boolean isUnescapedQuote(String jsonText, int quoteIndex) {
+        int backslashes = 0;
+        for (int i = quoteIndex - 1; i >= 0 && jsonText.charAt(i) == '\\'; i--) {
+            backslashes++;
+        }
+        return backslashes % 2 == 0;
+    }
+
     static String prettyPrintJson(String jsonText) {
         StringBuilder sb = new StringBuilder();
         JsonPrettyState state = new JsonPrettyState();
@@ -42,7 +50,7 @@ public final class ResponseBodyFormatter {
 
     private static void appendPrettyJsonChar(String jsonText, int index, StringBuilder sb, JsonPrettyState state) {
         char c = jsonText.charAt(index);
-        if (c == '"' && (index == 0 || jsonText.charAt(index - 1) != '\\')) {
+        if (c == '"' && isUnescapedQuote(jsonText, index)) {
             state.inString = !state.inString;
             sb.append(c);
             return;

@@ -47,8 +47,7 @@ final class HttpTlsConfigurer {
         }
 
         try {
-            KeyStore store = KeyStore.getInstance(KeyStore.getDefaultType());
-            store.load(null, null);
+            KeyStore store = loadDefaultTrustStore();
 
             if (truststorePath != null) {
                 importTruststoreEntries(store, Path.of(truststorePath), truststorePassword);
@@ -66,6 +65,25 @@ final class HttpTlsConfigurer {
             | java.security.KeyManagementException error) {
             throw new IllegalStateException("Failed to initialize HTTP TLS trust configuration: " + error.getMessage(), error);
         }
+    }
+
+    private KeyStore loadDefaultTrustStore()
+        throws KeyStoreException, IOException, NoSuchAlgorithmException, CertificateException {
+        KeyStore store = KeyStore.getInstance(KeyStore.getDefaultType());
+        String javaHome = System.getProperty("java.home");
+        if (javaHome == null || javaHome.isBlank()) {
+            store.load(null, null);
+            return store;
+        }
+        Path cacerts = Path.of(javaHome, "lib", "security", "cacerts");
+        if (!Files.exists(cacerts)) {
+            store.load(null, null);
+            return store;
+        }
+        try (InputStream stream = Files.newInputStream(cacerts)) {
+            store.load(stream, "changeit".toCharArray());
+        }
+        return store;
     }
 
     private void importTruststoreEntries(KeyStore target, Path truststorePath, String password)

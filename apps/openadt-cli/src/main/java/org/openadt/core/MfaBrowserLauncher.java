@@ -18,19 +18,27 @@ public final class MfaBrowserLauncher {
         }
         URI uri = URI.create(url.trim());
         String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+        if (tryDesktopBrowse(uri)) {
+            return;
+        }
         if (os.contains("win")) {
             openWindows(uri);
             return;
         }
-        if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
-            try {
-                Desktop.getDesktop().browse(uri);
-                return;
-            } catch (Exception error) {
-                CliLog.error("[openadt sdk] Desktop.browse failed: " + error.getMessage());
-            }
-        }
         openViaOsShell(uri, os);
+    }
+
+    private static boolean tryDesktopBrowse(URI uri) {
+        if (!Desktop.isDesktopSupported() || !Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
+            return false;
+        }
+        try {
+            Desktop.getDesktop().browse(uri);
+            return true;
+        } catch (Exception error) {
+            CliLog.error("[openadt sdk] Desktop.browse failed: " + error.getMessage());
+            return false;
+        }
     }
 
     private static void openWindows(URI uri) throws IOException {
@@ -38,11 +46,17 @@ public final class MfaBrowserLauncher {
         if (uriString.contains("\"") || uriString.contains("&") || uriString.contains("|") || uriString.contains(">") || uriString.contains("<")) {
             throw new IllegalArgumentException("URI contains potentially unsafe characters for Windows shell: " + uriString);
         }
-        new ProcessBuilder("cmd", "/c", "start", "", uriString)
-            .redirectErrorStream(true)
-            .start();
+        ProcessBuilder builder = new ProcessBuilder("cmd", "/c", "start", "", uriString);
+        builder.redirectErrorStream(true);
+        constrainWindowsPath(builder);
+        builder.start();
         CliLog.error("[openadt sdk] started browser via: cmd /c start " + uriString);
         CliLog.stderr().flush();
+    }
+
+    private static void constrainWindowsPath(ProcessBuilder builder) {
+        String systemRoot = builder.environment().getOrDefault("SystemRoot", "C:\\Windows");
+        builder.environment().put("PATH", systemRoot + "\\System32");
     }
 
     private static void openViaOsShell(URI uri, String os) throws IOException {

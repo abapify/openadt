@@ -5,6 +5,7 @@ import com.sun.net.httpserver.HttpServer;
 import java.awt.Desktop;
 import java.io.Console;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -95,21 +96,16 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
         } catch (Exception error) {
             throw new IllegalStateException(buildAcquireFailureMessage(callbackUrl, error), error);
         } finally {
-            awaitCallbackGracePeriod(ticketFuture);
             SsoCallbackRegistry.clear();
-            server.stop(0);
+            server.stop(resolveCallbackStopDelay(ticketFuture));
         }
     }
 
-    private void awaitCallbackGracePeriod(CompletableFuture<String> ticketFuture) {
-        if (!ticketFuture.isDone() || ticketFuture.isCompletedExceptionally()) {
-            return;
+    private static int resolveCallbackStopDelay(CompletableFuture<String> ticketFuture) {
+        if (ticketFuture.isDone() && !ticketFuture.isCompletedExceptionally()) {
+            return (int) CALLBACK_GRACE_PERIOD.toSeconds();
         }
-        try {
-            Thread.sleep(CALLBACK_GRACE_PERIOD.toMillis());
-        } catch (InterruptedException error) {
-            Thread.currentThread().interrupt();
-        }
+        return 0;
     }
 
     private String buildAcquireFailureMessage(URI callbackUrl, Exception error) {

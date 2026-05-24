@@ -35,13 +35,12 @@ public final class MfaUrlResolver {
         if (systemId == null || systemId.isBlank() || config == null || config.getSystems() == null) {
             return null;
         }
-        for (SystemProfile system : config.getSystems()) {
-            if (!matchesSystem(system, systemId)) {
-                continue;
-            }
-            return discoveryUrlFromSystem(system);
-        }
-        return null;
+        return config.getSystems().stream()
+            .filter(system -> matchesSystem(system, systemId))
+            .map(MfaUrlResolver::discoveryUrlFromSystem)
+            .filter(url -> url != null)
+            .findFirst()
+            .orElse(null);
     }
 
     private static String discoveryUrlFromSystem(SystemProfile system) {
