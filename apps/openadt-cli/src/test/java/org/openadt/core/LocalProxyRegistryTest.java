@@ -58,7 +58,7 @@ class LocalProxyRegistryTest {
     @Test
     void isAliveReturnsTrueForLoopbackHttpServer() throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        server.createContext("/", exchange -> {
+        server.createContext("/__openadt/health", exchange -> {
             exchange.sendResponseHeaders(204, -1);
             exchange.close();
         });

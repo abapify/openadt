@@ -21,6 +21,7 @@ import java.util.Optional;
 public final class LocalProxyRegistry {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final Duration PROXY_HEALTH_TIMEOUT = Duration.ofMillis(500);
+    private static final String PROXY_HEALTH_PATH = "/__openadt/health";
 
     private LocalProxyRegistry() {
     }
@@ -153,7 +154,7 @@ public final class LocalProxyRegistry {
                 .connectTimeout(PROXY_HEALTH_TIMEOUT)
                 .build()
                 .send(request, HttpResponse.BodyHandlers.discarding());
-            return response.statusCode() > 0;
+            return response.statusCode() >= 200 && response.statusCode() < 300;
         } catch (IOException error) {
             return false;
         } catch (InterruptedException error) {
@@ -167,7 +168,7 @@ public final class LocalProxyRegistry {
         if (host.contains(":") && !host.startsWith("[")) {
             host = "[" + host + "]";
         }
-        return URI.create("http://" + host + ":" + port + "/");
+        return URI.create("http://" + host + ":" + port + PROXY_HEALTH_PATH);
     }
 
     static String sanitizeAlias(String alias) {
