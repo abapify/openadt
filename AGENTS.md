@@ -45,7 +45,8 @@ Follow [`.agents/skills/act/SKILL.md`](.agents/skills/act/SKILL.md):
 1. List every **open** review thread and what change each requires.
 2. Fix CI (P0), then **code + in-thread reply** for P1–P3 on each thread.
 3. Only then run `resolve-open-threads.sh` (P4).
-4. Never claim merge-ready if you only closed conversations without product commits addressing the comments.
+4. Run **P6 evaluation** ([`.agents/skills/act/EVALUATE.md`](.agents/skills/act/EVALUATE.md)): retrospect, update durable sink(s), check cycle guards — before merge-ready.
+5. Never claim merge-ready if you only closed conversations without product commits addressing the comments.
 
 Phrases like “address review comments” still mean **full `/act`** (code fixes first), not resolve-only.
 

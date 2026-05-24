@@ -24,6 +24,14 @@ These are **path-specific repository instructions** for GitHub Copilot ([docs](h
 bash .agents/skills/act/resolve-open-threads.sh abapify openadt <PR_NUMBER>
 ```
 
+## Evaluation (P6)
+
+After P4 resolve, run [`.agents/skills/act/EVALUATE.md`](../../.agents/skills/act/EVALUATE.md) before claiming merge-ready.
+
+- Retrospect on mistakes (wrong API, resolve-only, bad suppressions).
+- Update **one** durable sink per finding — see [review.instructions.md](review.instructions.md).
+- **Cycle guard:** reopened threads, same rule flagged 2+ times, or repeated `/act` with no new commits → **do not merge**; escalate.
+
 ## Hygiene
 
 - **`bunx nx format:write`** on touched `tools/**/*.ts` before commit.

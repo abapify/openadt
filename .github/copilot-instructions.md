@@ -42,7 +42,7 @@ Follow [`.agents/skills/act/SKILL.md`](../.agents/skills/act/SKILL.md) and [`.gi
 **Do not** run `resolve-open-threads.sh` until review comments are **fixed in code** (or answered **in each thread**). The script only closes GitHub UI state; it does not implement feedback.
 
 **Wrong:** resolve all threads with no replies, then post one PR comment “addressed feedback”.  
-**Right:** per thread — fix or answer in that thread → commit → then resolve that thread (P4).
+**Right:** per thread — fix or answer in that thread → commit → then resolve that thread (P4) → P6 evaluation → merge-ready only if cycle checks pass.
 
 Order: read threads → product commits → **reply in every thread** → then:
 

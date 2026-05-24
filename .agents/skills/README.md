@@ -10,7 +10,8 @@ This directory contains reusable agent skills for common OpenADT development tas
   - Split config (WSL/container) vs host-native `fetch`/`proxy`; bootstrap paths; anti-patterns.
 - `act`
   - **`/act`** on PRs/MRs: fix review feedback in product code + reply per thread, then resolve (never resolve-only).
-  - Resolve helper: [`act/resolve-open-threads.sh`](act/resolve-open-threads.sh) (same directory as `SKILL.md`)
+  - Resolve helper: [`act/resolve-open-threads.sh`](act/resolve-open-threads.sh)
+  - P6 evaluation: [`act/EVALUATE.md`](act/EVALUATE.md), retrospective log: [`act/RETROSPECT.md`](act/RETROSPECT.md)
 
 When changing transport, logon, or setup detectors, update the relevant skill in the same PR as code/spec changes.
 
