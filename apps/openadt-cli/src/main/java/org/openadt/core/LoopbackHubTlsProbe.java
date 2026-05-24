@@ -5,8 +5,11 @@ import javax.net.ssl.SSLSocket;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 import java.io.IOException;
+import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
 import java.util.concurrent.atomic.AtomicReference;
@@ -17,6 +20,30 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 final class LoopbackHubTlsProbe {
     private LoopbackHubTlsProbe() {
+    }
+
+    static final class UnavailableHubException extends IOException {
+        UnavailableHubException(String message) {
+            super(message);
+        }
+
+        UnavailableHubException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
+
+    static boolean isUnavailableHubFailure(Throwable error) {
+        Throwable cause = error;
+        while (cause != null) {
+            if (cause instanceof ConnectException || cause instanceof SocketTimeoutException) {
+                return true;
+            }
+            if (cause instanceof SocketException && !(cause instanceof java.net.BindException)) {
+                return true;
+            }
+            cause = cause.getCause();
+        }
+        return false;
     }
 
     static X509Certificate probeCertificate(InetAddress loopback, int port) throws IOException {
@@ -34,16 +61,31 @@ final class LoopbackHubTlsProbe {
             if (handshakeCertificate != null) {
                 return handshakeCertificate;
             }
-        } catch (IOException error) {
+        } catch (UnavailableHubException error) {
             throw error;
+        } catch (IOException error) {
+            throw asUnavailableHub(error, port);
         } catch (Exception error) {
-            throw new IOException("Failed TLS probe for loopback hub on port " + port, error);
+            throw asUnavailableHub(error, port);
         }
         X509Certificate certificate = captured.get();
         if (certificate == null) {
             throw new IOException("No certificate captured from loopback hub on port " + port);
         }
         return certificate;
+    }
+
+    private static IOException asUnavailableHub(Throwable error, int port) throws IOException {
+        if (isUnavailableHubFailure(error)) {
+            return new UnavailableHubException(
+                "Loopback Secure Login hub is unavailable on port " + port,
+                error
+            );
+        }
+        if (error instanceof IOException ioError) {
+            return ioError;
+        }
+        return new IOException("Failed TLS probe for loopback hub on port " + port, error);
     }
 
     private static X509Certificate captureViaHandshake(
@@ -60,6 +102,12 @@ final class LoopbackHubTlsProbe {
             X509Certificate certificate = captured.get();
             if (certificate != null) {
                 return certificate;
+            }
+            if (isUnavailableHubFailure(handshakeFailure)) {
+                throw new UnavailableHubException(
+                    "Loopback Secure Login hub is unavailable on port " + port,
+                    handshakeFailure
+                );
             }
             throw handshakeFailure;
         }

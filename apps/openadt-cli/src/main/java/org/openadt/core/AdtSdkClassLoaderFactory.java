@@ -84,8 +84,6 @@ public final class AdtSdkClassLoaderFactory {
                 .max(AdtSdkClassLoaderFactory::compareBundleVersions)
                 .orElseThrow(() -> new IllegalStateException(
                     "Required ADT/Eclipse bundle not found in " + pluginsDir + ": " + prefix + "*.jar"));
-        } catch (IllegalStateException error) {
-            throw error;
         } catch (IOException error) {
             throw new IllegalStateException(
                 "Failed to scan ADT/Eclipse bundles in " + pluginsDir + ": " + error.getMessage(),
