@@ -59,7 +59,7 @@ final class HttpTlsConfigurer {
 
             TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
             trustManagerFactory.init(store);
-            SSLContext context = SSLContext.getInstance("TLS");
+            SSLContext context = SSLContext.getInstance("TLSv1.2");
             context.init(null, trustManagerFactory.getTrustManagers(), null);
             return context;
         } catch (IOException | KeyStoreException | NoSuchAlgorithmException | CertificateException

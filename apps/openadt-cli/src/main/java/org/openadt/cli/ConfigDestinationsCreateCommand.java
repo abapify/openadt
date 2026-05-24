@@ -55,6 +55,9 @@ public class ConfigDestinationsCreateCommand implements Callable<Integer> {
     @Option(names = {"--callback-port"}, description = "Browser SSO callback port (0 = random)")
     private String callbackPort;
 
+    @Option(names = {"--sso-landing-url"}, description = "Browser SSO landing URL (optional pre-authentication step)")
+    private String ssoLandingUrl;
+
     @Option(names = {"--jco-mshost"}, description = "JCo message server host")
     private String jcoMshost;
 
@@ -109,6 +112,7 @@ public class ConfigDestinationsCreateCommand implements Callable<Integer> {
         profileConfig.setAuthenticationKind(auth);
         profileConfig.setDiscoveryUrl(discoveryUrl);
         profileConfig.setCallbackPort(callbackPort);
+        profileConfig.setSsoLandingUrl(ssoLandingUrl);
 
         if (sncPartnername != null || sncQop != null) {
             SystemProfile.JcoConfig profileJco = new SystemProfile.JcoConfig();

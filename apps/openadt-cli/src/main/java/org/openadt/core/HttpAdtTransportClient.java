@@ -22,7 +22,7 @@ public class HttpAdtTransportClient implements AdtTransportClient {
     private final AdtHttpCookieProvider cookieProvider;
     private final OpenAdtConfig config;
     private final ObjectMapper objectMapper;
-    private String cachedMysapsso2;
+    private volatile String cachedMysapsso2;
 
     public HttpAdtTransportClient(OpenAdtConfig config) {
         this(
@@ -58,6 +58,10 @@ public class HttpAdtTransportClient implements AdtTransportClient {
             URI targetUri = buildTargetUri(system, request.uri());
             HttpRequest httpRequest = buildHttpRequest(system, request, targetUri);
             HttpResponse<byte[]> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofByteArray());
+
+            if (response.statusCode() == 401) {
+                cachedMysapsso2 = null;
+            }
 
             Map<String, String> headers = new LinkedHashMap<>();
             response.headers().map().forEach((key, values) -> headers.put(key, String.join(", ", values)));
@@ -101,7 +105,11 @@ public class HttpAdtTransportClient implements AdtTransportClient {
 
     String buildCookieHeader(SystemProfile system) {
         if (cachedMysapsso2 == null) {
-            cachedMysapsso2 = cookieProvider.resolveMysapsso2(config, system);
+            synchronized (this) {
+                if (cachedMysapsso2 == null) {
+                    cachedMysapsso2 = cookieProvider.resolveMysapsso2(config, system);
+                }
+            }
         }
         String mysapsso2 = cachedMysapsso2;
 

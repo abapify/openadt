@@ -34,10 +34,14 @@ public final class MfaBrowserLauncher {
     }
 
     private static void openWindows(URI uri) throws IOException {
-        new ProcessBuilder("cmd", "/c", "start", "", uri.toString())
+        String uriString = uri.toString();
+        if (uriString.contains("\"") || uriString.contains("&") || uriString.contains("|") || uriString.contains(">") || uriString.contains("<")) {
+            throw new IllegalArgumentException("URI contains potentially unsafe characters for Windows shell: " + uriString);
+        }
+        new ProcessBuilder("cmd", "/c", "start", "", uriString)
             .redirectErrorStream(true)
             .start();
-        CliLog.error("[openadt sdk] started browser via: cmd /c start " + uri);
+        CliLog.error("[openadt sdk] started browser via: cmd /c start " + uriString);
         CliLog.stderr().flush();
     }
 
