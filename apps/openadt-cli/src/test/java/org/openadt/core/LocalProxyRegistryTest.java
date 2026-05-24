@@ -1,5 +1,6 @@
 package org.openadt.core;
 
+import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -52,5 +53,27 @@ class LocalProxyRegistryTest {
             "openadt"
         );
         assertFalse(LocalProxyRegistry.isAlive(endpoint));
+    }
+
+    @Test
+    void isAliveReturnsTrueForLoopbackHttpServer() throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/", exchange -> {
+            exchange.sendResponseHeaders(204, -1);
+            exchange.close();
+        });
+        server.start();
+        try {
+            LocalProxyRegistry.ProxyEndpoint endpoint = new LocalProxyRegistry.ProxyEndpoint(
+                "DEV",
+                "127.0.0.1",
+                server.getAddress().getPort(),
+                false,
+                "openadt"
+            );
+            assertTrue(LocalProxyRegistry.isAlive(endpoint));
+        } finally {
+            server.stop(0);
+        }
     }
 }

@@ -5,10 +5,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.Socket;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.Locale;
 import java.util.Optional;
 
@@ -17,6 +20,7 @@ import java.util.Optional;
  */
 public final class LocalProxyRegistry {
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final Duration PROXY_HEALTH_TIMEOUT = Duration.ofMillis(500);
 
     private LocalProxyRegistry() {
     }
@@ -141,14 +145,29 @@ public final class LocalProxyRegistry {
             if (!address.isLoopbackAddress()) {
                 return false;
             }
-            // nosemgrep: java.lang.security.audit.crypto.unencrypted-socket.unencrypted-socket
-            try (Socket socket = new Socket()) {
-                socket.connect(new InetSocketAddress(address, endpoint.getPort()), 500);
-                return true;
-            }
+            HttpRequest request = HttpRequest.newBuilder(loopbackHealthUri(address, endpoint.getPort()))
+                .timeout(PROXY_HEALTH_TIMEOUT)
+                .GET()
+                .build();
+            HttpResponse<Void> response = HttpClient.newBuilder()
+                .connectTimeout(PROXY_HEALTH_TIMEOUT)
+                .build()
+                .send(request, HttpResponse.BodyHandlers.discarding());
+            return response.statusCode() > 0;
         } catch (IOException error) {
             return false;
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            return false;
         }
+    }
+
+    private static URI loopbackHealthUri(InetAddress address, int port) {
+        String host = address.getHostAddress();
+        if (host.contains(":") && !host.startsWith("[")) {
+            host = "[" + host + "]";
+        }
+        return URI.create("http://" + host + ":" + port + "/");
     }
 
     static String sanitizeAlias(String alias) {

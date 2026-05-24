@@ -51,39 +51,56 @@ public final class ResponseBodyFormatter {
 
     private static void appendPrettyJsonChar(String jsonText, int index, StringBuilder sb, JsonPrettyState state) {
         char c = jsonText.charAt(index);
+        if (appendQuotedChar(jsonText, index, sb, state, c)) {
+            return;
+        }
+        switch (c) {
+            case '{', '[' -> appendOpeningToken(sb, state, c);
+            case '}', ']' -> appendClosingToken(sb, state, c);
+            case ',' -> appendComma(sb, state);
+            case ':' -> sb.append(": ");
+            default -> {
+                if (!Character.isWhitespace(c)) {
+                    sb.append(c);
+                }
+            }
+        }
+    }
+
+    private static boolean appendQuotedChar(
+        String jsonText,
+        int index,
+        StringBuilder sb,
+        JsonPrettyState state,
+        char c
+    ) {
         if (c == '"' && isUnescapedQuote(jsonText, index)) {
             state.inString = !state.inString;
             sb.append(c);
-            return;
+            return true;
         }
-        if (state.inString) {
-            sb.append(c);
-            return;
+        if (!state.inString) {
+            return false;
         }
-        if (c == '{' || c == '[') {
-            sb.append(c).append('\n');
-            state.indent++;
-            sb.append("  ".repeat(state.indent));
-            return;
-        }
-        if (c == '}' || c == ']') {
-            sb.append('\n');
-            state.indent--;
-            sb.append("  ".repeat(state.indent));
-            sb.append(c);
-            return;
-        }
-        if (c == ',') {
-            sb.append(c).append('\n').append("  ".repeat(state.indent));
-            return;
-        }
-        if (c == ':') {
-            sb.append(": ");
-            return;
-        }
-        if (c != ' ' && c != '\n' && c != '\r' && c != '\t') {
-            sb.append(c);
-        }
+        sb.append(c);
+        return true;
+    }
+
+    private static void appendOpeningToken(StringBuilder sb, JsonPrettyState state, char c) {
+        sb.append(c).append('\n');
+        state.indent++;
+        sb.append("  ".repeat(state.indent));
+    }
+
+    private static void appendClosingToken(StringBuilder sb, JsonPrettyState state, char c) {
+        sb.append('\n');
+        state.indent--;
+        sb.append("  ".repeat(state.indent));
+        sb.append(c);
+    }
+
+    private static void appendComma(StringBuilder sb, JsonPrettyState state) {
+        sb.append(',').append('\n').append("  ".repeat(state.indent));
     }
 
     private static final class JsonPrettyState {
