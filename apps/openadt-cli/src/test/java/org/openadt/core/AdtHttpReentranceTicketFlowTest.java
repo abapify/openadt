@@ -68,21 +68,21 @@ class AdtHttpReentranceTicketFlowTest {
     }
 
     @Test
-    void resolvesSsoBridgeUrlToDiscoveryWhenDiscoveryEndsAtAdtCollection() {
+    void resolvesSsoBridgeUrlToCoreDiscoveryWhenDiscoveryEndsAtAdtCollection() {
         URI bridge = AdtHttpReentranceTicketFlow.resolveSsoBridgeUrl(
             URI.create("https://abap.example.invalid/sap/bc/adt")
         );
 
-        assertEquals("https://abap.example.invalid/sap/bc/adt/discovery", bridge.toString());
+        assertEquals("https://abap.example.invalid/sap/bc/adt/core/discovery", bridge.toString());
     }
 
     @Test
-    void resolvesSsoBridgeUrlToDiscoveryWhenDiscoveryHasTrailingSlash() {
+    void resolvesSsoBridgeUrlToCoreDiscoveryWhenDiscoveryHasTrailingSlash() {
         URI bridge = AdtHttpReentranceTicketFlow.resolveSsoBridgeUrl(
             URI.create("https://abap.example.invalid/sap/bc/adt/")
         );
 
-        assertEquals("https://abap.example.invalid/sap/bc/adt/discovery", bridge.toString());
+        assertEquals("https://abap.example.invalid/sap/bc/adt/core/discovery", bridge.toString());
     }
 
     @Test

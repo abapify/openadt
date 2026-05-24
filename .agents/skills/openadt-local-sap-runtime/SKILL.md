@@ -154,7 +154,7 @@ fetch / proxy (--profile=sso)
          OPENADT_MYSAPSSO2 / secure_login.mysapsso2 / OPENADT_COOKIE_FILE
          else AdtHttpReentranceTicketFlow.acquireTicket()
               1) optional sso_landing_url (only if configured — not site root by default)
-              2) open discovery_url mapped to /sap/bc/adt/discovery when config ends at bare /sap/bc/adt — establish ICF browser session without ExceptionResourceNotFound
+              2) open discovery_url mapped to /sap/bc/adt/core/discovery when config ends at bare /sap/bc/adt — establish ICF browser session without ExceptionResourceNotFound
               3) localhost /adt/open launches popup → /sap/bc/adt/core/http/reentranceticket → /adt/redirect (auto-close when popup allowed)
     → Cookie: MYSAPSSO2=<ticket>
     → discoverAdtApiBase (well-known / virtualhost) + ADT request
@@ -194,11 +194,11 @@ Override: `OPENADT_HTTP_CALLBACK_HOST` or `runtime.http_callback_host`.
 
 **Interactive terminal** (`System.console()` present):
 
-1. Open `/sap/bc/adt/discovery` (when `discovery_url` is bare `/sap/bc/adt`) → user presses Enter after SAML
+1. Open `/sap/bc/adt/core/discovery` (when `discovery_url` is bare `/sap/bc/adt`) → user presses Enter after SAML
 2. Press Enter → callback starts → `http://localhost:<port>/adt/open` opens reentranceticket in a named popup
 3. Popup redirects to `http://localhost:<port>/adt/redirect?reentrance-ticket=...` and tries `window.close()`
 
-**Non-interactive** (Scoop `openadt.exe`, piped stdout, CI): no Enter prompts. After opening `/sap/bc/adt`, waits **`OPENADT_HTTP_SSO_BRIDGE_WAIT_SECONDS`** (default **15**) before reentranceticket so SAML can finish. Set `OPENADT_HTTP_SSO_NON_INTERACTIVE=true` to skip Enter prompts in a real terminal too. Set bridge wait to `0` when SSO session is already warm.
+**Non-interactive** (Scoop `openadt.exe`, piped stdout, CI): no Enter prompts. After opening `/sap/bc/adt/core/discovery` (bridge from bare `/sap/bc/adt`), waits **`OPENADT_HTTP_SSO_BRIDGE_WAIT_SECONDS`** (default **15**) before reentranceticket so SAML can finish. Set `OPENADT_HTTP_SSO_NON_INTERACTIVE=true` to skip Enter prompts in a real terminal too. Set bridge wait to `0` when SSO session is already warm.
 
 **Do not open site root by default** — an existing portal SSO session often lands on Fiori (`/fiori#Shell-home`) without an ADT ICF session. Root landing is opt-in via `sso_landing_url` or `OPENADT_HTTP_SSO_LANDING_URL`.
 

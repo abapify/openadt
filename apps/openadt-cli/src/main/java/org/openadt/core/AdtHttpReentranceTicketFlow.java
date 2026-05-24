@@ -25,8 +25,8 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
     private static final Duration DEFAULT_BRIDGE_WAIT = Duration.ofSeconds(15);
     private static final String CALLBACK_PATH = "/adt/redirect";
     private static final String SSO_LAUNCH_PATH = "/adt/open";
-    /** ADT collection resource; bare {@code /sap/bc/adt} often returns ExceptionResourceNotFound in the browser. */
-    private static final String SSO_BRIDGE_DISCOVERY_PATH = "/sap/bc/adt/discovery";
+    /** Core Atom discovery; lighter than full {@code /sap/bc/adt/discovery} for browser SSO bridge. */
+    private static final String SSO_BRIDGE_DISCOVERY_PATH = "/sap/bc/adt/core/discovery";
     private static final String OPENADT_HTTP_SSO_NON_INTERACTIVE = "OPENADT_HTTP_SSO_NON_INTERACTIVE";
     static final String SSO_LAUNCH_PAGE = """
             <!DOCTYPE html>
@@ -220,7 +220,7 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
 
     /**
      * Browser URL that establishes the ADT ICF session before reentrance-ticket.
-     * When {@code discovery_url} ends at {@code /sap/bc/adt}, map to {@code /sap/bc/adt/discovery}
+     * When {@code discovery_url} ends at {@code /sap/bc/adt}, map to {@code /sap/bc/adt/core/discovery}
      * so the browser does not show ExceptionResourceNotFound for the bare collection path.
      */
     static URI resolveSsoBridgeUrl(URI frontend) {

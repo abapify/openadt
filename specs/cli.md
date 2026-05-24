@@ -272,7 +272,7 @@ HTTP transport (`adt.transport = "http"`):
 - Does not use JCo or the ADT SDK
 - Requires `destinations.<alias>.adt.discovery_url` (logical frontend from `saprules.xml`)
 - Accepts SAP logon tickets from `OPENADT_MYSAPSSO2`, `secure_login.mysapsso2`, or `OPENADT_COOKIE_FILE`
-- If no ticket is available, OpenADT starts a localhost callback (`/adt/redirect`), opens the ADT ICF browser session at `discovery_url` mapped to `/sap/bc/adt/discovery` when the configured path is bare `/sap/bc/adt`, then opens reentrance-ticket via `http://localhost:<port>/adt/open` (popup launcher) so the redirect callback can auto-close the browser tab
+- If no ticket is available, OpenADT starts a localhost callback (`/adt/redirect`), opens the ADT ICF browser session at `discovery_url` mapped to `/sap/bc/adt/core/discovery` when the configured path is bare `/sap/bc/adt`, then opens reentrance-ticket via `http://localhost:<port>/adt/open` (popup launcher) so the redirect callback can auto-close the browser tab
 - Reentrance tickets are kept in memory for the active request flow only; no ticket file is written by default
 - Uses the Secure Login hub only to verify Web Adapter login when `secure_login.origin` and `secure_login.web_adapter_profile_id` are configured
 - Resolves the ADT API base via `/.well-known/sap-adt-info` or `/sap/public/bc/icf/virtualhost`
