@@ -28,15 +28,9 @@ final class LoopbackHubTlsProbe {
         try {
             SSLContext probeContext = SSLContext.getInstance("TLSv1.2");
             probeContext.init(null, new TrustManager[]{captureTrustManager(captured)}, new SecureRandom());
-            try (SSLSocket socket = (SSLSocket) probeContext.getSocketFactory().createSocket()) {
-                socket.connect(new InetSocketAddress(loopback, port), 5_000);
-                socket.startHandshake();
-            } catch (IOException handshakeFailure) {
-                X509Certificate certificate = captured.get();
-                if (certificate != null) {
-                    return certificate;
-                }
-                throw handshakeFailure;
+            X509Certificate handshakeCertificate = captureViaHandshake(probeContext, loopback, port, captured);
+            if (handshakeCertificate != null) {
+                return handshakeCertificate;
             }
         } catch (IOException error) {
             throw error;
@@ -48,6 +42,25 @@ final class LoopbackHubTlsProbe {
             throw new IOException("No certificate captured from loopback hub on port " + port);
         }
         return certificate;
+    }
+
+    private static X509Certificate captureViaHandshake(
+        SSLContext probeContext,
+        InetAddress loopback,
+        int port,
+        AtomicReference<X509Certificate> captured
+    ) throws IOException {
+        try (SSLSocket socket = (SSLSocket) probeContext.getSocketFactory().createSocket()) {
+            socket.connect(new InetSocketAddress(loopback, port), 5_000);
+            socket.startHandshake();
+        } catch (IOException handshakeFailure) {
+            X509Certificate certificate = captured.get();
+            if (certificate != null) {
+                return certificate;
+            }
+            throw handshakeFailure;
+        }
+        return null;
     }
 
     @SuppressWarnings("java:S4830")

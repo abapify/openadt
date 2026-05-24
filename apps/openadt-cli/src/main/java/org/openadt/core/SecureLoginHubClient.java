@@ -11,8 +11,12 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.security.KeyManagementException;
 import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
 
@@ -190,12 +194,18 @@ public class SecureLoginHubClient {
     private static SSLContext trustLocalHub(String hubBaseUrl) {
         try {
             return pinnedHubContext(hubBaseUrl);
-        } catch (Exception error) {
+        } catch (IOException
+            | KeyStoreException
+            | NoSuchAlgorithmException
+            | CertificateException
+            | KeyManagementException
+            | IllegalArgumentException error) {
             throw new IllegalStateException("Failed to initialize TLS for Secure Login hub: " + error.getMessage(), error);
         }
     }
 
-    private static SSLContext pinnedHubContext(String hubBaseUrl) throws Exception {
+    private static SSLContext pinnedHubContext(String hubBaseUrl)
+        throws IOException, KeyStoreException, NoSuchAlgorithmException, CertificateException, KeyManagementException {
         if (!isLoopbackHub(hubBaseUrl)) {
             throw new IllegalArgumentException("Secure Login hub TLS pinning requires a loopback URL: " + hubBaseUrl);
         }
