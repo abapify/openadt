@@ -6,7 +6,6 @@ import java.awt.Desktop;
 import java.io.Console;
 import java.io.IOException;
 import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -317,11 +316,7 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
         try {
             resolveLoopbackAddress(host);
             int bindPort = sanitizeCallbackBindPort(requestedPort);
-            // nosemgrep: Semgrep_java_ssrf_rule-SSRF -- loopback-only SSO callback; host validated above
-            HttpServer server = HttpServer.create(
-                new InetSocketAddress(InetAddress.getLoopbackAddress(), bindPort),
-                0
-            );
+            HttpServer server = LoopbackSsoCallbackServerFactory.create(bindPort);
             server.createContext(
                 CALLBACK_PATH,
                 exchange -> handleCallbackExchange(exchange, ticketFuture, expectedState)

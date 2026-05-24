@@ -16,10 +16,10 @@ OpenADT is a CLI and local proxy for SAP ADT development. It can obtain ADT sess
 
 These patterns are **intentional** and must not be treated as exploitable SSRF:
 
-1. **SSO callback HTTP server** (`AdtHttpReentranceTicketFlow`)
+1. **SSO callback HTTP server** (`AdtHttpReentranceTicketFlow` + `LoopbackSsoCallbackServerFactory`)
    - Browser SSO opens SAP, then redirects to `http://127.0.0.1:<port>/adt/redirect` (or `localhost` / `::1`).
    - Configured callback **host** is validated with `InetAddress.getByName` and **must** resolve to a loopback address before use.
-   - The server **binds** only to `InetAddress.getLoopbackAddress()` (not arbitrary resolved names).
+   - `LoopbackSsoCallbackServerFactory` binds only to `InetAddress.getLoopbackAddress()` (not arbitrary resolved names).
    - Query parsing tolerates SAP frontends that append a second `?` before `reentrance-ticket` / cache-busters.
 
 2. **Secure Login hub TLS probe** (`LoopbackHubTlsProbe`)

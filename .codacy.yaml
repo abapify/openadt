@@ -3,5 +3,6 @@
 engines:
   opengrep:
     exclude_paths:
-      # Dedicated loopback TLS probe for Secure Login hub cert capture; not user-controlled egress.
+      # Loopback-only TLS probe and SSO callback bind helpers (not user-controlled egress).
       - "apps/openadt-cli/src/main/java/org/openadt/core/LoopbackHubTlsProbe.java"
+      - "apps/openadt-cli/src/main/java/org/openadt/core/LoopbackSsoCallbackServerFactory.java"
