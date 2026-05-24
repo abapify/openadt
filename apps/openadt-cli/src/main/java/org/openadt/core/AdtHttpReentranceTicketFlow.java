@@ -93,6 +93,9 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
             );
             browserOpener.accept(reentranceUrl);
             return ticketFuture.get(resolveCallbackTimeout().toMillis(), TimeUnit.MILLISECONDS);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(buildAcquireFailureMessage(callbackUrl, interrupted), interrupted);
         } catch (Exception error) {
             throw new IllegalStateException(buildAcquireFailureMessage(callbackUrl, error), error);
         } finally {
@@ -313,35 +316,65 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
     private HttpServer createCallbackServer(String host, int requestedPort, CompletableFuture<String> ticketFuture, String expectedState) {
         try {
             HttpServer server = HttpServer.create(new InetSocketAddress(host, requestedPort), 0);
-            server.createContext(CALLBACK_PATH, exchange -> {
-                try {
-                    String receivedState = extractQueryParam(exchange.getRequestURI(), "state");
-                    if (receivedState == null || !receivedState.equals(expectedState)) {
-                        writeResponse(exchange, 403, "CSRF state mismatch. Possible cross-site request forgery.");
-                        if (!ticketFuture.isDone()) {
-                            ticketFuture.completeExceptionally(new SecurityException("CSRF state validation failed"));
-                        }
-                        return;
-                    }
-                    String ticket = extractQueryParam(exchange.getRequestURI(), "reentrance-ticket");
-                    if (ticket != null && !ticket.isBlank()) {
-                        if (!ticketFuture.isDone()) {
-                            ticketFuture.complete(ticket);
-                        }
-                        writeHtmlResponse(exchange, 200, TICKET_RECEIVED_PAGE);
-                    } else {
-                        writeResponse(exchange, 400, "Missing reentrance-ticket parameter.");
-                    }
-                } catch (Exception error) {
-                    if (!ticketFuture.isDone()) {
-                        ticketFuture.completeExceptionally(error);
-                    }
-                    writeResponse(exchange, 500, "OpenADT failed to process callback.");
-                }
-            });
+            server.createContext(
+                CALLBACK_PATH,
+                exchange -> handleCallbackExchange(exchange, ticketFuture, expectedState)
+            );
             return server;
         } catch (IOException error) {
             throw new IllegalStateException("Failed to start local callback endpoint on /adt/redirect: " + error.getMessage(), error);
+        }
+    }
+
+    private void handleCallbackExchange(
+        com.sun.net.httpserver.HttpExchange exchange,
+        CompletableFuture<String> ticketFuture,
+        String expectedState
+    ) {
+        try {
+            if (!validateCallbackState(exchange, ticketFuture, expectedState)) {
+                return;
+            }
+            String ticket = extractQueryParam(exchange.getRequestURI(), "reentrance-ticket");
+            if (ticket != null && !ticket.isBlank()) {
+                completeTicket(ticketFuture, ticket);
+                writeHtmlResponse(exchange, 200, TICKET_RECEIVED_PAGE);
+            } else {
+                writeResponse(exchange, 400, "Missing reentrance-ticket parameter.");
+            }
+        } catch (Exception error) {
+            failTicket(ticketFuture, error);
+            try {
+                writeResponse(exchange, 500, "OpenADT failed to process callback.");
+            } catch (IOException ignored) {
+                // Best-effort error page after callback failure.
+            }
+        }
+    }
+
+    private boolean validateCallbackState(
+        com.sun.net.httpserver.HttpExchange exchange,
+        CompletableFuture<String> ticketFuture,
+        String expectedState
+    ) throws IOException {
+        String receivedState = extractQueryParam(exchange.getRequestURI(), "state");
+        if (receivedState != null && receivedState.equals(expectedState)) {
+            return true;
+        }
+        writeResponse(exchange, 403, "CSRF state mismatch. Possible cross-site request forgery.");
+        failTicket(ticketFuture, new SecurityException("CSRF state validation failed"));
+        return false;
+    }
+
+    private static void completeTicket(CompletableFuture<String> ticketFuture, String ticket) {
+        if (!ticketFuture.isDone()) {
+            ticketFuture.complete(ticket);
+        }
+    }
+
+    private static void failTicket(CompletableFuture<String> ticketFuture, Exception error) {
+        if (!ticketFuture.isDone()) {
+            ticketFuture.completeExceptionally(error);
         }
     }
 

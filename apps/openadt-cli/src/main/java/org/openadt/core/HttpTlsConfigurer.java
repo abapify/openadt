@@ -1,7 +1,9 @@
 package org.openadt.core;
 
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.X509TrustManager;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -68,20 +70,18 @@ final class HttpTlsConfigurer {
     }
 
     private KeyStore loadDefaultTrustStore()
-        throws KeyStoreException, IOException, NoSuchAlgorithmException, CertificateException {
+        throws KeyStoreException, NoSuchAlgorithmException, CertificateException, IOException {
         KeyStore store = KeyStore.getInstance(KeyStore.getDefaultType());
-        String javaHome = System.getProperty("java.home");
-        if (javaHome == null || javaHome.isBlank()) {
-            store.load(null, null);
-            return store;
-        }
-        Path cacerts = Path.of(javaHome, "lib", "security", "cacerts");
-        if (!Files.exists(cacerts)) {
-            store.load(null, null);
-            return store;
-        }
-        try (InputStream stream = Files.newInputStream(cacerts)) {
-            store.load(stream, "changeit".toCharArray());
+        store.load(null, null);
+        TrustManagerFactory factory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+        factory.init((KeyStore) null);
+        int index = 0;
+        for (TrustManager manager : factory.getTrustManagers()) {
+            if (manager instanceof X509TrustManager x509TrustManager) {
+                for (X509Certificate certificate : x509TrustManager.getAcceptedIssuers()) {
+                    store.setCertificateEntry("default-" + index++, certificate);
+                }
+            }
         }
         return store;
     }

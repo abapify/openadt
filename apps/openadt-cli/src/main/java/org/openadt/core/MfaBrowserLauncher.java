@@ -3,6 +3,7 @@ package org.openadt.core;
 import java.awt.Desktop;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Path;
 import java.util.Locale;
 
 /**
@@ -46,17 +47,16 @@ public final class MfaBrowserLauncher {
         if (uriString.contains("\"") || uriString.contains("&") || uriString.contains("|") || uriString.contains(">") || uriString.contains("<")) {
             throw new IllegalArgumentException("URI contains potentially unsafe characters for Windows shell: " + uriString);
         }
-        ProcessBuilder builder = new ProcessBuilder("cmd", "/c", "start", "", uriString);
+        String systemRoot = System.getenv("SystemRoot");
+        if (systemRoot == null || systemRoot.isBlank()) {
+            systemRoot = "C:\\Windows";
+        }
+        String cmdPath = Path.of(systemRoot, "System32", "cmd.exe").toString();
+        ProcessBuilder builder = new ProcessBuilder(cmdPath, "/c", "start", "", uriString);
         builder.redirectErrorStream(true);
-        constrainWindowsPath(builder);
         builder.start();
         CliLog.error("[openadt sdk] started browser via: cmd /c start " + uriString);
         CliLog.stderr().flush();
-    }
-
-    private static void constrainWindowsPath(ProcessBuilder builder) {
-        String systemRoot = builder.environment().getOrDefault("SystemRoot", "C:\\Windows");
-        builder.environment().put("PATH", systemRoot + "\\System32");
     }
 
     private static void openViaOsShell(URI uri, String os) throws IOException {
