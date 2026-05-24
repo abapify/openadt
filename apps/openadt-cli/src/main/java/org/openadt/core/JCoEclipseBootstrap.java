@@ -79,6 +79,8 @@ public final class JCoEclipseBootstrap {
         Method method = environmentClass.getMethod(registerMethod, providerClass);
         try {
             method.invoke(null, provider);
+        } catch (IllegalStateException error) {
+            log("JCo Environment." + registerMethod + " already registered (continuing)");
         } catch (ReflectiveOperationException error) {
             Throwable cause = error.getCause();
             if (cause instanceof IllegalStateException) {
