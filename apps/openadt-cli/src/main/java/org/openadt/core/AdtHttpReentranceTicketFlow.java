@@ -6,7 +6,6 @@ import java.awt.Desktop;
 import java.io.Console;
 import java.io.IOException;
 import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -313,14 +312,11 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
         };
     }
 
-    private static final String LOOPBACK_BIND_HOST = "127.0.0.1";
-
     private HttpServer createCallbackServer(String host, int requestedPort, CompletableFuture<String> ticketFuture, String expectedState) {
         try {
             resolveLoopbackAddress(host);
             int bindPort = sanitizeCallbackBindPort(requestedPort);
-            // nosemgrep: Semgrep_java_ssrf_rule-SSRF -- loopback-only SSO callback; host validated above
-            HttpServer server = HttpServer.create(new InetSocketAddress(LOOPBACK_BIND_HOST, bindPort), 0);
+            HttpServer server = LoopbackSsoCallbackServerFactory.create(bindPort);
             server.createContext(
                 CALLBACK_PATH,
                 exchange -> handleCallbackExchange(exchange, ticketFuture, expectedState)
@@ -340,7 +336,7 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
             if (!validateCallbackState(exchange, ticketFuture, expectedState)) {
                 return;
             }
-            String ticket = extractQueryParam(exchange.getRequestURI(), "reentrance-ticket");
+            String ticket = stripMalformedQuerySuffix(extractQueryParam(exchange.getRequestURI(), "reentrance-ticket"));
             if (ticket != null && !ticket.isBlank()) {
                 completeTicket(ticketFuture, ticket);
                 writeHtmlResponse(exchange, 200, TICKET_RECEIVED_PAGE);
@@ -362,13 +358,28 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
         CompletableFuture<String> ticketFuture,
         String expectedState
     ) throws IOException {
-        String receivedState = extractQueryParam(exchange.getRequestURI(), "state");
+        String receivedState = stripMalformedQuerySuffix(extractQueryParam(exchange.getRequestURI(), "state"));
         if (receivedState != null && receivedState.equals(expectedState)) {
             return true;
         }
         writeResponse(exchange, 403, "CSRF state mismatch. Possible cross-site request forgery.");
         failTicket(ticketFuture, new SecurityException("CSRF state validation failed"));
         return false;
+    }
+
+    /**
+     * Some SAP frontends append a cache-buster to {@code redirect-url} with a second {@code ?} instead of
+     * {@code &}, corrupting whichever query parameter is last. Strip the bogus suffix from extracted values.
+     */
+    static String stripMalformedQuerySuffix(String rawValue) {
+        if (rawValue == null) {
+            return null;
+        }
+        int extraQuery = rawValue.indexOf('?');
+        if (extraQuery >= 0) {
+            return rawValue.substring(0, extraQuery);
+        }
+        return rawValue;
     }
 
     private static void completeTicket(CompletableFuture<String> ticketFuture, String ticket) {

@@ -4,15 +4,19 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
+import javax.net.ssl.TrustManagerFactory;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.security.KeyManagementException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
 
@@ -161,9 +165,16 @@ public class SecureLoginHubClient {
 
     private static HttpClient createHttpClient(String hubBaseUrl) {
         HttpClient.Builder builder = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5));
-        if (isLoopbackHub(hubBaseUrl)) {
-            // Trust-all TLS is intentional: the Secure Login hub listens on 127.0.0.1 with a self-signed cert.
-            builder.sslContext(trustLocalHub());
+        if (isLoopbackHub(hubBaseUrl) && hubBaseUrl.startsWith("https://")) {
+            try {
+                builder.sslContext(trustLocalHub(hubBaseUrl));
+            } catch (IllegalStateException error) {
+                CliLog.error(
+                    "Secure Login hub TLS pinning skipped ("
+                        + error.getMessage()
+                        + "). HTTPS hub calls will fail until the hub is reachable and OpenADT is restarted."
+                );
+            }
         }
         return builder.build();
     }
@@ -180,33 +191,39 @@ public class SecureLoginHubClient {
         }
     }
 
-    @SuppressWarnings({"java:S4830", "java:S1186"})
-    private static SSLContext trustLocalHub() {
+    private static SSLContext trustLocalHub(String hubBaseUrl) {
         try {
-            TrustManager[] trustAll = new TrustManager[]{
-                new X509TrustManager() {
-                    @Override
-                    public void checkClientTrusted(X509Certificate[] chain, String authType) {
-                        // No-op: loopback hub only; client certs are not used.
-                    }
-
-                    @Override
-                    public void checkServerTrusted(X509Certificate[] chain, String authType) {
-                        // No-op: accept the hub self-signed certificate on 127.0.0.1.
-                    }
-
-                    @Override
-                    public X509Certificate[] getAcceptedIssuers() {
-                        return new X509Certificate[0];
-                    }
-                }
-            };
-            SSLContext context = SSLContext.getInstance("TLSv1.2");
-            // lgtm[java/insecure-trustmanager] loopback-only local Secure Login hub uses a self-signed certificate
-            context.init(null, trustAll, new SecureRandom());
-            return context;
-        } catch (Exception error) {
+            return pinnedHubContext(hubBaseUrl);
+        } catch (IOException
+            | KeyStoreException
+            | NoSuchAlgorithmException
+            | CertificateException
+            | KeyManagementException
+            | IllegalArgumentException error) {
             throw new IllegalStateException("Failed to initialize TLS for Secure Login hub: " + error.getMessage(), error);
         }
+    }
+
+    private static SSLContext pinnedHubContext(String hubBaseUrl)
+        throws IOException, KeyStoreException, NoSuchAlgorithmException, CertificateException, KeyManagementException {
+        if (!isLoopbackHub(hubBaseUrl)) {
+            throw new IllegalArgumentException("Secure Login hub TLS pinning requires a loopback URL: " + hubBaseUrl);
+        }
+        URI hubUri = URI.create(normalizeHubBase(hubBaseUrl));
+        String host = hubUri.getHost();
+        if (host == null || host.isBlank()) {
+            throw new IllegalArgumentException("Secure Login hub URL must include a host: " + hubBaseUrl);
+        }
+        int port = hubUri.getPort() > 0 ? hubUri.getPort() : 443;
+        X509Certificate hubCertificate = LoopbackHubTlsProbe.probeCertificate(port);
+        KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+        keyStore.load(null, null);
+        keyStore.setCertificateEntry("secure-login-hub", hubCertificate);
+        TrustManagerFactory trustManagerFactory =
+            TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+        trustManagerFactory.init(keyStore);
+        SSLContext context = SSLContext.getInstance("TLSv1.2");
+        context.init(null, trustManagerFactory.getTrustManagers(), new SecureRandom());
+        return context;
     }
 }

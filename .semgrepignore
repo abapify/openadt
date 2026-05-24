@@ -1,0 +1,3 @@
+# Loopback-only SSO / Secure Login patterns — see .codacy/instructions/review.md and .codacy.yaml
+apps/openadt-cli/src/main/java/org/openadt/core/LoopbackHubTlsProbe.java
+apps/openadt-cli/src/main/java/org/openadt/core/LoopbackSsoCallbackServerFactory.java
