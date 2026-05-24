@@ -4,19 +4,17 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
+import javax.net.ssl.TrustManagerFactory;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.security.KeyStore;
 import java.security.SecureRandom;
-import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Minimal client for the SAP Secure Login Client Local Security Hub (HTTPS REST on 127.0.0.1:34443).
@@ -183,21 +181,56 @@ public class SecureLoginHubClient {
 
     private static SSLContext trustLocalHub(String hubBaseUrl) {
         try {
+            return pinnedHubContext(hubBaseUrl);
+        } catch (IOException probeFailure) {
+            return deferredLoopbackPinContext(hubBaseUrl);
+        } catch (Exception error) {
+            throw new IllegalStateException("Failed to initialize TLS for Secure Login hub: " + error.getMessage(), error);
+        }
+    }
+
+    private static SSLContext pinnedHubContext(String hubBaseUrl) throws Exception {
+        if (!isLoopbackHub(hubBaseUrl)) {
+            throw new IllegalArgumentException("Secure Login hub TLS pinning requires a loopback URL: " + hubBaseUrl);
+        }
+        URI hubUri = URI.create(normalizeHubBase(hubBaseUrl));
+        String host = hubUri.getHost();
+        if (host == null || host.isBlank()) {
+            throw new IllegalArgumentException("Secure Login hub URL must include a host: " + hubBaseUrl);
+        }
+        int port = hubUri.getPort() > 0 ? hubUri.getPort() : 443;
+        X509Certificate hubCertificate = LoopbackHubTlsProbe.probeCertificate(host, port);
+        KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+        keyStore.load(null, null);
+        keyStore.setCertificateEntry("secure-login-hub", hubCertificate);
+        TrustManagerFactory trustManagerFactory =
+            TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+        trustManagerFactory.init(keyStore);
+        SSLContext context = SSLContext.getInstance("TLSv1.2");
+        context.init(null, trustManagerFactory.getTrustManagers(), new SecureRandom());
+        return context;
+    }
+
+    @SuppressWarnings("java:S4830")
+    private static SSLContext deferredLoopbackPinContext(String hubBaseUrl) {
+        try {
             if (!isLoopbackHub(hubBaseUrl)) {
                 throw new IllegalArgumentException("Secure Login hub TLS pinning requires a loopback URL: " + hubBaseUrl);
             }
             URI hubUri = URI.create(normalizeHubBase(hubBaseUrl));
             String host = hubUri.getHost();
-            AtomicReference<X509Certificate> pinnedCertificate = new AtomicReference<>();
-            TrustManager[] trustManagers = new TrustManager[]{
-                new X509TrustManager() {
+            java.util.concurrent.atomic.AtomicReference<X509Certificate> pinnedCertificate =
+                new java.util.concurrent.atomic.AtomicReference<>();
+            javax.net.ssl.TrustManager[] trustManagers = new javax.net.ssl.TrustManager[]{
+                new javax.net.ssl.X509TrustManager() {
                     @Override
                     public void checkClientTrusted(X509Certificate[] chain, String authType) {
                         // Client certificates are not used for the local hub.
                     }
 
                     @Override
-                    public void checkServerTrusted(X509Certificate[] chain, String authType) throws CertificateException {
+                    public void checkServerTrusted(X509Certificate[] chain, String authType)
+                        throws java.security.cert.CertificateException {
                         X509Certificate presented = requireHubCertificate(chain);
                         X509Certificate pinned = pinnedCertificate.get();
                         if (pinned == null) {
@@ -205,7 +238,9 @@ public class SecureLoginHubClient {
                             pinned = pinnedCertificate.get();
                         }
                         if (!presented.equals(pinned)) {
-                            throw new CertificateException("Unexpected Secure Login hub certificate on " + host);
+                            throw new java.security.cert.CertificateException(
+                                "Unexpected Secure Login hub certificate on " + host
+                            );
                         }
                     }
 
@@ -224,9 +259,10 @@ public class SecureLoginHubClient {
         }
     }
 
-    private static X509Certificate requireHubCertificate(X509Certificate[] chain) throws CertificateException {
+    private static X509Certificate requireHubCertificate(X509Certificate[] chain)
+        throws java.security.cert.CertificateException {
         if (chain == null || chain.length == 0 || chain[0] == null) {
-            throw new CertificateException("Missing Secure Login hub certificate");
+            throw new java.security.cert.CertificateException("Missing Secure Login hub certificate");
         }
         return chain[0];
     }
