@@ -6,9 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManagerFactory;
 import java.io.IOException;
-import java.net.ConnectException;
 import java.net.InetAddress;
-import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -198,21 +196,7 @@ public class SecureLoginHubClient {
     }
 
     private static boolean isHubOffline(IllegalStateException error) {
-        Throwable cause = error;
-        while (cause != null) {
-            if (cause instanceof ConnectException || cause instanceof SocketTimeoutException) {
-                return true;
-            }
-            String message = cause.getMessage();
-            if (message != null
-                && (message.contains("Connection refused")
-                    || message.contains("connect timed out")
-                    || message.contains("No certificate captured"))) {
-                return true;
-            }
-            cause = cause.getCause();
-        }
-        return false;
+        return LoopbackHubTlsProbe.isUnavailableHubFailure(error);
     }
 
     private static SSLContext trustLocalHub(String hubBaseUrl) {

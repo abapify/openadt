@@ -3,6 +3,7 @@ package org.openadt.core;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.lang.reflect.Method;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Starts {@code com.sap.conn.jco.eclipse} outside the Eclipse workbench so ADT SDK
@@ -12,6 +13,7 @@ import java.lang.reflect.Method;
 public final class JCoEclipseBootstrap {
     private static final String ACTIVATOR_CLASS = "com.sap.mw.jco3.eclipse.internal.Activator";
     private static final String ENVIRONMENT_CLASS = "com.sap.conn.jco.ext.Environment";
+    private static final ConcurrentHashMap<String, VarHandle> FIELD_HANDLES = new ConcurrentHashMap<>();
     private static volatile boolean prepared;
 
     private JCoEclipseBootstrap() {
@@ -79,8 +81,6 @@ public final class JCoEclipseBootstrap {
         Method method = environmentClass.getMethod(registerMethod, providerClass);
         try {
             method.invoke(null, provider);
-        } catch (IllegalStateException error) {
-            log("JCo Environment." + registerMethod + " already registered (continuing)");
         } catch (ReflectiveOperationException error) {
             Throwable cause = error.getCause();
             if (cause instanceof IllegalStateException) {
@@ -112,8 +112,15 @@ public final class JCoEclipseBootstrap {
     }
 
     private static VarHandle privateFieldHandle(Class<?> owner, String fieldName) throws ReflectiveOperationException {
+        String cacheKey = owner.getName() + '#' + fieldName;
+        VarHandle cached = FIELD_HANDLES.get(cacheKey);
+        if (cached != null) {
+            return cached;
+        }
         MethodHandles.Lookup lookup = MethodHandles.privateLookupIn(owner, MethodHandles.lookup());
-        return lookup.unreflectVarHandle(owner.getDeclaredField(fieldName));
+        VarHandle handle = lookup.unreflectVarHandle(owner.getDeclaredField(fieldName));
+        VarHandle existing = FIELD_HANDLES.putIfAbsent(cacheKey, handle);
+        return existing != null ? existing : handle;
     }
 
     private static void log(String message) {

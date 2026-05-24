@@ -65,5 +65,3 @@ rules:
             }
             ...
           }
-      - pattern-not: |
-          private static final String KEY_$FIELD = "...";
