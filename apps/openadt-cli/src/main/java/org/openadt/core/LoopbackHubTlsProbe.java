@@ -26,7 +26,6 @@ final class LoopbackHubTlsProbe {
         AtomicReference<X509Certificate> captured = new AtomicReference<>();
         try {
             SSLContext probeContext = SSLContext.getInstance("TLSv1.2");
-            // codeql[java/insecure-trustmanager]: One-shot loopback probe to capture the hub self-signed cert before KeyStore pinning.
             probeContext.init(null, new TrustManager[]{captureTrustManager(captured)}, new SecureRandom());
             try (SSLSocket socket = (SSLSocket) probeContext.getSocketFactory().createSocket(host, port)) {
                 socket.startHandshake();
@@ -52,10 +51,11 @@ final class LoopbackHubTlsProbe {
             }
 
             @Override
-            public void checkServerTrusted(X509Certificate[] chain, String authType) {
+            public void checkServerTrusted(X509Certificate[] chain, String authType) throws java.security.cert.CertificateException {
                 if (chain != null && chain.length > 0 && chain[0] != null) {
                     captured.compareAndSet(null, chain[0]);
                 }
+                throw new java.security.cert.CertificateException("Loopback TLS probe only");
             }
 
             @Override
