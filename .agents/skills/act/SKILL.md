@@ -62,7 +62,7 @@ Do not start the resolve script until every open thread has a planned action and
 | **P6** | Evaluation | Retrospect, update durable knowledge, cycle check — **before** merge-ready |
 
 **Resolve is step P4, not step 1.**  
-**P6 is mandatory before merge-ready** when anything went wrong during the session (see [EVALUATE.md](EVALUATE.md)).  
+**P6 is mandatory before merge-ready** on every `/act` (cycle check + checklist); the **retrospective** portion is required only when something went wrong during the session (see [EVALUATE.md](EVALUATE.md)).  
 If you cannot fix something in-repo, say so **in that thread**; do not resolve it without a visible reply.
 
 ## Per-thread loop (repeat for each open thread)

@@ -12,7 +12,7 @@ Answer in your closing summary or append to [RETROSPECT.md](RETROSPECT.md):
 - [ ] Did we use whole-file semgrep exclusions instead of line-specific suppressions?
 - [ ] Did we edit PR title/body without explicit user request?
 
-If **any** box is “yes”: write **what / root cause / prevention** and update **one** durable sink (see routing table in [review.instructions.md](../../../.github/instructions/review.instructions.md)).
+If **any** box is “yes”: write **what / root cause / prevention** and update the relevant durable sink(s) (see routing table in [review.instructions.md](../../../.github/instructions/review.instructions.md)).
 
 ## 2. Cycle detection (required every /act)
 
