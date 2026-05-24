@@ -4,6 +4,8 @@ import org.junit.jupiter.api.Test;
 
 import java.net.URI;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AdtHttpReentranceTicketFlowTest {
@@ -82,11 +84,21 @@ class AdtHttpReentranceTicketFlowTest {
     }
 
     @Test
-    void normalizesCallbackStateWhenSapAppendsSecondQuestionMark() {
-        String normalized = AdtHttpReentranceTicketFlow.normalizeCallbackState(
-            "487d1d71-44b3-45e3-9d36-a01b5fcdfb7a?_=20260524191034.9654920"
+    void stripsMalformedQuerySuffixWhenSapAppendsSecondQuestionMark() {
+        assertEquals(
+            "487d1d71-44b3-45e3-9d36-a01b5fcdfb7a",
+            AdtHttpReentranceTicketFlow.stripMalformedQuerySuffix(
+                "487d1d71-44b3-45e3-9d36-a01b5fcdfb7a?_=20260524191034.9654920"
+            )
         );
+    }
 
-        assertTrue(normalized.equals("487d1d71-44b3-45e3-9d36-a01b5fcdfb7a"));
+    @Test
+    void leavesQueryValueUntouchedWhenNoSecondQuestionMark() {
+        assertEquals(
+            "integration-ticket-value",
+            AdtHttpReentranceTicketFlow.stripMalformedQuerySuffix("integration-ticket-value")
+        );
+        assertNull(AdtHttpReentranceTicketFlow.stripMalformedQuerySuffix(null));
     }
 }

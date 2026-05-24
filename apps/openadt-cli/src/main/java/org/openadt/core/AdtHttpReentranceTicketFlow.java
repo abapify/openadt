@@ -340,7 +340,7 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
             if (!validateCallbackState(exchange, ticketFuture, expectedState)) {
                 return;
             }
-            String ticket = extractQueryParam(exchange.getRequestURI(), "reentrance-ticket");
+            String ticket = stripMalformedQuerySuffix(extractQueryParam(exchange.getRequestURI(), "reentrance-ticket"));
             if (ticket != null && !ticket.isBlank()) {
                 completeTicket(ticketFuture, ticket);
                 writeHtmlResponse(exchange, 200, TICKET_RECEIVED_PAGE);
@@ -362,7 +362,7 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
         CompletableFuture<String> ticketFuture,
         String expectedState
     ) throws IOException {
-        String receivedState = normalizeCallbackState(extractQueryParam(exchange.getRequestURI(), "state"));
+        String receivedState = stripMalformedQuerySuffix(extractQueryParam(exchange.getRequestURI(), "state"));
         if (receivedState != null && receivedState.equals(expectedState)) {
             return true;
         }
@@ -373,17 +373,17 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
 
     /**
      * Some SAP frontends append a cache-buster to {@code redirect-url} with a second {@code ?} instead of
-     * {@code &}, e.g. {@code ?state=<uuid>?_=123&reentrance-ticket=...}. Strip the bogus suffix from state.
+     * {@code &}, corrupting whichever query parameter is last. Strip the bogus suffix from extracted values.
      */
-    static String normalizeCallbackState(String rawState) {
-        if (rawState == null) {
+    static String stripMalformedQuerySuffix(String rawValue) {
+        if (rawValue == null) {
             return null;
         }
-        int extraQuery = rawState.indexOf('?');
+        int extraQuery = rawValue.indexOf('?');
         if (extraQuery >= 0) {
-            return rawState.substring(0, extraQuery);
+            return rawValue.substring(0, extraQuery);
         }
-        return rawState;
+        return rawValue;
     }
 
     private static void completeTicket(CompletableFuture<String> ticketFuture, String ticket) {

@@ -13,8 +13,10 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.security.SecureRandom;
+import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Minimal client for the SAP Secure Login Client Local Security Hub (HTTPS REST on 127.0.0.1:34443).
@@ -162,8 +164,7 @@ public class SecureLoginHubClient {
     private static HttpClient createHttpClient(String hubBaseUrl) {
         HttpClient.Builder builder = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5));
         if (isLoopbackHub(hubBaseUrl)) {
-            // Trust-all TLS is intentional: the Secure Login hub listens on 127.0.0.1 with a self-signed cert.
-            builder.sslContext(trustLocalHub());
+            builder.sslContext(trustLocalHub(hubBaseUrl));
         }
         return builder.build();
     }
@@ -180,33 +181,53 @@ public class SecureLoginHubClient {
         }
     }
 
-    @SuppressWarnings({"java:S4830", "java:S1186"})
-    private static SSLContext trustLocalHub() {
+    private static SSLContext trustLocalHub(String hubBaseUrl) {
         try {
-            TrustManager[] trustAll = new TrustManager[]{
+            if (!isLoopbackHub(hubBaseUrl)) {
+                throw new IllegalArgumentException("Secure Login hub TLS pinning requires a loopback URL: " + hubBaseUrl);
+            }
+            URI hubUri = URI.create(normalizeHubBase(hubBaseUrl));
+            String host = hubUri.getHost();
+            AtomicReference<X509Certificate> pinnedCertificate = new AtomicReference<>();
+            TrustManager[] trustManagers = new TrustManager[]{
                 new X509TrustManager() {
                     @Override
                     public void checkClientTrusted(X509Certificate[] chain, String authType) {
-                        // No-op: loopback hub only; client certs are not used.
+                        // Client certificates are not used for the local hub.
                     }
 
                     @Override
-                    public void checkServerTrusted(X509Certificate[] chain, String authType) {
-                        // No-op: accept the hub self-signed certificate on 127.0.0.1.
+                    public void checkServerTrusted(X509Certificate[] chain, String authType) throws CertificateException {
+                        X509Certificate presented = requireHubCertificate(chain);
+                        X509Certificate pinned = pinnedCertificate.get();
+                        if (pinned == null) {
+                            pinnedCertificate.compareAndSet(null, presented);
+                            pinned = pinnedCertificate.get();
+                        }
+                        if (!presented.equals(pinned)) {
+                            throw new CertificateException("Unexpected Secure Login hub certificate on " + host);
+                        }
                     }
 
                     @Override
                     public X509Certificate[] getAcceptedIssuers() {
-                        return new X509Certificate[0];
+                        X509Certificate pinned = pinnedCertificate.get();
+                        return pinned == null ? new X509Certificate[0] : new X509Certificate[]{pinned};
                     }
                 }
             };
             SSLContext context = SSLContext.getInstance("TLSv1.2");
-            // lgtm[java/insecure-trustmanager] loopback-only local Secure Login hub uses a self-signed certificate
-            context.init(null, trustAll, new SecureRandom());
+            context.init(null, trustManagers, new SecureRandom());
             return context;
         } catch (Exception error) {
             throw new IllegalStateException("Failed to initialize TLS for Secure Login hub: " + error.getMessage(), error);
         }
+    }
+
+    private static X509Certificate requireHubCertificate(X509Certificate[] chain) throws CertificateException {
+        if (chain == null || chain.length == 0 || chain[0] == null) {
+            throw new CertificateException("Missing Secure Login hub certificate");
+        }
+        return chain[0];
     }
 }
