@@ -315,8 +315,11 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
 
     private HttpServer createCallbackServer(String host, int requestedPort, CompletableFuture<String> ticketFuture, String expectedState) {
         try {
-            InetAddress bindAddress = resolveLoopbackAddress(host);
-            HttpServer server = HttpServer.create(new InetSocketAddress(bindAddress, requestedPort), 0);
+            resolveLoopbackAddress(host);
+            HttpServer server = HttpServer.create(
+                new InetSocketAddress(InetAddress.getLoopbackAddress(), requestedPort),
+                0
+            );
             server.createContext(
                 CALLBACK_PATH,
                 exchange -> handleCallbackExchange(exchange, ticketFuture, expectedState)

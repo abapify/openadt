@@ -3,7 +3,6 @@ package org.openadt.core;
 import java.awt.Desktop;
 import java.io.IOException;
 import java.net.URI;
-import java.nio.file.Path;
 import java.util.Locale;
 
 /**
@@ -23,8 +22,10 @@ public final class MfaBrowserLauncher {
             return;
         }
         if (os.contains("win")) {
-            openWindows(uri);
-            return;
+            throw new IOException(
+                "Unable to open browser on Windows: Desktop.browse is unavailable or failed. "
+                    + "Run OpenADT in an interactive desktop session."
+            );
         }
         openViaOsShell(uri, os);
     }
@@ -40,23 +41,6 @@ public final class MfaBrowserLauncher {
             CliLog.error("[openadt sdk] Desktop.browse failed: " + error.getMessage());
             return false;
         }
-    }
-
-    private static void openWindows(URI uri) throws IOException {
-        String uriString = uri.toString();
-        if (uriString.contains("\"") || uriString.contains("&") || uriString.contains("|") || uriString.contains(">") || uriString.contains("<")) {
-            throw new IllegalArgumentException("URI contains potentially unsafe characters for Windows shell: " + uriString);
-        }
-        String systemRoot = System.getenv("SystemRoot");
-        if (systemRoot == null || systemRoot.isBlank()) {
-            systemRoot = "C:\\Windows";
-        }
-        String rundll32Path = Path.of(systemRoot, "System32", "rundll32.exe").toString();
-        ProcessBuilder builder = new ProcessBuilder(rundll32Path, "url.dll,FileProtocolHandler", uriString);
-        builder.redirectErrorStream(true);
-        builder.start();
-        CliLog.error("[openadt sdk] started browser via: rundll32 url.dll,FileProtocolHandler " + uriString);
-        CliLog.stderr().flush();
     }
 
     private static void openViaOsShell(URI uri, String os) throws IOException {
