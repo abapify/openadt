@@ -21,6 +21,7 @@ public class HttpAdtTransportClient implements AdtTransportClient {
     private final AdtHttpCookieProvider cookieProvider;
     private final OpenAdtConfig config;
     private final ObjectMapper objectMapper;
+    private String cachedMysapsso2;
 
     public HttpAdtTransportClient(OpenAdtConfig config) {
         this(
@@ -98,7 +99,10 @@ public class HttpAdtTransportClient implements AdtTransportClient {
     }
 
     String buildCookieHeader(SystemProfile system) {
-        String mysapsso2 = cookieProvider.resolveMysapsso2(config, system);
+        if (cachedMysapsso2 == null) {
+            cachedMysapsso2 = cookieProvider.resolveMysapsso2(config, system);
+        }
+        String mysapsso2 = cachedMysapsso2;
 
         List<String> cookies = new java.util.ArrayList<>();
         cookies.add("MYSAPSSO2=" + mysapsso2);

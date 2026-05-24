@@ -8,6 +8,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AdtHttpReentranceTicketFlowTest {
     @Test
+    void buildsCallbackUrlWithLocalhostHost() {
+        URI callback = AdtHttpReentranceTicketFlow.buildCallbackUrl("localhost", 18080);
+        assertTrue(callback.toString().equals("http://localhost:18080/adt/redirect"));
+    }
+
+    @Test
     void buildsReentranceTicketUrlWithClientLanguageAndRedirect() {
         SystemProfile system = new SystemProfile();
         system.setClient("100");
@@ -38,5 +44,46 @@ class AdtHttpReentranceTicketFlowTest {
         );
 
         assertTrue(url.toString().contains("sap-language=EN"));
+    }
+
+    @Test
+    void defaultsSsoLandingUrlToNullWithoutExplicitConfig() {
+        URI landing = AdtHttpReentranceTicketFlow.resolveSsoLandingUrl(
+            URI.create("https://abap.example.invalid/sap/bc/adt"),
+            null
+        );
+
+        assertTrue(landing == null);
+    }
+
+    @Test
+    void prefersConfiguredSsoLandingUrlFromProfile() {
+        SystemProfile system = new SystemProfile();
+        SystemProfile.AdtConfig adt = new SystemProfile.AdtConfig();
+        adt.setSsoLandingUrl("https://sso.example.invalid/");
+        system.setAdt(adt);
+
+        URI landing = AdtHttpReentranceTicketFlow.resolveSsoLandingUrl(
+            URI.create("https://abap.example.invalid/sap/bc/adt"),
+            system
+        );
+
+        assertTrue(landing.toString().equals("https://sso.example.invalid/"));
+    }
+
+    @Test
+    void resolvesSsoBridgeUrlFromDiscoveryPath() {
+        URI bridge = AdtHttpReentranceTicketFlow.resolveSsoBridgeUrl(
+            URI.create("https://abap.example.invalid/sap/bc/adt")
+        );
+
+        assertTrue(bridge.toString().equals("https://abap.example.invalid/sap/bc/adt"));
+    }
+
+    @Test
+    void skipsSsoBridgeWhenDiscoveryIsOriginOnly() {
+        assertTrue(AdtHttpReentranceTicketFlow.resolveSsoBridgeUrl(
+            URI.create("https://abap.example.invalid/")
+        ) == null);
     }
 }

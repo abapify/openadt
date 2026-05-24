@@ -3,8 +3,8 @@ package org.openadt.core;
 import com.sun.net.httpserver.HttpServer;
 
 import java.awt.Desktop;
+import java.io.Console;
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -19,6 +19,8 @@ import java.util.function.Function;
 
 final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
     private static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(5);
+    private static final Duration CALLBACK_GRACE_PERIOD = Duration.ofSeconds(30);
+    private static final Duration DEFAULT_BRIDGE_WAIT = Duration.ofSeconds(15);
     private static final String CALLBACK_PATH = "/adt/redirect";
     private final Function<String, String> envProvider;
     private final Consumer<URI> browserOpener;
@@ -36,21 +38,62 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
     public String acquireTicket(OpenAdtConfig config, SystemProfile system) {
         URI frontend = resolveFrontend(system);
         int requestedPort = resolveCallbackPort(config);
+        openPreReentranceBrowserSteps(frontend, system);
+
         CompletableFuture<String> ticketFuture = new CompletableFuture<>();
-        HttpServer server = createCallbackServer(requestedPort, ticketFuture);
+        String callbackHost = resolveCallbackHost(config);
+        HttpServer server = createCallbackServer(callbackHost, requestedPort, ticketFuture);
         server.start();
+        URI callbackUrl = null;
         try {
             int actualPort = server.getAddress().getPort();
-            URI callbackUrl = URI.create("http://localhost:" + actualPort + CALLBACK_PATH);
+            callbackUrl = buildCallbackUrl(callbackHost, actualPort);
+            SsoCallbackRegistry.markActive(callbackUrl, actualPort);
             URI reentranceUrl = buildReentranceTicketUrl(frontend, system, callbackUrl);
-            System.err.println("Opening browser SSO flow: " + reentranceUrl);
+            System.err.println("Local callback listening on " + callbackUrl + " (keep this terminal open until redirect completes)");
+            waitBeforeReentranceStep();
+            System.err.println(
+                "Step 3/3: open reentrance-ticket (expect redirect to the callback URL above): "
+                    + reentranceUrl
+            );
             browserOpener.accept(reentranceUrl);
-            return ticketFuture.get(DEFAULT_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            return ticketFuture.get(resolveCallbackTimeout().toMillis(), TimeUnit.MILLISECONDS);
         } catch (Exception error) {
-            throw new IllegalStateException("Failed to acquire ADT reentrance ticket: " + error.getMessage(), error);
+            throw new IllegalStateException(buildAcquireFailureMessage(callbackUrl, error), error);
         } finally {
+            awaitCallbackGracePeriod(ticketFuture);
+            SsoCallbackRegistry.clear();
             server.stop(0);
         }
+    }
+
+    private void awaitCallbackGracePeriod(CompletableFuture<String> ticketFuture) {
+        if (!ticketFuture.isDone() || ticketFuture.isCompletedExceptionally()) {
+            return;
+        }
+        try {
+            Thread.sleep(CALLBACK_GRACE_PERIOD.toMillis());
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private String buildAcquireFailureMessage(URI callbackUrl, Exception error) {
+        StringBuilder message = new StringBuilder("Failed to acquire ADT reentrance ticket: ");
+        message.append(error.getMessage());
+        if (callbackUrl != null) {
+            message.append(". Expected browser redirect to ").append(callbackUrl);
+            message.append(". ").append(SsoCallbackRegistry.stalePortHint(callbackUrl.getPort()));
+        }
+        message.append(
+            " If the browser already shows reentrance-ticket=... in the address bar, "
+                + "copy the ticket value into OPENADT_MYSAPSSO2 and retry without browser SSO."
+        );
+        return message.toString();
+    }
+
+    static URI buildCallbackUrl(String host, int port) {
+        return URI.create("http://" + host + ":" + port + CALLBACK_PATH);
     }
 
     static URI buildReentranceTicketUrl(URI frontend, SystemProfile system, URI callbackUrl) {
@@ -77,20 +120,182 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
         return URI.create(endpoint + "?" + query);
     }
 
-    private HttpServer createCallbackServer(int requestedPort, CompletableFuture<String> ticketFuture) {
+    /**
+     * SAML/Okta is often bound to the frontend origin (/) rather than deep ICF paths such as
+     * {@code /sap/bc/adt/core/http/reentranceticket}. Open that landing URL first so the browser
+     * establishes SSO cookies before the reentrance-ticket redirect chain runs.
+     */
+    static URI resolveSsoLandingUrl(URI frontend, SystemProfile system) {
+        return resolveSsoLandingUrl(frontend, system, key -> null);
+    }
+
+    static URI resolveSsoLandingUrl(URI frontend, SystemProfile system, Function<String, String> envProvider) {
+        if (isTruthy(envProvider.apply("OPENADT_HTTP_SSO_SKIP_LANDING"))) {
+            return null;
+        }
+        String configured = envProvider.apply("OPENADT_HTTP_SSO_LANDING_URL");
+        if (configured == null || configured.isBlank()) {
+            configured = system != null && system.getAdt() != null ? system.getAdt().getSsoLandingUrl() : null;
+        }
+        if (configured != null && !configured.isBlank()) {
+            return URI.create(configured.trim());
+        }
+        // Do not default to site root: an existing portal SSO session often opens Fiori
+        // (/fiori#Shell-home) without establishing the ADT ICF browser session we need.
+        return null;
+    }
+
+    /** ADT discovery entry (often {@code /sap/bc/adt}) after Okta on the site root. */
+    static URI resolveSsoBridgeUrl(URI frontend) {
+        if (frontend == null) {
+            return null;
+        }
+        String path = frontend.getRawPath();
+        if (path == null || path.isBlank() || "/".equals(path)) {
+            return null;
+        }
+        return frontend;
+    }
+
+    private void openPreReentranceBrowserSteps(URI frontend, SystemProfile system) {
+        URI landingUrl = resolveSsoLandingUrl(frontend, system, envProvider);
+        URI bridgeUrl = resolveSsoBridgeUrl(frontend);
+        Console console = System.console();
+        boolean interactive = console != null && !isTruthy(envProvider.apply("OPENADT_HTTP_SSO_NON_INTERACTIVE"));
+        int step = 1;
+        int totalSteps = (landingUrl != null ? 1 : 0) + (bridgeUrl != null ? 1 : 0);
+
+        if (landingUrl != null) {
+            System.err.println(
+                "Step " + step + "/" + totalSteps + ": optional Okta/corporate landing (only when configured): "
+                    + landingUrl
+            );
+            browserOpener.accept(landingUrl);
+            waitForSsoStep(
+                console,
+                interactive,
+                "Complete corporate SSO if prompted, then press Enter to continue..."
+            );
+            step++;
+        }
+
+        if (bridgeUrl != null) {
+            System.err.println(
+                "Step " + step + "/" + totalSteps
+                    + ": open ADT entry (expect SAML/redirect here, not Fiori shell home): "
+                    + bridgeUrl
+            );
+            browserOpener.accept(bridgeUrl);
+            waitForSsoStep(
+                console,
+                interactive,
+                "When ADT is ready (or after any SAML redirect completes), press Enter to continue..."
+            );
+            waitForBridgeInNonInteractiveMode();
+        } else if (landingUrl == null) {
+            throw new IllegalStateException(
+                "HTTP browser SSO requires destinations.<alias>.adt.discovery_url with an ADT path such as /sap/bc/adt."
+            );
+        }
+    }
+
+    private void waitForBridgeInNonInteractiveMode() {
+        if (System.console() != null || isTruthy(envProvider.apply("OPENADT_HTTP_SSO_NON_INTERACTIVE"))) {
+            return;
+        }
+        Duration wait = resolveBridgeWait();
+        if (wait.isZero() || wait.isNegative()) {
+            return;
+        }
+        System.err.println(
+            "Non-interactive terminal: waiting "
+                + wait.toSeconds()
+                + "s for browser SAML on ADT entry before opening reentrance-ticket..."
+        );
         try {
-            HttpServer server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), requestedPort), 0);
+            Thread.sleep(wait.toMillis());
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while waiting for browser SSO on ADT entry", error);
+        }
+    }
+
+    private Duration resolveBridgeWait() {
+        String rawSeconds = envProvider.apply("OPENADT_HTTP_SSO_BRIDGE_WAIT_SECONDS");
+        if (rawSeconds != null && !rawSeconds.isBlank()) {
+            try {
+                long seconds = Long.parseLong(rawSeconds.trim());
+                if (seconds >= 0) {
+                    return Duration.ofSeconds(seconds);
+                }
+            } catch (NumberFormatException ignored) {
+                // fall through
+            }
+        }
+        return DEFAULT_BRIDGE_WAIT;
+    }
+
+    private void waitBeforeReentranceStep() {
+        Console console = System.console();
+        boolean interactive = console != null && !isTruthy(envProvider.apply("OPENADT_HTTP_SSO_NON_INTERACTIVE"));
+        if (!interactive) {
+            return;
+        }
+        console.readLine(
+            "Press Enter to start the localhost callback and open reentrance-ticket (keep this terminal running)... "
+        );
+    }
+
+    private Duration resolveCallbackTimeout() {
+        String rawMinutes = envProvider.apply("OPENADT_HTTP_CALLBACK_TIMEOUT_MINUTES");
+        if (rawMinutes != null && !rawMinutes.isBlank()) {
+            try {
+                long minutes = Long.parseLong(rawMinutes.trim());
+                if (minutes > 0) {
+                    return Duration.ofMinutes(minutes);
+                }
+            } catch (NumberFormatException ignored) {
+                // fall through
+            }
+        }
+        return DEFAULT_TIMEOUT;
+    }
+
+    private static void waitForSsoStep(Console console, boolean interactive, String prompt) {
+        if (!interactive) {
+            return;
+        }
+        console.readLine(prompt + " ");
+    }
+
+    private static boolean isTruthy(String value) {
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+        return switch (value.trim().toLowerCase()) {
+            case "1", "true", "yes", "on" -> true;
+            default -> false;
+        };
+    }
+
+    private HttpServer createCallbackServer(String host, int requestedPort, CompletableFuture<String> ticketFuture) {
+        try {
+            HttpServer server = HttpServer.create(new InetSocketAddress(host, requestedPort), 0);
             server.createContext(CALLBACK_PATH, exchange -> {
                 try {
                     String ticket = extractQueryParam(exchange.getRequestURI(), "reentrance-ticket");
                     if (ticket != null && !ticket.isBlank()) {
-                        ticketFuture.complete(ticket);
-                        writeResponse(exchange, 200, "OpenADT ticket received. You can close this tab.");
+                        if (!ticketFuture.isDone()) {
+                            ticketFuture.complete(ticket);
+                        }
+                        writeHtmlResponse(exchange, 200, buildTicketReceivedPage());
                     } else {
                         writeResponse(exchange, 400, "Missing reentrance-ticket parameter.");
                     }
                 } catch (Exception error) {
-                    ticketFuture.completeExceptionally(error);
+                    if (!ticketFuture.isDone()) {
+                        ticketFuture.completeExceptionally(error);
+                    }
                     writeResponse(exchange, 500, "OpenADT failed to process callback.");
                 }
             });
@@ -100,12 +305,65 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
         }
     }
 
+    static String buildTicketReceivedPage() {
+        return """
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+              <meta charset="utf-8">
+              <title>OpenADT</title>
+              <script>
+                function closeTab() {
+                  try { window.open('', '_self'); } catch (e) {}
+                  window.close();
+                }
+                addEventListener('load', function () {
+                  closeTab();
+                  setTimeout(closeTab, 150);
+                });
+              </script>
+            </head>
+            <body>
+              <p id="msg">OpenADT ticket received.</p>
+              <script>
+                setTimeout(function () {
+                  var msg = document.getElementById('msg');
+                  if (msg) {
+                    msg.textContent = 'OpenADT ticket received. You can close this tab.';
+                  }
+                }, 500);
+              </script>
+            </body>
+            </html>
+            """;
+    }
+
+    private static void writeHtmlResponse(com.sun.net.httpserver.HttpExchange exchange, int statusCode, String body) throws IOException {
+        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().set("Content-Type", "text/html; charset=utf-8");
+        exchange.sendResponseHeaders(statusCode, bytes.length);
+        exchange.getResponseBody().write(bytes);
+        exchange.close();
+    }
+
     private static void writeResponse(com.sun.net.httpserver.HttpExchange exchange, int statusCode, String body) throws IOException {
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
         exchange.sendResponseHeaders(statusCode, bytes.length);
         exchange.getResponseBody().write(bytes);
         exchange.close();
+    }
+
+  /** SAP ADT validates redirect-url and typically accepts {@code localhost}, not {@code 127.0.0.1}. */
+    private String resolveCallbackHost(OpenAdtConfig config) {
+        String rawHost = runtime(config, OpenAdtConfig.RuntimeConfig::getHttpCallbackHost);
+        if (rawHost == null || rawHost.isBlank()) {
+            rawHost = envProvider.apply("OPENADT_HTTP_CALLBACK_HOST");
+        }
+        if (rawHost == null || rawHost.isBlank()) {
+            return "localhost";
+        }
+        return rawHost.trim();
     }
 
     private int resolveCallbackPort(OpenAdtConfig config) {

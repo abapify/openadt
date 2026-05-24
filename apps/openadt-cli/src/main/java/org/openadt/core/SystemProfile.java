@@ -94,6 +94,8 @@ public class SystemProfile {
         private String discoveryUrl;
         @JsonProperty("authentication_kind")
         private String authenticationKind;
+        @JsonProperty("sso_landing_url")
+        private String ssoLandingUrl;
 
         public String getTransport() { return transport; }
         public void setTransport(String transport) { this.transport = transport; }
@@ -103,6 +105,8 @@ public class SystemProfile {
         public void setDiscoveryUrl(String discoveryUrl) { this.discoveryUrl = discoveryUrl; }
         public String getAuthenticationKind() { return authenticationKind; }
         public void setAuthenticationKind(String authenticationKind) { this.authenticationKind = authenticationKind; }
+        public String getSsoLandingUrl() { return ssoLandingUrl; }
+        public void setSsoLandingUrl(String ssoLandingUrl) { this.ssoLandingUrl = ssoLandingUrl; }
     }
 
     public static class ProfileConfig {
@@ -113,6 +117,8 @@ public class SystemProfile {
         private String discoveryUrl;
         @JsonProperty("callback_port")
         private String callbackPort;
+        @JsonProperty("sso_landing_url")
+        private String ssoLandingUrl;
         private JcoConfig jco;
         private AdtConfig adt;
 
@@ -124,6 +130,8 @@ public class SystemProfile {
         public void setDiscoveryUrl(String discoveryUrl) { this.discoveryUrl = discoveryUrl; }
         public String getCallbackPort() { return callbackPort; }
         public void setCallbackPort(String callbackPort) { this.callbackPort = callbackPort; }
+        public String getSsoLandingUrl() { return ssoLandingUrl; }
+        public void setSsoLandingUrl(String ssoLandingUrl) { this.ssoLandingUrl = ssoLandingUrl; }
         public JcoConfig getJco() { return jco; }
         public void setJco(JcoConfig jco) { this.jco = jco; }
         public AdtConfig getAdt() { return adt; }

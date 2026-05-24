@@ -96,6 +96,9 @@ public final class DestinationProfileResolver {
         if (profile.getDiscoveryUrl() != null) {
             adt.setDiscoveryUrl(profile.getDiscoveryUrl());
         }
+        if (profile.getSsoLandingUrl() != null) {
+            adt.setSsoLandingUrl(profile.getSsoLandingUrl());
+        }
         if (profile.getAdt() != null) {
             if (profile.getAdt().getTransport() != null) {
                 adt.setTransport(profile.getAdt().getTransport());
@@ -108,6 +111,9 @@ public final class DestinationProfileResolver {
             }
             if (profile.getAdt().getAuthenticationKind() != null) {
                 adt.setAuthenticationKind(profile.getAdt().getAuthenticationKind());
+            }
+            if (profile.getAdt().getSsoLandingUrl() != null) {
+                adt.setSsoLandingUrl(profile.getAdt().getSsoLandingUrl());
             }
         }
         if (profile.getJco() != null) {
@@ -182,6 +188,7 @@ public final class DestinationProfileResolver {
         copy.setAshost(source.getAshost());
         copy.setDiscoveryUrl(source.getDiscoveryUrl());
         copy.setAuthenticationKind(source.getAuthenticationKind());
+        copy.setSsoLandingUrl(source.getSsoLandingUrl());
         return copy;
     }
 }

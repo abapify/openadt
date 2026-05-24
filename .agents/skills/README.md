@@ -5,7 +5,7 @@ This directory contains reusable agent skills for common OpenADT development tas
 ## Available Skills
 
 - `openadt-local-sap-runtime`
-  - **Knowledge base** for SDK+JCo transport: Eclipse destinations, JCo jar canonical names, classpath order, Secure Login hub vs portal, headless `jco.eclipse`, fetch/proxy parity, failure modes, validation commands.
+  - **Knowledge base** for SDK+JCo transport and **HTTP browser SSO** (`--profile=sso`): destination profiles, reentranceticket callback, TLS/CA, Eclipse destinations, JCo jar canonical names, classpath order, Secure Login hub vs portal, failure modes, validation commands.
 - `openadt-devcontainer-host-runtime`
   - Split config (WSL/container) vs host-native `fetch`/`proxy`; bootstrap paths; anti-patterns.
 - `act`

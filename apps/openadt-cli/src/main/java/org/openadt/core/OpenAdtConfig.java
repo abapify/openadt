@@ -38,6 +38,8 @@ public class OpenAdtConfig {
         private String httpTruststorePassword;
         @JsonProperty("http_callback_port")
         private String httpCallbackPort;
+        @JsonProperty("http_callback_host")
+        private String httpCallbackHost;
 
         public String getJcoJar() { return jcoJar; }
         public void setJcoJar(String jcoJar) { this.jcoJar = jcoJar; }
@@ -55,6 +57,8 @@ public class OpenAdtConfig {
         public void setHttpTruststorePassword(String httpTruststorePassword) { this.httpTruststorePassword = httpTruststorePassword; }
         public String getHttpCallbackPort() { return httpCallbackPort; }
         public void setHttpCallbackPort(String httpCallbackPort) { this.httpCallbackPort = httpCallbackPort; }
+        public String getHttpCallbackHost() { return httpCallbackHost; }
+        public void setHttpCallbackHost(String httpCallbackHost) { this.httpCallbackHost = httpCallbackHost; }
     }
 
     public static class SecureLoginConfig {

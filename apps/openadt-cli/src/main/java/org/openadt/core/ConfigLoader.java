@@ -579,6 +579,9 @@ public class ConfigLoader {
         if (source.getCallbackPort() != null) {
             target.setCallbackPort(source.getCallbackPort());
         }
+        if (source.getSsoLandingUrl() != null) {
+            target.setSsoLandingUrl(source.getSsoLandingUrl());
+        }
         if (source.getJco() != null) {
             SystemProfile.JcoConfig jco = target.getJco();
             if (jco == null) {
@@ -648,6 +651,9 @@ public class ConfigLoader {
         }
         if (source.getAuthenticationKind() != null) {
             target.setAuthenticationKind(source.getAuthenticationKind());
+        }
+        if (source.getSsoLandingUrl() != null) {
+            target.setSsoLandingUrl(source.getSsoLandingUrl());
         }
     }
 
@@ -748,6 +754,7 @@ public class ConfigLoader {
                     writeString(lines, "ashost", system.getAdt().getAshost());
                     writeString(lines, "discovery_url", system.getAdt().getDiscoveryUrl());
                     writeString(lines, "authentication_kind", system.getAdt().getAuthenticationKind());
+                    writeString(lines, "sso_landing_url", system.getAdt().getSsoLandingUrl());
                 }
 
                 if (system.getProfiles() != null) {
@@ -764,6 +771,7 @@ public class ConfigLoader {
                         writeString(lines, "authentication_kind", profile.getAuthenticationKind());
                         writeString(lines, "discovery_url", profile.getDiscoveryUrl());
                         writeString(lines, "callback_port", profile.getCallbackPort());
+                        writeString(lines, "sso_landing_url", profile.getSsoLandingUrl());
 
                         if (profile.getJco() != null) {
                             lines.add("");
@@ -789,6 +797,7 @@ public class ConfigLoader {
                             writeString(lines, "ashost", profile.getAdt().getAshost());
                             writeString(lines, "discovery_url", profile.getAdt().getDiscoveryUrl());
                             writeString(lines, "authentication_kind", profile.getAdt().getAuthenticationKind());
+                            writeString(lines, "sso_landing_url", profile.getAdt().getSsoLandingUrl());
                         }
                     }
                 }
