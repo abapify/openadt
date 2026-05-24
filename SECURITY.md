@@ -40,10 +40,6 @@ Development builds from `main` or open pull requests are not supported release l
 
 Use [GitHub private vulnerability reporting](https://github.com/abapify/openadt/security/advisories/new) for this repository. Reports stay private until maintainers publish a coordinated advisory.
 
-### Alternative contact
-
-If private reporting is unavailable or unsuitable for your report, email **security@example.com** with the subject `OpenADT security report`.
-
 ### What to include
 
 Please provide as much of the following as you can:
