@@ -92,7 +92,11 @@ public final class JCoEclipseBootstrap {
     }
 
     private static void markJcoRegistrationSuccessful(Object activator) throws ReflectiveOperationException {
-        writeBooleanField(activator, "successfullJCORegistration", true);
+        try {
+            writeBooleanField(activator, "successfullJCORegistration", true);
+        } catch (NoSuchFieldException error) {
+            writeBooleanField(activator, "successfulJCORegistration", true);
+        }
     }
 
     private static Object readField(Object target, String fieldName) throws ReflectiveOperationException {

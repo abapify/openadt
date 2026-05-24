@@ -195,7 +195,7 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
         Console console = System.console();
         boolean interactive = console != null && !isTruthy(envProvider.apply(OPENADT_HTTP_SSO_NON_INTERACTIVE));
         int step = 1;
-        int totalSteps = (landingUrl != null ? 1 : 0) + (bridgeUrl != null ? 1 : 0);
+        int totalSteps = (landingUrl != null ? 1 : 0) + (bridgeUrl != null ? 1 : 0) + 1;
 
         if (landingUrl != null) {
             CliLog.error(

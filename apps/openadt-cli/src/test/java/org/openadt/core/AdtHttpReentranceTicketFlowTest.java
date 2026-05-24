@@ -12,7 +12,7 @@ class AdtHttpReentranceTicketFlowTest {
     @Test
     void buildsCallbackUrlWithLocalhostHost() {
         URI callback = AdtHttpReentranceTicketFlow.buildCallbackUrl("localhost", 18080, "test-state");
-        assertTrue(callback.toString().equals("http://localhost:18080/adt/redirect?state=test-state"));
+        assertEquals("http://localhost:18080/adt/redirect?state=test-state", callback.toString());
     }
 
     @Test
@@ -52,7 +52,7 @@ class AdtHttpReentranceTicketFlowTest {
     void defaultsSsoLandingUrlToNullWithoutExplicitConfig() {
         URI landing = AdtHttpReentranceTicketFlow.resolveSsoLandingUrl(null);
 
-        assertTrue(landing == null);
+        assertNull(landing);
     }
 
     @Test
@@ -64,7 +64,7 @@ class AdtHttpReentranceTicketFlowTest {
 
         URI landing = AdtHttpReentranceTicketFlow.resolveSsoLandingUrl(system);
 
-        assertTrue(landing.toString().equals("https://sso.example.invalid/"));
+        assertEquals("https://sso.example.invalid/", landing.toString());
     }
 
     @Test
@@ -73,14 +73,14 @@ class AdtHttpReentranceTicketFlowTest {
             URI.create("https://abap.example.invalid/sap/bc/adt")
         );
 
-        assertTrue(bridge.toString().equals("https://abap.example.invalid/sap/bc/adt"));
+        assertEquals("https://abap.example.invalid/sap/bc/adt", bridge.toString());
     }
 
     @Test
     void skipsSsoBridgeWhenDiscoveryIsOriginOnly() {
-        assertTrue(AdtHttpReentranceTicketFlow.resolveSsoBridgeUrl(
+        assertNull(AdtHttpReentranceTicketFlow.resolveSsoBridgeUrl(
             URI.create("https://abap.example.invalid/")
-        ) == null);
+        ));
     }
 
     @Test

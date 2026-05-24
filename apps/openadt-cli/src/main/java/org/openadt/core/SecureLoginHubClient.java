@@ -10,9 +10,11 @@ import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.SocketTimeoutException;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -76,7 +78,8 @@ public class SecureLoginHubClient {
     }
 
     public String webAdapterStatus(String profileId) throws IOException, InterruptedException {
-        URI uri = URI.create(hubBaseUrl + "/slc3/api/status?profileid=" + profileId);
+        String encodedProfileId = URLEncoder.encode(profileId, StandardCharsets.UTF_8);
+        URI uri = URI.create(hubBaseUrl + "/slc3/api/status?profileid=" + encodedProfileId);
         HttpResponse<String> response = httpClient.send(
             hubRequest(uri).GET().build(),
             HttpResponse.BodyHandlers.ofString()
@@ -250,7 +253,7 @@ public class SecureLoginHubClient {
         TrustManagerFactory trustManagerFactory =
             TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
         trustManagerFactory.init(keyStore);
-        SSLContext context = SSLContext.getInstance("TLSv1.2");
+        SSLContext context = SSLContext.getInstance("TLS");
         context.init(null, trustManagerFactory.getTrustManagers(), new SecureRandom());
         return context;
     }

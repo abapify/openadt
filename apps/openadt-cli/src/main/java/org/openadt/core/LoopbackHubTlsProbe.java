@@ -28,7 +28,7 @@ final class LoopbackHubTlsProbe {
         }
         AtomicReference<X509Certificate> captured = new AtomicReference<>();
         try {
-            SSLContext probeContext = SSLContext.getInstance("TLSv1.2");
+            SSLContext probeContext = SSLContext.getInstance("TLS");
             probeContext.init(null, new TrustManager[]{captureTrustManager(captured)}, new SecureRandom());
             X509Certificate handshakeCertificate = captureViaHandshake(probeContext, loopback, port, captured);
             if (handshakeCertificate != null) {
