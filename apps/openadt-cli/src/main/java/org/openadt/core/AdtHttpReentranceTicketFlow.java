@@ -317,6 +317,7 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
         try {
             resolveLoopbackAddress(host);
             int bindPort = sanitizeCallbackBindPort(requestedPort);
+            // nosemgrep: Semgrep_java_ssrf_rule-SSRF -- loopback-only SSO callback; host validated above
             HttpServer server = HttpServer.create(
                 new InetSocketAddress(InetAddress.getLoopbackAddress(), bindPort),
                 0
