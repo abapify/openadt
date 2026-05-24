@@ -8,9 +8,11 @@ import javax.net.ssl.TrustManagerFactory;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -74,7 +76,8 @@ public class SecureLoginHubClient {
     }
 
     public String webAdapterStatus(String profileId) throws IOException, InterruptedException {
-        URI uri = URI.create(hubBaseUrl + "/slc3/api/status?profileid=" + profileId);
+        String encodedProfileId = URLEncoder.encode(profileId, StandardCharsets.UTF_8);
+        URI uri = URI.create(hubBaseUrl + "/slc3/api/status?profileid=" + encodedProfileId);
         HttpResponse<String> response = httpClient.send(
             hubRequest(uri).GET().build(),
             HttpResponse.BodyHandlers.ofString()

@@ -22,6 +22,7 @@ class SecureLoginHubClientTest {
     private HttpServer server;
     private String baseUrl;
     private volatile String lastPath;
+    private volatile String lastQuery;
     private volatile String lastOrigin;
 
     @BeforeEach
@@ -29,6 +30,7 @@ class SecureLoginHubClientTest {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/", exchange -> {
             lastPath = exchange.getRequestURI().getPath();
+            lastQuery = exchange.getRequestURI().getRawQuery();
             lastOrigin = exchange.getRequestHeaders().getFirst("Origin");
             if (lastPath.endsWith("/status")) {
                 writeJson(exchange, 200, "{\"profileid\":\"p1\",\"status\":\"LOGGED_OUT\"}");
@@ -72,6 +74,25 @@ class SecureLoginHubClientTest {
         assertEquals("LOGGED_OUT", client.webAdapterStatus("p1"));
         assertEquals("/slc3/api/status", lastPath);
         assertEquals("https://sls.example.com:50001", lastOrigin);
+    }
+
+    @Test
+    void encodesReservedCharactersInProfileIdQueryParam() throws Exception {
+        OpenAdtConfig.SecureLoginConfig secureLogin = new OpenAdtConfig.SecureLoginConfig();
+        secureLogin.setLocalSecurityHub(baseUrl);
+        secureLogin.setOrigin("https://sls.example.com:50001");
+        secureLogin.setReferer("https://sls.example.com:50001/");
+
+        SecureLoginHubClient client = new SecureLoginHubClient(
+            secureLogin.getLocalSecurityHub(),
+            secureLogin.getOrigin(),
+            secureLogin.getReferer(),
+            plainHttpClient(),
+            new com.fasterxml.jackson.databind.ObjectMapper()
+        );
+
+        assertEquals("LOGGED_OUT", client.webAdapterStatus("id&foo=bar#frag"));
+        assertEquals("profileid=id%26foo%3Dbar%23frag", lastQuery);
     }
 
     @Test

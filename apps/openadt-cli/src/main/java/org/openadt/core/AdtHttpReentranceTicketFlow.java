@@ -71,7 +71,7 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
     public String acquireTicket(OpenAdtConfig config, SystemProfile system) {
         URI frontend = resolveFrontend(system);
         int requestedPort = resolveCallbackPort(config);
-        openPreReentranceBrowserSteps(frontend, system);
+        SsoStepPlan ssoSteps = openPreReentranceBrowserSteps(frontend, system);
 
         String csrfState = UUID.randomUUID().toString();
         CompletableFuture<String> ticketFuture = new CompletableFuture<>();
@@ -87,7 +87,11 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
             CliLog.error("Local callback listening on " + callbackUrl + " (keep this terminal open until redirect completes)");
             waitBeforeReentranceStep();
             CliLog.error(
-                "Step 3/3: open reentrance-ticket (expect redirect to the callback URL above): "
+                "Step "
+                    + ssoSteps.reentranceStep()
+                    + "/"
+                    + ssoSteps.totalSteps()
+                    + ": open reentrance-ticket (expect redirect to the callback URL above): "
                     + reentranceUrl
             );
             browserOpener.accept(reentranceUrl);
@@ -189,13 +193,16 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
         return frontend;
     }
 
-    private void openPreReentranceBrowserSteps(URI frontend, SystemProfile system) {
+    private record SsoStepPlan(int reentranceStep, int totalSteps) {
+    }
+
+    private SsoStepPlan openPreReentranceBrowserSteps(URI frontend, SystemProfile system) {
         URI landingUrl = resolveSsoLandingUrl(system, envProvider);
         URI bridgeUrl = resolveSsoBridgeUrl(frontend);
         Console console = System.console();
         boolean interactive = console != null && !isTruthy(envProvider.apply(OPENADT_HTTP_SSO_NON_INTERACTIVE));
         int step = 1;
-        int totalSteps = (landingUrl != null ? 1 : 0) + (bridgeUrl != null ? 1 : 0);
+        int totalSteps = (landingUrl != null ? 1 : 0) + (bridgeUrl != null ? 1 : 0) + 1;
 
         if (landingUrl != null) {
             CliLog.error(
@@ -229,6 +236,7 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
                 "HTTP browser SSO requires destinations.<alias>.adt.discovery_url with an ADT path such as /sap/bc/adt."
             );
         }
+        return new SsoStepPlan(step, totalSteps);
     }
 
     private void waitForBridgeInNonInteractiveMode() {
