@@ -1,5 +1,7 @@
 # OpenADT
 
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/b902a54a4b42415a9b76f213338833ce)](https://app.codacy.com/gh/abapify/openadt?utm_source=github.com&utm_medium=referral&utm_content=abapify/openadt&utm_campaign=Badge_Grade)
+
 OpenADT is an open-source Java CLI that bridges SAP ABAP Development Tools (ADT) access on **Windows, Linux, and macOS**.
 
 OpenADT is not a full ADT client. It is a **local credential bridge** with a minimal CLI that lets ADT-aware tools reach SAP ADT endpoints through a localhost proxy or `openadt fetch`.
