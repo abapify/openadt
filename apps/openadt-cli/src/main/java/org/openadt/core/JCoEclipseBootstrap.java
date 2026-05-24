@@ -3,7 +3,6 @@ package org.openadt.core;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.lang.reflect.Method;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Starts {@code com.sap.conn.jco.eclipse} outside the Eclipse workbench so ADT SDK
@@ -13,7 +12,6 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class JCoEclipseBootstrap {
     private static final String ACTIVATOR_CLASS = "com.sap.mw.jco3.eclipse.internal.Activator";
     private static final String ENVIRONMENT_CLASS = "com.sap.conn.jco.ext.Environment";
-    private static final ConcurrentHashMap<String, VarHandle> FIELD_HANDLES = new ConcurrentHashMap<>();
     private static volatile boolean prepared;
 
     private JCoEclipseBootstrap() {
@@ -112,15 +110,8 @@ public final class JCoEclipseBootstrap {
     }
 
     private static VarHandle privateFieldHandle(Class<?> owner, String fieldName) throws ReflectiveOperationException {
-        String cacheKey = owner.getName() + '#' + fieldName;
-        VarHandle cached = FIELD_HANDLES.get(cacheKey);
-        if (cached != null) {
-            return cached;
-        }
         MethodHandles.Lookup lookup = MethodHandles.privateLookupIn(owner, MethodHandles.lookup());
-        VarHandle handle = lookup.unreflectVarHandle(owner.getDeclaredField(fieldName));
-        VarHandle existing = FIELD_HANDLES.putIfAbsent(cacheKey, handle);
-        return existing != null ? existing : handle;
+        return lookup.unreflectVarHandle(owner.getDeclaredField(fieldName));
     }
 
     private static void log(String message) {
