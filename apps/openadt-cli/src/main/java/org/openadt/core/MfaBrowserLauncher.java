@@ -51,11 +51,11 @@ public final class MfaBrowserLauncher {
         if (systemRoot == null || systemRoot.isBlank()) {
             systemRoot = "C:\\Windows";
         }
-        String cmdPath = Path.of(systemRoot, "System32", "cmd.exe").toString();
-        ProcessBuilder builder = new ProcessBuilder(cmdPath, "/c", "start", "", uriString);
+        String rundll32Path = Path.of(systemRoot, "System32", "rundll32.exe").toString();
+        ProcessBuilder builder = new ProcessBuilder(rundll32Path, "url.dll,FileProtocolHandler", uriString);
         builder.redirectErrorStream(true);
         builder.start();
-        CliLog.error("[openadt sdk] started browser via: cmd /c start " + uriString);
+        CliLog.error("[openadt sdk] started browser via: rundll32 url.dll,FileProtocolHandler " + uriString);
         CliLog.stderr().flush();
     }
 

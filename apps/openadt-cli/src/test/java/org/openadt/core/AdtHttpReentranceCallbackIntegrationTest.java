@@ -23,12 +23,8 @@ class AdtHttpReentranceCallbackIntegrationTest {
     @Test
     void callbackServerAcceptsReentranceTicketQueryParam() throws Exception {
         CompletableFuture<String> ticketFuture = new CompletableFuture<>();
-        AdtHttpReentranceTicketFlow flow = new AdtHttpReentranceTicketFlow(
-            key -> "true",
-            uri -> { }
-        );
 
-        int port = startCallbackServer(flow, ticketFuture, "integration-state");
+        int port = startCallbackServer(ticketFuture, "integration-state");
         URI callback = AdtHttpReentranceTicketFlow.buildCallbackUrl("localhost", port, "integration-state");
         HttpClient client = HttpClient.newHttpClient();
         HttpRequest request = HttpRequest.newBuilder(
@@ -42,20 +38,10 @@ class AdtHttpReentranceCallbackIntegrationTest {
         assertEquals("integration-ticket-value", ticketFuture.get(5, TimeUnit.SECONDS));
     }
 
-  /** Mirrors package-private callback wiring without launching browser SSO. */
-    private static int startCallbackServer(AdtHttpReentranceTicketFlow flow, CompletableFuture<String> ticketFuture, String csrfState)
-        throws Exception {
-        var method = AdtHttpReentranceTicketFlow.class.getDeclaredMethod(
-            "createCallbackServer",
-            String.class,
-            int.class,
-            CompletableFuture.class,
-            String.class
-        );
-        method.setAccessible(true);
+  /** Returns the bound port for the started test callback server. */
+    private static int startCallbackServer(CompletableFuture<String> ticketFuture, String csrfState) {
         com.sun.net.httpserver.HttpServer server =
-            (com.sun.net.httpserver.HttpServer) method.invoke(flow, "localhost", 0, ticketFuture, csrfState);
-        server.start();
+            AdtHttpReentranceTicketFlow.startTestCallbackServer(ticketFuture, csrfState);
         int port = server.getAddress().getPort();
         Runtime.getRuntime().addShutdownHook(new Thread(() -> server.stop(0)));
         return port;

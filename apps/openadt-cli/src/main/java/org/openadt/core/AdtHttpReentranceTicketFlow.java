@@ -315,7 +315,8 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
 
     private HttpServer createCallbackServer(String host, int requestedPort, CompletableFuture<String> ticketFuture, String expectedState) {
         try {
-            HttpServer server = HttpServer.create(new InetSocketAddress(host, requestedPort), 0);
+            InetAddress bindAddress = resolveLoopbackAddress(host);
+            HttpServer server = HttpServer.create(new InetSocketAddress(bindAddress, requestedPort), 0);
             server.createContext(
                 CALLBACK_PATH,
                 exchange -> handleCallbackExchange(exchange, ticketFuture, expectedState)
@@ -404,11 +405,11 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
             return "localhost";
         }
         String host = rawHost.trim();
-        validateLoopbackHost(host);
+        resolveLoopbackAddress(host);
         return host;
     }
 
-    private static void validateLoopbackHost(String host) {
+    private static InetAddress resolveLoopbackAddress(String host) {
         try {
             InetAddress address = InetAddress.getByName(host);
             if (!address.isLoopbackAddress()) {
@@ -419,9 +420,18 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
                         + address.getHostAddress()
                 );
             }
+            return address;
         } catch (java.net.UnknownHostException error) {
             throw new IllegalArgumentException("Cannot resolve HTTP SSO callback host: " + host, error);
         }
+    }
+
+    /** Starts a loopback callback server for same-package tests without browser SSO. */
+    static HttpServer startTestCallbackServer(CompletableFuture<String> ticketFuture, String csrfState) {
+        AdtHttpReentranceTicketFlow flow = new AdtHttpReentranceTicketFlow(key -> null, uri -> { });
+        HttpServer server = flow.createCallbackServer("localhost", 0, ticketFuture, csrfState);
+        server.start();
+        return server;
     }
 
     private int resolveCallbackPort(OpenAdtConfig config) {
@@ -469,16 +479,17 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
         if (query == null || query.isBlank()) {
             return null;
         }
+        String matched = null;
         for (String pair : query.split("&")) {
             int index = pair.indexOf('=');
             String key = index >= 0 ? pair.substring(0, index) : pair;
-            if (!key.equals(name)) {
-                continue;
+            if (key.equals(name)) {
+                String value = index >= 0 ? pair.substring(index + 1) : "";
+                matched = java.net.URLDecoder.decode(value, StandardCharsets.UTF_8);
+                break;
             }
-            String value = index >= 0 ? pair.substring(index + 1) : "";
-            return java.net.URLDecoder.decode(value, StandardCharsets.UTF_8);
         }
-        return null;
+        return matched;
     }
 
     private static String urlEncode(String value) {
