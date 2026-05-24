@@ -232,7 +232,9 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
     }
 
     private void waitForBridgeInNonInteractiveMode() {
-        if (System.console() != null || isTruthy(envProvider.apply(OPENADT_HTTP_SSO_NON_INTERACTIVE))) {
+        Console console = System.console();
+        boolean interactive = console != null && !isTruthy(envProvider.apply(OPENADT_HTTP_SSO_NON_INTERACTIVE));
+        if (interactive) {
             return;
         }
         Duration wait = resolveBridgeWait();
@@ -362,7 +364,25 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
         if (rawHost == null || rawHost.isBlank()) {
             return "localhost";
         }
-        return rawHost.trim();
+        String host = rawHost.trim();
+        validateLoopbackHost(host);
+        return host;
+    }
+
+    private static void validateLoopbackHost(String host) {
+        try {
+            InetAddress address = InetAddress.getByName(host);
+            if (!address.isLoopbackAddress()) {
+                throw new IllegalArgumentException(
+                    "HTTP SSO callback host must resolve to a loopback address (localhost/127.0.0.1/::1), got: "
+                        + host
+                        + " -> "
+                        + address.getHostAddress()
+                );
+            }
+        } catch (java.net.UnknownHostException error) {
+            throw new IllegalArgumentException("Cannot resolve HTTP SSO callback host: " + host, error);
+        }
     }
 
     private int resolveCallbackPort(OpenAdtConfig config) {

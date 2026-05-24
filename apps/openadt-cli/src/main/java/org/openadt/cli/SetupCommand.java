@@ -35,7 +35,7 @@ public class SetupCommand implements Callable<Integer> {
         }
         if (!SetupRuntimePreparer.shouldPrepare(outcome.adtPluginsDir())) {
             CliLog.info("\nNo adt_plugins_dir detected; skipping SDK runtime build.");
-            CliLog.info("fetch/proxy with SDK transport require Eclipse ADT plugins.");
+            CliLog.info("fetch/proxy with SDK transport requires Eclipse ADT plugins.");
             return 0;
         }
         return ConfigRuntimeBuilder.build(configPath, false);
