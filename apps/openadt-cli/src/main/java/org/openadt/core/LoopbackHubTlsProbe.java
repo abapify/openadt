@@ -6,6 +6,7 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
 import java.util.concurrent.atomic.AtomicReference;
@@ -27,8 +28,15 @@ final class LoopbackHubTlsProbe {
         try {
             SSLContext probeContext = SSLContext.getInstance("TLSv1.2");
             probeContext.init(null, new TrustManager[]{captureTrustManager(captured)}, new SecureRandom());
-            try (SSLSocket socket = (SSLSocket) probeContext.getSocketFactory().createSocket(host, port)) {
+            try (SSLSocket socket = (SSLSocket) probeContext.getSocketFactory().createSocket()) {
+                socket.connect(new InetSocketAddress(address, port), 5_000);
                 socket.startHandshake();
+            } catch (IOException handshakeFailure) {
+                X509Certificate certificate = captured.get();
+                if (certificate != null) {
+                    return certificate;
+                }
+                throw handshakeFailure;
             }
         } catch (IOException error) {
             throw error;
