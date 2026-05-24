@@ -46,8 +46,9 @@ final class LoopbackHubTlsProbe {
     private static X509TrustManager captureTrustManager(AtomicReference<X509Certificate> captured) {
         return new X509TrustManager() {
             @Override
-            public void checkClientTrusted(X509Certificate[] chain, String authType) {
-                // Client certificates are not used for the local hub probe.
+            public void checkClientTrusted(X509Certificate[] chain, String authType)
+                throws java.security.cert.CertificateException {
+                throw new java.security.cert.CertificateException("Client certificates are not used for the local hub probe");
             }
 
             @Override
