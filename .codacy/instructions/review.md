@@ -50,4 +50,4 @@ Use and expect fictional values in docs/tests: SID `DEV`, client `100`, user `DE
 
 - No real SAP landscape data in commits.
 - SSO/callback changes should include unit or integration coverage under `apps/openadt-cli/src/test/java/`.
-- Prefer fixing loopback validation in code over blanket file suppressions when a finding is clearly a false positive.
+- Prefer loopback validation in code; use inline `// nosemgrep: <rule-id>` for line-specific false positives. Do not exclude whole production files — see root `.semgrep.yml`.

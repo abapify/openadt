@@ -1,0 +1,67 @@
+# OpenADT — repository Opengrep/Semgrep configuration
+#
+# Codacy Opengrep expects .semgrep.yml or .semgrep.yaml at the repository root when
+# "Configuration file" is enabled for the Semgrep/Opengrep tool.
+#
+# Security review context for loopback HTTP/TLS patterns:
+#   .codacy/instructions/review.md
+#
+# Intentional patterns (validated in code — do NOT exclude whole files):
+#   1. AdtHttpReentranceTicketFlow — SSO callback binds to
+#      InetAddress.getLoopbackAddress() after resolveLoopbackAddress() proves loopback.
+#   2. LoopbackHubTlsProbe — TLS probe connects only to getLoopbackAddress() with a
+#      validated port; trust manager throws CertificateException after cert capture.
+#   3. SecureLoginHubClient — hub HTTPS uses KeyStore pinning; isLoopbackHub() gates TLS.
+#   4. Tests — HttpServer stubs on 127.0.0.1 / localhost with ephemeral ports.
+#
+# For line-specific false positives, use inline suppressions only:
+#   // nosemgrep: <rule-id>
+#
+# Fictional fixtures only in docs/tests: DEV, DEVELOPER, dev-ms.example.com.
+
+rules:
+  - id: openadt.java.security.trust-all-outside-loopback-probe
+    languages: [java]
+    severity: ERROR
+    message: >-
+      Unsafe X509TrustManager outside LoopbackHubTlsProbe. Trust-all TLS capture for
+      Secure Login hub cert pinning must stay isolated to org.openadt.core.LoopbackHubTlsProbe.
+    metadata:
+      category: security
+      confidence: HIGH
+      cwe: "CWE-295: Improper Certificate Validation"
+      owasp: "A07:2021 - Identification and Authentication Failures"
+      technology: [java]
+      openadt: guard-rule
+    patterns:
+      - pattern-either:
+          - pattern: |
+              new X509TrustManager() {
+                ...
+              }
+          - pattern: |
+              new TrustManager[] { ..., new X509TrustManager() { ... }, ... }
+      - pattern-not-inside: |
+          class LoopbackHubTlsProbe {
+            ...
+          }
+      - pattern-not: |
+          new X509TrustManager() {
+            ...
+            public void checkServerTrusted(...) {
+              ...
+              throw new CertificateException(...);
+              ...
+            }
+            ...
+          }
+      - pattern-not: |
+          new X509TrustManager() {
+            ...
+            public void checkServerTrusted(...) {
+              ...
+              throw new IllegalArgumentException(...);
+              ...
+            }
+            ...
+          }

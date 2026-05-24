@@ -1,8 +1,5 @@
 ---
 # Repository Codacy configuration (see https://docs.codacy.com/repositories-configure/codacy-configuration-file/)
-engines:
-  opengrep:
-    exclude_paths:
-      # Loopback-only TLS probe and SSO callback bind helpers (not user-controlled egress).
-      - "apps/openadt-cli/src/main/java/org/openadt/core/LoopbackHubTlsProbe.java"
-      - "apps/openadt-cli/src/main/java/org/openadt/core/LoopbackSsoCallbackServerFactory.java"
+#
+# Opengrep/Semgrep: use root .semgrep.yml — do not exclude production Java files here.
+# Loopback SSRF false-positive context for AI review: .codacy/instructions/review.md
