@@ -252,6 +252,7 @@ public class SecureLoginHubClient {
                 }
             };
             SSLContext context = SSLContext.getInstance("TLSv1.2");
+            // codeql[java/insecure-trustmanager]: Loopback-only fallback when hub is offline during client construction; pins first seen cert and rejects changes.
             context.init(null, trustManagers, new SecureRandom());
             return context;
         } catch (Exception error) {
