@@ -26,6 +26,13 @@ Applies to `/act`, `@claude /act`, `@codex /act`, `@copilot /act`.
 | One PR comment “addressed feedback” | Per-thread fix or per-thread reply, then resolve that thread |
 | Only touch `.agents/skills/` or the resolve script | Change `apps/`, `tools/`, `specs/`, `packaging/`, workflows per feedback |
 | “Merge-ready” because `open_threads=0` | Merge-ready only if feedback is **implemented** and CI green on HEAD |
+| Edit PR title/body to track agent progress | Leave author PR summary alone; reply in threads + commits |
+
+## PR metadata
+
+**Never change pull request title or description** unless the user explicitly asks.
+
+Do not replace the author’s summary with checklists, thread counts, or CI notes. On GitHub Copilot, repository rules live in [`.github/copilot-instructions.md`](../../../.github/copilot-instructions.md) and [`.github/instructions/act.instructions.md`](../../../.github/instructions/act.instructions.md).
 
 ## On start
 
