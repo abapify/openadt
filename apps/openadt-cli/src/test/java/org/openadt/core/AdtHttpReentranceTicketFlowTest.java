@@ -80,4 +80,13 @@ class AdtHttpReentranceTicketFlowTest {
             URI.create("https://abap.example.invalid/")
         ) == null);
     }
+
+    @Test
+    void normalizesCallbackStateWhenSapAppendsSecondQuestionMark() {
+        String normalized = AdtHttpReentranceTicketFlow.normalizeCallbackState(
+            "487d1d71-44b3-45e3-9d36-a01b5fcdfb7a?_=20260524191034.9654920"
+        );
+
+        assertTrue(normalized.equals("487d1d71-44b3-45e3-9d36-a01b5fcdfb7a"));
+    }
 }

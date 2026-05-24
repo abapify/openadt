@@ -362,13 +362,28 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
         CompletableFuture<String> ticketFuture,
         String expectedState
     ) throws IOException {
-        String receivedState = extractQueryParam(exchange.getRequestURI(), "state");
+        String receivedState = normalizeCallbackState(extractQueryParam(exchange.getRequestURI(), "state"));
         if (receivedState != null && receivedState.equals(expectedState)) {
             return true;
         }
         writeResponse(exchange, 403, "CSRF state mismatch. Possible cross-site request forgery.");
         failTicket(ticketFuture, new SecurityException("CSRF state validation failed"));
         return false;
+    }
+
+    /**
+     * Some SAP frontends append a cache-buster to {@code redirect-url} with a second {@code ?} instead of
+     * {@code &}, e.g. {@code ?state=<uuid>?_=123&reentrance-ticket=...}. Strip the bogus suffix from state.
+     */
+    static String normalizeCallbackState(String rawState) {
+        if (rawState == null) {
+            return null;
+        }
+        int extraQuery = rawState.indexOf('?');
+        if (extraQuery >= 0) {
+            return rawState.substring(0, extraQuery);
+        }
+        return rawState;
     }
 
     private static void completeTicket(CompletableFuture<String> ticketFuture, String ticket) {

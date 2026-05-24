@@ -21,6 +21,25 @@ class AdtHttpReentranceCallbackIntegrationTest {
     }
 
     @Test
+    void callbackServerAcceptsSapMalformedRedirectQuery() throws Exception {
+        CompletableFuture<String> ticketFuture = new CompletableFuture<>();
+
+        int port = startCallbackServer(ticketFuture, "487d1d71-44b3-45e3-9d36-a01b5fcdfb7a");
+        URI malformed = URI.create(
+            "http://localhost:"
+                + port
+                + "/adt/redirect?state=487d1d71-44b3-45e3-9d36-a01b5fcdfb7a?_=20260524191034.9654920"
+                + "&reentrance-ticket=integration-ticket-value"
+        );
+        HttpClient client = HttpClient.newHttpClient();
+        HttpRequest request = HttpRequest.newBuilder(malformed).GET().build();
+
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, response.statusCode());
+        assertEquals("integration-ticket-value", ticketFuture.get(5, TimeUnit.SECONDS));
+    }
+
+    @Test
     void callbackServerAcceptsReentranceTicketQueryParam() throws Exception {
         CompletableFuture<String> ticketFuture = new CompletableFuture<>();
 
