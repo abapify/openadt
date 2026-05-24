@@ -60,6 +60,48 @@ Options:
 
 ---
 
+### openadt config destinations create
+
+Create or update a destination authentication profile in config.
+
+```bash
+openadt config destinations create \
+  --alias DEV \
+  --profile sso \
+  --transport http \
+  --auth browser-sso \
+  --discovery-url https://dev-adt.example.com/sap/bc/adt \
+  --client 100 \
+  --language EN \
+  --default-profile
+```
+
+Options:
+
+- `--alias <name>` — Destination alias (required)
+- `--profile <name>` — Profile name (required)
+- `--transport <mode>` — ADT transport (`sdk`, `http`, `rest-rfc`)
+- `--auth <kind>` — Authentication kind (e.g. `browser-sso`, `snc`)
+- `--discovery-url <url>` — ADT discovery URL (required for HTTP/browser SSO profiles)
+- `--client <client>` — SAP client (required)
+- `--language <lang>` — SAP language (default: `EN`)
+- `--description <text>` — Destination description
+- `--system-id <sid>` — SAP system ID (defaults to alias)
+- `--default-profile` — Set this profile as the destination default
+- `--callback-port <port>` — Browser SSO callback port (`0` = random)
+- `--jco-mshost`, `--jco-msserv`, `--jco-r3name`, `--jco-group` — Shared JCo message-server settings
+- `--snc-partnername`, `--snc-qop` — SNC profile overrides
+- `--config, -c <path>` — Config file path
+
+Behavior:
+
+- Non-interactive mode requires all mandatory flags; never prompts for or stores passwords or SSO tickets
+- Interactive mode prompts for missing required values when `System.console()` is available
+- Re-running for the same alias/profile updates that profile instead of duplicating tables
+- Fragment-based entrypoints write to `destinations/manual.openadt.toml`; flat configs are updated in place
+
+---
+
 ### openadt setup
 
 Shorthand for **`config bootstrap` + `config build`**: detect, save config, then build the SDK runtime when `adt_plugins_dir` is present.
@@ -126,6 +168,7 @@ Start the local ADT proxy server for a system.
 
 ```bash
 openadt proxy DEV
+openadt proxy DEV --profile snc
 openadt proxy DEV --listen 127.0.0.1:8080
 openadt proxy DEV --local-auth basic
 openadt proxy DEV --local-username openadt --local-password <password>
@@ -133,7 +176,7 @@ openadt proxy DEV --local-username openadt --local-password <password>
 
 Default listen address: `127.0.0.1:8079` (or `proxy.listen` from config).
 
-While the proxy is running, `openadt fetch` for the same system reuses it automatically (warm SAP session, no cold JVM/SDK startup). Use `openadt fetch --direct` to bypass the local proxy.
+While the proxy is running, `openadt fetch` for the same system and profile reuses it automatically (warm SAP session, no cold JVM/SDK startup). Use `openadt fetch --direct` to bypass the local proxy.
 
 Arguments:
 
@@ -145,6 +188,7 @@ Options:
 - `--local-auth <type>` — Local auth type (`basic`)
 - `--local-username <name>` — Local proxy username (default: `openadt`)
 - `--local-password <password>` — Local proxy password (falls back to `OPENADT_PROXY_PASSWORD` env var)
+- `--profile <name>` — Authentication profile (e.g. `snc`, `sso`; defaults to destination `default_profile` or legacy destination settings)
 - `--config, -c <path>` — Config file path
 
 Behavior:
@@ -165,7 +209,8 @@ Fetch a single ADT resource via the configured ADT transport.
 
 ```bash
 openadt fetch DEV /sap/bc/adt/core/http/systeminformation --pretty
-openadt fetch DEV /sap/bc/adt/core/discovery --pretty
+openadt fetch DEV /sap/bc/adt/core/http/systeminformation --profile sso --pretty
+openadt fetch DEV /sap/bc/adt/core/discovery --profile snc --pretty
 openadt fetch DEV /sap/bc/adt/core/http/systeminformation --pretty --raw
 openadt fetch DEV /sap/bc/adt/example --method POST --body @request.xml --header "Content-Type: application/xml"
 openadt fetch --base-url https://abap.example.invalid --client 100 --language EN --path /sap/bc/adt/core/http/systeminformation --accept application/vnd.sap.adt.core.http.systeminformation.v1+json
@@ -197,10 +242,11 @@ Options:
 - `--truststore <path>` — Truststore file for explicit HTTPS trust in HTTP transport mode
 - `--truststore-password <secret>` — Truststore password for explicit HTTPS trust in HTTP transport mode
 - `--callback-port <port>` — Callback bind port for browser SSO flow (`0` picks a random local port)
+- `--profile <name>` — Authentication profile (e.g. `snc`, `sso`; cannot be combined with `--base-url`)
 
 Behavior:
 
-- When `openadt proxy <SYSTEM>` is running, `fetch` reuses it over loopback (fast path)
+- When `openadt proxy <SYSTEM>` is running for the same profile, `fetch` reuses it over loopback (fast path)
 - Without a running proxy, `fetch` starts a cold SDK/JCo session (slow first call)
 - `--body @file` reads request bytes from a file
 - `--output <file>` writes response body bytes

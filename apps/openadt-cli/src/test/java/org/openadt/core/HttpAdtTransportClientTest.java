@@ -41,7 +41,16 @@ class HttpAdtTransportClientTest {
     @Test
     void failsWhenCookieIsMissing() {
         OpenAdtConfig config = new OpenAdtConfig();
-        HttpAdtTransportClient client = client(config, null);
+        AdtHttpCookieProvider cookieProvider = new AdtHttpCookieProvider(
+            key -> null,
+            (cfg, profile) -> null
+        );
+        HttpAdtTransportClient client = new HttpAdtTransportClient(
+            config,
+            HttpClient.newHttpClient(),
+            cookieProvider,
+            new com.fasterxml.jackson.databind.ObjectMapper()
+        );
         SystemProfile system = system("https://sap.example.com:443", "200");
 
         IllegalStateException error = assertThrows(IllegalStateException.class, () -> client.buildCookieHeader(system));

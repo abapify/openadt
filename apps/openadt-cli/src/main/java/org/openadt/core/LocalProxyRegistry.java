@@ -20,7 +20,17 @@ public final class LocalProxyRegistry {
     private LocalProxyRegistry() {
     }
 
-    public record ProxyEndpoint(String systemAlias, String host, int port, boolean basicAuth, String username) {
+    public record ProxyEndpoint(
+        String systemAlias,
+        String profileName,
+        String host,
+        int port,
+        boolean basicAuth,
+        String username
+    ) {
+        public ProxyEndpoint(String systemAlias, String host, int port, boolean basicAuth, String username) {
+            this(systemAlias, null, host, port, basicAuth, username);
+        }
     }
 
     public static Path registryDirectory() {
@@ -28,25 +38,37 @@ public final class LocalProxyRegistry {
     }
 
     public static Path registryFile(String systemAlias) {
-        return registryDirectory().resolve("proxy-" + sanitizeAlias(systemAlias) + ".json");
+        return registryFile(systemAlias, null);
+    }
+
+    public static Path registryFile(String systemAlias, String profileName) {
+        return registryDirectory().resolve("proxy-" + registryKey(systemAlias, profileName) + ".json");
     }
 
     public static void register(ProxyEndpoint endpoint) throws IOException {
         Files.createDirectories(registryDirectory());
-        MAPPER.writeValue(registryFile(endpoint.systemAlias()).toFile(), endpoint);
+        MAPPER.writeValue(registryFile(endpoint.systemAlias(), endpoint.profileName()).toFile(), endpoint);
     }
 
     public static void unregister(String systemAlias) throws IOException {
-        Files.deleteIfExists(registryFile(systemAlias));
+        unregister(systemAlias, null);
+    }
+
+    public static void unregister(String systemAlias, String profileName) throws IOException {
+        Files.deleteIfExists(registryFile(systemAlias, profileName));
     }
 
     public static Optional<ProxyEndpoint> read(String systemAlias) {
-        Path file = registryFile(systemAlias);
+        return read(systemAlias, null);
+    }
+
+    public static Optional<ProxyEndpoint> read(String systemAlias, String profileName) {
+        Path file = registryFile(systemAlias, profileName);
         if (!Files.isRegularFile(file)) {
             return Optional.empty();
         }
         try {
-            ProxyEndpoint endpoint = MAPPER.readValue(file.toFile(), ProxyEndpointRecord.class).toEndpoint(systemAlias);
+            ProxyEndpoint endpoint = MAPPER.readValue(file.toFile(), ProxyEndpointRecord.class).toEndpoint(systemAlias, profileName);
             return Optional.of(endpoint);
         } catch (IOException error) {
             return Optional.empty();
@@ -54,7 +76,15 @@ public final class LocalProxyRegistry {
     }
 
     public static Optional<ProxyEndpoint> findActive(String systemAlias) {
-        return read(systemAlias).filter(LocalProxyRegistry::isAlive);
+        return findActive(systemAlias, null);
+    }
+
+    public static Optional<ProxyEndpoint> findActive(String systemAlias, String profileName) {
+        Optional<ProxyEndpoint> endpoint = read(systemAlias, profileName).filter(LocalProxyRegistry::isAlive);
+        if (endpoint.isPresent() || profileName == null || profileName.isBlank()) {
+            return endpoint;
+        }
+        return read(systemAlias, null).filter(LocalProxyRegistry::isAlive);
     }
 
     public static boolean isAlive(ProxyEndpoint endpoint) {
@@ -76,17 +106,27 @@ public final class LocalProxyRegistry {
         return alias.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9._-]+", "_");
     }
 
+    static String registryKey(String systemAlias, String profileName) {
+        String key = sanitizeAlias(systemAlias);
+        if (profileName != null && !profileName.isBlank()) {
+            key += "-" + sanitizeAlias(profileName);
+        }
+        return key;
+    }
+
     @JsonIgnoreProperties(ignoreUnknown = true)
     private static final class ProxyEndpointRecord {
         public String systemAlias;
+        public String profileName;
         public String host;
         public int port;
         public boolean basicAuth;
         public String username;
 
-        ProxyEndpoint toEndpoint(String fallbackAlias) {
+        ProxyEndpoint toEndpoint(String fallbackAlias, String fallbackProfile) {
             String alias = systemAlias != null && !systemAlias.isBlank() ? systemAlias : fallbackAlias;
-            return new ProxyEndpoint(alias, host, port, basicAuth, username);
+            String profile = profileName != null && !profileName.isBlank() ? profileName : fallbackProfile;
+            return new ProxyEndpoint(alias, profile, host, port, basicAuth, username);
         }
     }
 }

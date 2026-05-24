@@ -3,6 +3,7 @@ package org.openadt.cli;
 import org.openadt.core.AdtTransportClient;
 import org.openadt.core.AdtTransportFactory;
 import org.openadt.core.ConfigLoader;
+import org.openadt.core.DestinationProfileResolver;
 import org.openadt.core.LocalProxyRegistry;
 import org.openadt.core.OpenAdtConfig;
 import org.openadt.core.SystemProfile;
@@ -40,15 +41,27 @@ public class ProxyCommand implements Callable<Integer> {
     @Option(names = {"--config", "-c"}, description = "Config file path")
     private Path configPath;
 
+    @Option(names = {"--profile"}, description = "Authentication profile name (e.g. snc, sso)")
+    private String profile;
+
     @Override
     public Integer call() throws Exception {
         ConfigLoader loader = new ConfigLoader();
         Path effectivePath = configPath != null ? configPath : loader.getDefaultConfigPath();
         OpenAdtConfig config = loader.load(effectivePath);
 
-        SystemProfile system = findSystem(config, systemAlias);
-        if (system == null) {
-            System.err.println("System not found: " + systemAlias);
+        String effectiveAlias = systemAlias;
+        if ((effectiveAlias == null || effectiveAlias.isBlank())
+            && config.getSystems() != null
+            && !config.getSystems().isEmpty()) {
+            effectiveAlias = config.getSystems().get(0).getAlias();
+        }
+
+        SystemProfile system;
+        try {
+            system = DestinationProfileResolver.resolve(config, effectiveAlias, profile);
+        } catch (IllegalArgumentException e) {
+            System.err.println(e.getMessage());
             return 1;
         }
 
@@ -84,19 +97,23 @@ public class ProxyCommand implements Callable<Integer> {
 
         LocalProxyRegistry.register(new LocalProxyRegistry.ProxyEndpoint(
             system.getAlias(),
+            profile,
             host,
             port,
             "basic".equalsIgnoreCase(effectiveAuth),
             effectiveUsername
         ));
 
-        System.out.printf("OpenADT proxy for system '%s' listening on %s%n", system.getAlias(), bound);
+        System.out.printf("OpenADT proxy for system '%s'%s listening on %s%n",
+            system.getAlias(),
+            profile != null && !profile.isBlank() ? " (profile " + profile + ")" : "",
+            bound);
         System.out.println("Keep this running; openadt fetch reuses it automatically.");
         System.out.println("Press Ctrl+C to stop.");
         Object lock = new Object();
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             try {
-                LocalProxyRegistry.unregister(system.getAlias());
+                LocalProxyRegistry.unregister(system.getAlias(), profile);
             } catch (Exception ignored) {
                 // best effort
             }
@@ -130,16 +147,5 @@ public class ProxyCommand implements Callable<Integer> {
             return listenAddress;
         }
         return listenAddress.substring(0, lastColon);
-    }
-
-    private SystemProfile findSystem(OpenAdtConfig config, String alias) {
-        if (config.getSystems() == null) return null;
-        if (alias == null && !config.getSystems().isEmpty()) {
-            return config.getSystems().get(0);
-        }
-        return config.getSystems().stream()
-            .filter(s -> alias.equals(s.getAlias()))
-            .findFirst()
-            .orElse(null);
     }
 }

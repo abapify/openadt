@@ -21,7 +21,8 @@ import java.util.concurrent.Callable;
     description = "Show or manage OpenADT configuration",
     subcommands = {
         ConfigCommand.BootstrapCommand.class,
-        ConfigCommand.BuildCommand.class
+        ConfigCommand.BuildCommand.class,
+        ConfigDestinationsCommand.class
     }
 )
 public class ConfigCommand implements Callable<Integer> {

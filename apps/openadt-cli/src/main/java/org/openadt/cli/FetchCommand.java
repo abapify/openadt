@@ -3,6 +3,7 @@ package org.openadt.cli;
 import org.openadt.core.AdtAcceptHeaders;
 import org.openadt.core.AdtTransportClient;
 import org.openadt.core.ConfigLoader;
+import org.openadt.core.DestinationProfileResolver;
 import org.openadt.core.FetchTransportResolver;
 import org.openadt.core.LocalProxyRegistry;
 import org.openadt.core.OpenAdtConfig;
@@ -95,8 +96,15 @@ public class FetchCommand implements Callable<Integer> {
     @Option(names = {"--callback-port"}, description = "Local callback port for browser reentrance-ticket flow (0 = random)", defaultValue = "0")
     private int callbackPort;
 
+    @Option(names = {"--profile"}, description = "Authentication profile name (e.g. snc, sso)")
+    private String profile;
+
     @Override
     public Integer call() throws Exception {
+        if (isDirectHttpMode() && profile != null && !profile.isBlank()) {
+            System.err.println("--profile cannot be used with --base-url direct HTTP mode.");
+            return 1;
+        }
         ConfigLoader loader = new ConfigLoader();
         OpenAdtConfig config;
         SystemProfile system;
@@ -122,9 +130,11 @@ public class FetchCommand implements Callable<Integer> {
             Path effectivePath = configPath != null ? configPath : loader.getDefaultConfigPath();
             config = loader.load(effectivePath);
             applyHttpOverrides(config);
-            system = findSystem(config, systemAlias);
-            if (system == null) {
-                System.err.println("System not found: " + systemAlias);
+            applyProfileCallbackPort(config, systemAlias);
+            try {
+                system = DestinationProfileResolver.resolve(config, systemAlias, profile);
+            } catch (IllegalArgumentException e) {
+                System.err.println(e.getMessage());
                 return 1;
             }
             adtPath = resolveAdtPath(urlOrPath);
@@ -136,14 +146,18 @@ public class FetchCommand implements Callable<Integer> {
         AdtTransportClient transportClient;
         try {
             if (!raw && !isDirectHttpMode()) {
-                if (!direct && LocalProxyRegistry.findActive(system.getAlias()).isPresent()) {
-                    System.err.println("Using local openadt proxy for " + system.getAlias());
+                if (!direct && LocalProxyRegistry.findActive(system.getAlias(), profile).isPresent()) {
+                    System.err.println("Using local openadt proxy for " + system.getAlias()
+                        + (profile != null && !profile.isBlank() ? " (profile " + profile + ")" : ""));
                 } else if (!direct) {
+                    String profileHint = profile != null && !profile.isBlank()
+                        ? " --profile=" + profile
+                        : "";
                     System.err.println("Tip: run 'openadt proxy " + system.getAlias()
-                        + "' in another terminal; fetch will reuse it and start faster.");
+                        + profileHint + "' in another terminal; fetch will reuse it and start faster.");
                 }
             }
-            transportClient = FetchTransportResolver.resolve(config, system, direct);
+            transportClient = FetchTransportResolver.resolve(config, system, direct, profile);
         } catch (IllegalStateException e) {
             System.err.println(e.getMessage());
             return 1;
@@ -257,15 +271,20 @@ public class FetchCommand implements Callable<Integer> {
         out.flush();
     }
 
-    private SystemProfile findSystem(OpenAdtConfig config, String alias) {
-        if (config.getSystems() == null) return null;
-        if (alias == null && !config.getSystems().isEmpty()) {
-            return config.getSystems().get(0);
+    private void applyProfileCallbackPort(OpenAdtConfig config, String alias) {
+        if (callbackPort != 0) {
+            return;
         }
-        return config.getSystems().stream()
-            .filter(s -> alias.equals(s.getAlias()))
-            .findFirst()
-            .orElse(null);
+        String profileCallbackPort = DestinationProfileResolver.resolveProfileCallbackPort(config, alias, profile);
+        if (profileCallbackPort == null || profileCallbackPort.isBlank()) {
+            return;
+        }
+        OpenAdtConfig.RuntimeConfig runtime = config.getRuntime();
+        if (runtime == null) {
+            runtime = new OpenAdtConfig.RuntimeConfig();
+            config.setRuntime(runtime);
+        }
+        runtime.setHttpCallbackPort(profileCallbackPort);
     }
 
     private boolean isDirectHttpMode() {
