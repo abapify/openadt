@@ -24,7 +24,38 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
     private static final Duration CALLBACK_GRACE_PERIOD = Duration.ofSeconds(30);
     private static final Duration DEFAULT_BRIDGE_WAIT = Duration.ofSeconds(15);
     private static final String CALLBACK_PATH = "/adt/redirect";
+    private static final String SSO_LAUNCH_PATH = "/adt/open";
+    /** ADT collection resource; bare {@code /sap/bc/adt} often returns ExceptionResourceNotFound in the browser. */
+    private static final String SSO_BRIDGE_DISCOVERY_PATH = "/sap/bc/adt/discovery";
     private static final String OPENADT_HTTP_SSO_NON_INTERACTIVE = "OPENADT_HTTP_SSO_NON_INTERACTIVE";
+    static final String SSO_LAUNCH_PAGE = """
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+              <meta charset="utf-8">
+              <title>OpenADT SSO</title>
+              <script>
+                (function () {
+                  var target = new URLSearchParams(location.search).get('target');
+                  if (!target) {
+                    return;
+                  }
+                  target = decodeURIComponent(target);
+                  var popup = window.open(target, 'openadt_sso');
+                  if (popup) {
+                    try { window.close(); } catch (e) {}
+                    setTimeout(function () { try { window.close(); } catch (e2) {} }, 150);
+                  } else {
+                    location.replace(target);
+                  }
+                })();
+              </script>
+            </head>
+            <body>
+              <p>Opening SAP sign-on...</p>
+            </body>
+            </html>
+            """;
     static final String TICKET_RECEIVED_PAGE = """
             <!DOCTYPE html>
             <html lang="en">
@@ -94,7 +125,7 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
                     + ": open reentrance-ticket (expect redirect to the callback URL above): "
                     + reentranceUrl
             );
-            browserOpener.accept(reentranceUrl);
+            browserOpener.accept(buildSsoLaunchUrl(callbackHost, actualPort, reentranceUrl));
             return ticketFuture.get(resolveCallbackTimeout().toMillis(), TimeUnit.MILLISECONDS);
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
@@ -130,6 +161,12 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
 
     static URI buildCallbackUrl(String host, int port, String csrfState) {
         return URI.create("http://" + host + ":" + port + CALLBACK_PATH + "?state=" + csrfState);
+    }
+
+    static URI buildSsoLaunchUrl(String host, int port, URI reentranceUrl) {
+        return URI.create(
+            "http://" + host + ":" + port + SSO_LAUNCH_PATH + "?target=" + urlEncode(reentranceUrl.toString())
+        );
     }
 
     static URI buildReentranceTicketUrl(URI frontend, SystemProfile system, URI callbackUrl) {
@@ -181,7 +218,11 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
         return null;
     }
 
-    /** ADT discovery entry (often {@code /sap/bc/adt}) after Okta on the site root. */
+    /**
+     * Browser URL that establishes the ADT ICF session before reentrance-ticket.
+     * When {@code discovery_url} ends at {@code /sap/bc/adt}, map to {@code /sap/bc/adt/discovery}
+     * so the browser does not show ExceptionResourceNotFound for the bare collection path.
+     */
     static URI resolveSsoBridgeUrl(URI frontend) {
         if (frontend == null) {
             return null;
@@ -190,7 +231,18 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
         if (path == null || path.isBlank() || "/".equals(path)) {
             return null;
         }
+        if (isBareAdtCollectionPath(path)) {
+            return originUri(frontend).resolve(SSO_BRIDGE_DISCOVERY_PATH);
+        }
         return frontend;
+    }
+
+    private static boolean isBareAdtCollectionPath(String path) {
+        if (path == null || path.isBlank()) {
+            return false;
+        }
+        String normalized = path.endsWith("/") ? path.substring(0, path.length() - 1) : path;
+        return "/sap/bc/adt".equals(normalized);
     }
 
     private record SsoStepPlan(int reentranceStep, int totalSteps) {
@@ -325,6 +377,7 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
             resolveLoopbackAddress(host);
             int bindPort = sanitizeCallbackBindPort(requestedPort);
             HttpServer server = LoopbackSsoCallbackServerFactory.create(bindPort);
+            server.createContext(SSO_LAUNCH_PATH, exchange -> handleSsoLaunchExchange(exchange));
             server.createContext(
                 CALLBACK_PATH,
                 exchange -> handleCallbackExchange(exchange, ticketFuture, expectedState)
@@ -332,6 +385,18 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
             return server;
         } catch (IOException error) {
             throw new IllegalStateException("Failed to start local callback endpoint on /adt/redirect: " + error.getMessage(), error);
+        }
+    }
+
+    private static void handleSsoLaunchExchange(com.sun.net.httpserver.HttpExchange exchange) {
+        try {
+            writeHtmlResponse(exchange, 200, SSO_LAUNCH_PAGE);
+        } catch (IOException error) {
+            try {
+                writeResponse(exchange, 500, "OpenADT failed to start browser SSO.");
+            } catch (IOException ignored) {
+                // Best-effort error page.
+            }
         }
     }
 

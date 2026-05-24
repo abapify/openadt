@@ -68,12 +68,41 @@ class AdtHttpReentranceTicketFlowTest {
     }
 
     @Test
-    void resolvesSsoBridgeUrlFromDiscoveryPath() {
+    void resolvesSsoBridgeUrlToDiscoveryWhenDiscoveryEndsAtAdtCollection() {
         URI bridge = AdtHttpReentranceTicketFlow.resolveSsoBridgeUrl(
             URI.create("https://abap.example.invalid/sap/bc/adt")
         );
 
-        assertEquals("https://abap.example.invalid/sap/bc/adt", bridge.toString());
+        assertEquals("https://abap.example.invalid/sap/bc/adt/discovery", bridge.toString());
+    }
+
+    @Test
+    void resolvesSsoBridgeUrlToDiscoveryWhenDiscoveryHasTrailingSlash() {
+        URI bridge = AdtHttpReentranceTicketFlow.resolveSsoBridgeUrl(
+            URI.create("https://abap.example.invalid/sap/bc/adt/")
+        );
+
+        assertEquals("https://abap.example.invalid/sap/bc/adt/discovery", bridge.toString());
+    }
+
+    @Test
+    void leavesSsoBridgeUrlUnchangedWhenDiscoveryAlreadyHasSubpath() {
+        URI bridge = AdtHttpReentranceTicketFlow.resolveSsoBridgeUrl(
+            URI.create("https://abap.example.invalid/sap/bc/adt/core/discovery")
+        );
+
+        assertEquals("https://abap.example.invalid/sap/bc/adt/core/discovery", bridge.toString());
+    }
+
+    @Test
+    void buildsSsoLaunchUrlWithEncodedReentranceTarget() {
+        URI reentrance = URI.create(
+            "https://abap.example.invalid/sap/bc/adt/core/http/reentranceticket?redirect-url=http%3A%2F%2Flocalhost%3A65246%2Fadt%2Fredirect"
+        );
+        URI launch = AdtHttpReentranceTicketFlow.buildSsoLaunchUrl("localhost", 65246, reentrance);
+
+        assertTrue(launch.toString().startsWith("http://localhost:65246/adt/open?target="));
+        assertTrue(launch.toString().contains("reentranceticket"));
     }
 
     @Test

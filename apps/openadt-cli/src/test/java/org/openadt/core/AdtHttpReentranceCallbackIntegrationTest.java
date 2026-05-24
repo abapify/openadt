@@ -21,6 +21,14 @@ class AdtHttpReentranceCallbackIntegrationTest {
     }
 
     @Test
+    void ssoLaunchPageOpensNamedPopupFromTargetQuery() {
+        String page = AdtHttpReentranceTicketFlow.SSO_LAUNCH_PAGE;
+        assertTrue(page.contains("openadt_sso"));
+        assertTrue(page.contains("URLSearchParams"));
+        assertTrue(page.contains("window.open"));
+    }
+
+    @Test
     void callbackServerAcceptsSapMalformedRedirectQuery() throws Exception {
         CompletableFuture<String> ticketFuture = new CompletableFuture<>();
         com.sun.net.httpserver.HttpServer server =
