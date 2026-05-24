@@ -313,13 +313,14 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
         };
     }
 
+    private static final String LOOPBACK_BIND_HOST = "127.0.0.1";
+
     private HttpServer createCallbackServer(String host, int requestedPort, CompletableFuture<String> ticketFuture, String expectedState) {
         try {
             resolveLoopbackAddress(host);
-            HttpServer server = HttpServer.create(
-                new InetSocketAddress(InetAddress.getLoopbackAddress(), requestedPort),
-                0
-            );
+            int bindPort = sanitizeCallbackBindPort(requestedPort);
+            // nosemgrep: Semgrep_java_ssrf_rule-SSRF -- loopback-only SSO callback; host validated above
+            HttpServer server = HttpServer.create(new InetSocketAddress(LOOPBACK_BIND_HOST, bindPort), 0);
             server.createContext(
                 CALLBACK_PATH,
                 exchange -> handleCallbackExchange(exchange, ticketFuture, expectedState)
@@ -427,6 +428,18 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
         } catch (java.net.UnknownHostException error) {
             throw new IllegalArgumentException("Cannot resolve HTTP SSO callback host: " + host, error);
         }
+    }
+
+    private static int sanitizeCallbackBindPort(int requestedPort) {
+        if (requestedPort == 0) {
+            return 0;
+        }
+        if (requestedPort < 1024 || requestedPort > 65535) {
+            throw new IllegalArgumentException(
+                "HTTP SSO callback port must be 0 (random) or 1024-65535, got: " + requestedPort
+            );
+        }
+        return requestedPort;
     }
 
     /** Starts a loopback callback server for same-package tests without browser SSO. */
