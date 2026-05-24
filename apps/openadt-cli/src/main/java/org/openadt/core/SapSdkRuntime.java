@@ -9,7 +9,7 @@ public final class SapSdkRuntime {
     private SapSdkRuntime() {
     }
 
-    public static void prepare(OpenAdtConfig config, SystemProfile system) {
+    public static void prepare(OpenAdtConfig config) {
         if (config == null || config.getRuntime() == null) {
             throw new IllegalStateException("Runtime not configured. Run 'openadt setup' first.");
         }

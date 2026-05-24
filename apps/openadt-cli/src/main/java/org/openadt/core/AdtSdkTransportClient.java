@@ -70,9 +70,9 @@ public class AdtSdkTransportClient implements AdtTransportClient {
             throw new IllegalStateException("ADT SDK transport requires OpenAdt config (use AdtTransportFactory.create)");
         }
         try {
-            SapSdkRuntime.prepare(openAdtConfig, system);
+            SapSdkRuntime.prepare(openAdtConfig);
             SapDestinationResolver.ResolvedDestination resolved =
-                SapDestinationResolver.resolve(openAdtConfig, system);
+                SapDestinationResolver.resolve(system);
             log("destination id=" + resolved.destinationData().getId()
                 + (resolved.fromEclipse() ? " (eclipse)" : " (config)"));
             return executeDestination(

@@ -16,20 +16,52 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 
 final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
     private static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(5);
     private static final Duration CALLBACK_GRACE_PERIOD = Duration.ofSeconds(30);
     private static final Duration DEFAULT_BRIDGE_WAIT = Duration.ofSeconds(15);
     private static final String CALLBACK_PATH = "/adt/redirect";
-    private final Function<String, String> envProvider;
+    private static final String OPENADT_HTTP_SSO_NON_INTERACTIVE = "OPENADT_HTTP_SSO_NON_INTERACTIVE";
+    static final String TICKET_RECEIVED_PAGE = """
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+              <meta charset="utf-8">
+              <title>OpenADT</title>
+              <script>
+                function closeTab() {
+                  try { window.open('', '_self'); } catch (e) {}
+                  window.close();
+                }
+                addEventListener('load', function () {
+                  closeTab();
+                  setTimeout(closeTab, 150);
+                });
+              </script>
+            </head>
+            <body>
+              <p id="msg">OpenADT ticket received.</p>
+              <script>
+                setTimeout(function () {
+                  var msg = document.getElementById('msg');
+                  if (msg) {
+                    msg.textContent = 'OpenADT ticket received. You can close this tab.';
+                  }
+                }, 500);
+              </script>
+            </body>
+            </html>
+            """;
+    private final UnaryOperator<String> envProvider;
     private final Consumer<URI> browserOpener;
 
     AdtHttpReentranceTicketFlow() {
         this(System::getenv, AdtHttpReentranceTicketFlow::openInDesktopBrowser);
     }
 
-    AdtHttpReentranceTicketFlow(Function<String, String> envProvider, Consumer<URI> browserOpener) {
+    AdtHttpReentranceTicketFlow(UnaryOperator<String> envProvider, Consumer<URI> browserOpener) {
         this.envProvider = envProvider;
         this.browserOpener = browserOpener;
     }
@@ -112,7 +144,7 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
 
         StringBuilder query = new StringBuilder();
         for (Map.Entry<String, String> entry : parameters.entrySet()) {
-            if (query.length() > 0) {
+            if (!query.isEmpty()) {
                 query.append('&');
             }
             query.append(urlEncode(entry.getKey())).append('=').append(urlEncode(entry.getValue()));
@@ -125,11 +157,11 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
      * {@code /sap/bc/adt/core/http/reentranceticket}. Open that landing URL first so the browser
      * establishes SSO cookies before the reentrance-ticket redirect chain runs.
      */
-    static URI resolveSsoLandingUrl(URI frontend, SystemProfile system) {
-        return resolveSsoLandingUrl(frontend, system, key -> null);
+    static URI resolveSsoLandingUrl(SystemProfile system) {
+        return resolveSsoLandingUrl(system, key -> null);
     }
 
-    static URI resolveSsoLandingUrl(URI frontend, SystemProfile system, Function<String, String> envProvider) {
+    static URI resolveSsoLandingUrl(SystemProfile system, UnaryOperator<String> envProvider) {
         if (isTruthy(envProvider.apply("OPENADT_HTTP_SSO_SKIP_LANDING"))) {
             return null;
         }
@@ -158,10 +190,10 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
     }
 
     private void openPreReentranceBrowserSteps(URI frontend, SystemProfile system) {
-        URI landingUrl = resolveSsoLandingUrl(frontend, system, envProvider);
+        URI landingUrl = resolveSsoLandingUrl(system, envProvider);
         URI bridgeUrl = resolveSsoBridgeUrl(frontend);
         Console console = System.console();
-        boolean interactive = console != null && !isTruthy(envProvider.apply("OPENADT_HTTP_SSO_NON_INTERACTIVE"));
+        boolean interactive = console != null && !isTruthy(envProvider.apply(OPENADT_HTTP_SSO_NON_INTERACTIVE));
         int step = 1;
         int totalSteps = (landingUrl != null ? 1 : 0) + (bridgeUrl != null ? 1 : 0);
 
@@ -200,7 +232,7 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
     }
 
     private void waitForBridgeInNonInteractiveMode() {
-        if (System.console() != null || isTruthy(envProvider.apply("OPENADT_HTTP_SSO_NON_INTERACTIVE"))) {
+        if (System.console() != null || isTruthy(envProvider.apply(OPENADT_HTTP_SSO_NON_INTERACTIVE))) {
             return;
         }
         Duration wait = resolveBridgeWait();
@@ -237,7 +269,7 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
 
     private void waitBeforeReentranceStep() {
         Console console = System.console();
-        boolean interactive = console != null && !isTruthy(envProvider.apply("OPENADT_HTTP_SSO_NON_INTERACTIVE"));
+        boolean interactive = console != null && !isTruthy(envProvider.apply(OPENADT_HTTP_SSO_NON_INTERACTIVE));
         if (!interactive) {
             return;
         }
@@ -288,7 +320,7 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
                         if (!ticketFuture.isDone()) {
                             ticketFuture.complete(ticket);
                         }
-                        writeHtmlResponse(exchange, 200, buildTicketReceivedPage());
+                        writeHtmlResponse(exchange, 200, TICKET_RECEIVED_PAGE);
                     } else {
                         writeResponse(exchange, 400, "Missing reentrance-ticket parameter.");
                     }
@@ -303,39 +335,6 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
         } catch (IOException error) {
             throw new IllegalStateException("Failed to start local callback endpoint on /adt/redirect: " + error.getMessage(), error);
         }
-    }
-
-    static String buildTicketReceivedPage() {
-        return """
-            <!DOCTYPE html>
-            <html lang="en">
-            <head>
-              <meta charset="utf-8">
-              <title>OpenADT</title>
-              <script>
-                function closeTab() {
-                  try { window.open('', '_self'); } catch (e) {}
-                  window.close();
-                }
-                addEventListener('load', function () {
-                  closeTab();
-                  setTimeout(closeTab, 150);
-                });
-              </script>
-            </head>
-            <body>
-              <p id="msg">OpenADT ticket received.</p>
-              <script>
-                setTimeout(function () {
-                  var msg = document.getElementById('msg');
-                  if (msg) {
-                    msg.textContent = 'OpenADT ticket received. You can close this tab.';
-                  }
-                }, 500);
-              </script>
-            </body>
-            </html>
-            """;
     }
 
     private static void writeHtmlResponse(com.sun.net.httpserver.HttpExchange exchange, int statusCode, String body) throws IOException {

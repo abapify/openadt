@@ -82,11 +82,26 @@ public final class DestinationProfileResolver {
         if (profile == null) {
             return;
         }
+        SystemProfile.AdtConfig adt = ensureAdtConfig(target);
+        applyProfileDirectAdtFields(adt, profile);
+        if (profile.getAdt() != null) {
+            applyProfileNestedAdtFields(adt, profile.getAdt());
+        }
+        if (profile.getJco() != null) {
+            mergeJco(target, profile.getJco());
+        }
+    }
+
+    private static SystemProfile.AdtConfig ensureAdtConfig(SystemProfile target) {
         SystemProfile.AdtConfig adt = target.getAdt();
         if (adt == null) {
             adt = new SystemProfile.AdtConfig();
             target.setAdt(adt);
         }
+        return adt;
+    }
+
+    private static void applyProfileDirectAdtFields(SystemProfile.AdtConfig adt, SystemProfile.ProfileConfig profile) {
         if (profile.getTransport() != null) {
             adt.setTransport(profile.getTransport());
         }
@@ -99,25 +114,23 @@ public final class DestinationProfileResolver {
         if (profile.getSsoLandingUrl() != null) {
             adt.setSsoLandingUrl(profile.getSsoLandingUrl());
         }
-        if (profile.getAdt() != null) {
-            if (profile.getAdt().getTransport() != null) {
-                adt.setTransport(profile.getAdt().getTransport());
-            }
-            if (profile.getAdt().getAshost() != null) {
-                adt.setAshost(profile.getAdt().getAshost());
-            }
-            if (profile.getAdt().getDiscoveryUrl() != null) {
-                adt.setDiscoveryUrl(profile.getAdt().getDiscoveryUrl());
-            }
-            if (profile.getAdt().getAuthenticationKind() != null) {
-                adt.setAuthenticationKind(profile.getAdt().getAuthenticationKind());
-            }
-            if (profile.getAdt().getSsoLandingUrl() != null) {
-                adt.setSsoLandingUrl(profile.getAdt().getSsoLandingUrl());
-            }
+    }
+
+    private static void applyProfileNestedAdtFields(SystemProfile.AdtConfig adt, SystemProfile.AdtConfig profileAdt) {
+        if (profileAdt.getTransport() != null) {
+            adt.setTransport(profileAdt.getTransport());
         }
-        if (profile.getJco() != null) {
-            mergeJco(target, profile.getJco());
+        if (profileAdt.getAshost() != null) {
+            adt.setAshost(profileAdt.getAshost());
+        }
+        if (profileAdt.getDiscoveryUrl() != null) {
+            adt.setDiscoveryUrl(profileAdt.getDiscoveryUrl());
+        }
+        if (profileAdt.getAuthenticationKind() != null) {
+            adt.setAuthenticationKind(profileAdt.getAuthenticationKind());
+        }
+        if (profileAdt.getSsoLandingUrl() != null) {
+            adt.setSsoLandingUrl(profileAdt.getSsoLandingUrl());
         }
     }
 

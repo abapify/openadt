@@ -19,6 +19,17 @@ import java.util.stream.Stream;
 public class ConfigLoader {
     private static final String VERSION_LINE = "version = 1";
     private static final String DESTINATIONS_PREFIX = "[destinations.";
+    private static final String DESTINATIONS_DIR = "destinations";
+    private static final String LOCAL_FRAGMENT_FILE = "local.openadt.toml";
+    private static final String MANUAL_FRAGMENT_FILE = "manual.openadt.toml";
+    private static final String DETECTED_FRAGMENT_FILE = "detected.openadt.toml";
+    private static final String DESTINATIONS_GLOB = "destinations/*.openadt.toml";
+    private static final String PROFILES_SEGMENT = ".profiles.";
+    private static final String KEY_SSO_LANDING_URL = "sso_landing_url";
+    private static final String KEY_ASHOST = "ashost";
+    private static final String KEY_TRANSPORT = "transport";
+    private static final String KEY_DISCOVERY_URL = "discovery_url";
+    private static final String KEY_AUTHENTICATION_KIND = "authentication_kind";
 
     private final TomlMapper mapper;
     private final Path workingDirectory;
@@ -87,12 +98,12 @@ public class ConfigLoader {
     public void saveSetupConfig(OpenAdtConfig config, Path entrypointPath) throws IOException {
         Path normalizedEntrypoint = entrypointPath.toAbsolutePath().normalize();
         Path rootDir = normalizedEntrypoint.getParent();
-        Path destinationsDir = rootDir.resolve("destinations");
-        Path destinationsFile = destinationsDir.resolve("detected.openadt.toml");
-        Path localFile = rootDir.resolve("local.openadt.toml");
+        Path destinationsDir = rootDir.resolve(DESTINATIONS_DIR);
+        Path destinationsFile = destinationsDir.resolve(DETECTED_FRAGMENT_FILE);
+        Path localFile = rootDir.resolve(LOCAL_FRAGMENT_FILE);
 
         Files.createDirectories(destinationsDir);
-        writeEntrypoint(normalizedEntrypoint, List.of("destinations/*.openadt.toml", "local.openadt.toml"));
+        writeEntrypoint(normalizedEntrypoint, List.of(DESTINATIONS_GLOB, LOCAL_FRAGMENT_FILE));
         writeDestinationsFragment(destinationsFile, config.getSystems());
         writeLocalFragment(localFile, config);
     }
@@ -110,31 +121,58 @@ public class ConfigLoader {
         boolean setDefaultProfile
     ) throws IOException {
         Path normalizedPath = configPath.toAbsolutePath().normalize();
-        Path writeTarget;
-        if (!Files.exists(normalizedPath)) {
-            Path rootDir = normalizedPath.getParent();
-            Files.createDirectories(rootDir.resolve("destinations"));
-            writeEntrypoint(
-                normalizedPath,
-                List.of("destinations/*.openadt.toml", "local.openadt.toml")
-            );
-            writeTarget = rootDir.resolve("destinations").resolve("manual.openadt.toml");
-        } else if (hasMergeIncludes(normalizedPath)) {
-            writeTarget = normalizedPath.getParent().resolve("destinations").resolve("manual.openadt.toml");
-            Files.createDirectories(writeTarget.getParent());
-        } else {
-            writeTarget = normalizedPath;
-        }
+        Path writeTarget = resolveManualWriteTarget(normalizedPath);
 
         OpenAdtConfig existing = Files.exists(writeTarget) ? load(writeTarget) : new OpenAdtConfig();
+        LinkedHashMap<String, SystemProfile> systems = loadExistingSystems(existing);
+        prepareTargetSystem(systems, destination, profileName, profile, setDefaultProfile);
+
+        writeDestinationsFragment(writeTarget, new ArrayList<>(systems.values()));
+        return writeTarget;
+    }
+
+    private Path resolveManualWriteTarget(Path normalizedPath) throws IOException {
+        if (!Files.exists(normalizedPath)) {
+            Path rootDir = normalizedPath.getParent();
+            Files.createDirectories(rootDir.resolve(DESTINATIONS_DIR));
+            writeEntrypoint(normalizedPath, List.of(DESTINATIONS_GLOB, LOCAL_FRAGMENT_FILE));
+            return rootDir.resolve(DESTINATIONS_DIR).resolve(MANUAL_FRAGMENT_FILE);
+        }
+        if (hasMergeIncludes(normalizedPath)) {
+            Path writeTarget = normalizedPath.getParent().resolve(DESTINATIONS_DIR).resolve(MANUAL_FRAGMENT_FILE);
+            Files.createDirectories(writeTarget.getParent());
+            return writeTarget;
+        }
+        return normalizedPath;
+    }
+
+    private LinkedHashMap<String, SystemProfile> loadExistingSystems(OpenAdtConfig existing) {
         LinkedHashMap<String, SystemProfile> systems = new LinkedHashMap<>();
         if (existing.getSystems() != null) {
             for (SystemProfile system : existing.getSystems()) {
                 mergeSystem(systems, system);
             }
         }
+        return systems;
+    }
 
+    private void prepareTargetSystem(
+        LinkedHashMap<String, SystemProfile> systems,
+        SystemProfile destination,
+        String profileName,
+        SystemProfile.ProfileConfig profile,
+        boolean setDefaultProfile
+    ) {
         SystemProfile target = systems.computeIfAbsent(destination.getAlias(), ignored -> new SystemProfile());
+        applyDestinationIdentityFields(target, destination);
+        if (setDefaultProfile) {
+            target.setDefaultProfile(profileName);
+        }
+        Map<String, SystemProfile.ProfileConfig> profiles = ensureProfiles(target);
+        mergeProfile(profiles, profileName, profile);
+    }
+
+    private void applyDestinationIdentityFields(SystemProfile target, SystemProfile destination) {
         if (target.getAlias() == null) {
             target.setAlias(destination.getAlias());
         }
@@ -158,19 +196,15 @@ public class ConfigLoader {
         }
         mergeJco(target, destination.getJco());
         mergeAdt(target, destination.getAdt());
-        if (setDefaultProfile) {
-            target.setDefaultProfile(profileName);
-        }
+    }
 
+    private Map<String, SystemProfile.ProfileConfig> ensureProfiles(SystemProfile target) {
         Map<String, SystemProfile.ProfileConfig> profiles = target.getProfiles();
         if (profiles == null) {
             profiles = new LinkedHashMap<>();
             target.setProfiles(profiles);
         }
-        mergeProfile(profiles, profileName, profile);
-
-        writeDestinationsFragment(writeTarget, new ArrayList<>(systems.values()));
-        return writeTarget;
+        return profiles;
     }
 
     boolean hasMergeIncludes(Path path) throws IOException {
@@ -718,95 +752,119 @@ public class ConfigLoader {
         lines.add(VERSION_LINE);
         if (systems != null) {
             for (SystemProfile system : systems) {
-                String alias = system.getAlias() != null ? system.getAlias() : system.getSystemId();
-                if (alias == null) {
-                    continue;
-                }
-                lines.add("");
-                lines.add(DESTINATIONS_PREFIX + quoteKey(alias) + "]");
-                writeString(lines, "alias", system.getAlias());
-                writeString(lines, "source", system.getSource());
-                writeString(lines, "description", system.getDescription());
-                writeString(lines, "system_id", system.getSystemId());
-                writeString(lines, "client", system.getClient());
-                writeString(lines, "language", system.getLanguage());
-                writeString(lines, "user", system.getUser());
-                writeString(lines, "default_profile", system.getDefaultProfile());
-
-                if (system.getJco() != null) {
-                    lines.add("");
-                    lines.add(DESTINATIONS_PREFIX + quoteKey(alias) + ".jco]");
-                    writeString(lines, "mshost", system.getJco().getMshost());
-                    writeString(lines, "msserv", system.getJco().getMsserv());
-                    writeString(lines, "r3name", system.getJco().getR3name());
-                    writeString(lines, "group", system.getJco().getGroup());
-                    writeString(lines, "ashost", system.getJco().getAshost());
-                    writeString(lines, "sysnr", system.getJco().getSysnr());
-                    writeString(lines, "snc_mode", system.getJco().getSncMode());
-                    writeString(lines, "snc_qop", system.getJco().getSncQop());
-                    writeString(lines, "snc_partnername", system.getJco().getSncPartnername());
-                    writeString(lines, "snc_sso", system.getJco().getSncSso());
-                    writeString(lines, "sticky", system.getJco().getSticky());
-                    writeString(lines, "deny_initial_password", system.getJco().getDenyInitialPassword());
-                }
-
-                if (system.getAdt() != null) {
-                    lines.add("");
-                    lines.add(DESTINATIONS_PREFIX + quoteKey(alias) + ".adt]");
-                    writeString(lines, "transport", system.getAdt().getTransport());
-                    writeString(lines, "ashost", system.getAdt().getAshost());
-                    writeString(lines, "discovery_url", system.getAdt().getDiscoveryUrl());
-                    writeString(lines, "authentication_kind", system.getAdt().getAuthenticationKind());
-                    writeString(lines, "sso_landing_url", system.getAdt().getSsoLandingUrl());
-                }
-
-                if (system.getProfiles() != null) {
-                    for (Map.Entry<String, SystemProfile.ProfileConfig> profileEntry : system.getProfiles().entrySet()) {
-                        String profileName = profileEntry.getKey();
-                        SystemProfile.ProfileConfig profile = profileEntry.getValue();
-                        if (profile == null) {
-                            continue;
-                        }
-                        String profilePrefix = DESTINATIONS_PREFIX + quoteKey(alias) + ".profiles." + quoteKey(profileName) + "]";
-                        lines.add("");
-                        lines.add(profilePrefix);
-                        writeString(lines, "transport", profile.getTransport());
-                        writeString(lines, "authentication_kind", profile.getAuthenticationKind());
-                        writeString(lines, "discovery_url", profile.getDiscoveryUrl());
-                        writeString(lines, "callback_port", profile.getCallbackPort());
-                        writeString(lines, "sso_landing_url", profile.getSsoLandingUrl());
-
-                        if (profile.getJco() != null) {
-                            lines.add("");
-                            lines.add(DESTINATIONS_PREFIX + quoteKey(alias) + ".profiles." + quoteKey(profileName) + ".jco]");
-                            writeString(lines, "mshost", profile.getJco().getMshost());
-                            writeString(lines, "msserv", profile.getJco().getMsserv());
-                            writeString(lines, "r3name", profile.getJco().getR3name());
-                            writeString(lines, "group", profile.getJco().getGroup());
-                            writeString(lines, "ashost", profile.getJco().getAshost());
-                            writeString(lines, "sysnr", profile.getJco().getSysnr());
-                            writeString(lines, "snc_mode", profile.getJco().getSncMode());
-                            writeString(lines, "snc_qop", profile.getJco().getSncQop());
-                            writeString(lines, "snc_partnername", profile.getJco().getSncPartnername());
-                            writeString(lines, "snc_sso", profile.getJco().getSncSso());
-                            writeString(lines, "sticky", profile.getJco().getSticky());
-                            writeString(lines, "deny_initial_password", profile.getJco().getDenyInitialPassword());
-                        }
-
-                        if (profile.getAdt() != null) {
-                            lines.add("");
-                            lines.add(DESTINATIONS_PREFIX + quoteKey(alias) + ".profiles." + quoteKey(profileName) + ".adt]");
-                            writeString(lines, "transport", profile.getAdt().getTransport());
-                            writeString(lines, "ashost", profile.getAdt().getAshost());
-                            writeString(lines, "discovery_url", profile.getAdt().getDiscoveryUrl());
-                            writeString(lines, "authentication_kind", profile.getAdt().getAuthenticationKind());
-                            writeString(lines, "sso_landing_url", profile.getAdt().getSsoLandingUrl());
-                        }
-                    }
-                }
+                writeSystemDestination(lines, system);
             }
         }
         Files.writeString(path, String.join(System.lineSeparator(), lines) + System.lineSeparator());
+    }
+
+    private void writeSystemDestination(List<String> lines, SystemProfile system) {
+        String alias = system.getAlias() != null ? system.getAlias() : system.getSystemId();
+        if (alias == null) {
+            return;
+        }
+        lines.add("");
+        lines.add(DESTINATIONS_PREFIX + quoteKey(alias) + "]");
+        writeString(lines, "alias", system.getAlias());
+        writeString(lines, "source", system.getSource());
+        writeString(lines, "description", system.getDescription());
+        writeString(lines, "system_id", system.getSystemId());
+        writeString(lines, "client", system.getClient());
+        writeString(lines, "language", system.getLanguage());
+        writeString(lines, "user", system.getUser());
+        writeString(lines, "default_profile", system.getDefaultProfile());
+
+        if (system.getJco() != null) {
+            writeJcoSection(lines, alias, system.getJco());
+        }
+        if (system.getAdt() != null) {
+            writeAdtSection(lines, alias, system.getAdt());
+        }
+        if (system.getProfiles() != null) {
+            for (Map.Entry<String, SystemProfile.ProfileConfig> profileEntry : system.getProfiles().entrySet()) {
+                writeProfileSection(lines, alias, profileEntry.getKey(), profileEntry.getValue());
+            }
+        }
+    }
+
+    private void writeJcoSection(List<String> lines, String alias, SystemProfile.JcoConfig jco) {
+        lines.add("");
+        lines.add(DESTINATIONS_PREFIX + quoteKey(alias) + ".jco]");
+        writeString(lines, "mshost", jco.getMshost());
+        writeString(lines, "msserv", jco.getMsserv());
+        writeString(lines, "r3name", jco.getR3name());
+        writeString(lines, "group", jco.getGroup());
+        writeString(lines, KEY_ASHOST, jco.getAshost());
+        writeString(lines, "sysnr", jco.getSysnr());
+        writeString(lines, "snc_mode", jco.getSncMode());
+        writeString(lines, "snc_qop", jco.getSncQop());
+        writeString(lines, "snc_partnername", jco.getSncPartnername());
+        writeString(lines, "snc_sso", jco.getSncSso());
+        writeString(lines, "sticky", jco.getSticky());
+        writeString(lines, "deny_initial_password", jco.getDenyInitialPassword());
+    }
+
+    private void writeAdtSection(List<String> lines, String alias, SystemProfile.AdtConfig adt) {
+        lines.add("");
+        lines.add(DESTINATIONS_PREFIX + quoteKey(alias) + ".adt]");
+        writeString(lines, KEY_TRANSPORT, adt.getTransport());
+        writeString(lines, KEY_ASHOST, adt.getAshost());
+        writeString(lines, KEY_DISCOVERY_URL, adt.getDiscoveryUrl());
+        writeString(lines, KEY_AUTHENTICATION_KIND, adt.getAuthenticationKind());
+        writeString(lines, KEY_SSO_LANDING_URL, adt.getSsoLandingUrl());
+    }
+
+    private void writeProfileSection(
+        List<String> lines,
+        String alias,
+        String profileName,
+        SystemProfile.ProfileConfig profile
+    ) {
+        if (profile == null) {
+            return;
+        }
+        String profilePrefix = DESTINATIONS_PREFIX + quoteKey(alias) + PROFILES_SEGMENT + quoteKey(profileName) + "]";
+        lines.add("");
+        lines.add(profilePrefix);
+        writeString(lines, KEY_TRANSPORT, profile.getTransport());
+        writeString(lines, KEY_AUTHENTICATION_KIND, profile.getAuthenticationKind());
+        writeString(lines, KEY_DISCOVERY_URL, profile.getDiscoveryUrl());
+        writeString(lines, "callback_port", profile.getCallbackPort());
+        writeString(lines, KEY_SSO_LANDING_URL, profile.getSsoLandingUrl());
+
+        if (profile.getJco() != null) {
+            lines.add("");
+            lines.add(DESTINATIONS_PREFIX + quoteKey(alias) + PROFILES_SEGMENT + quoteKey(profileName) + ".jco]");
+            writeJcoSectionFields(lines, profile.getJco());
+        }
+        if (profile.getAdt() != null) {
+            lines.add("");
+            lines.add(DESTINATIONS_PREFIX + quoteKey(alias) + PROFILES_SEGMENT + quoteKey(profileName) + ".adt]");
+            writeAdtSectionFields(lines, profile.getAdt());
+        }
+    }
+
+    private void writeJcoSectionFields(List<String> lines, SystemProfile.JcoConfig jco) {
+        writeString(lines, "mshost", jco.getMshost());
+        writeString(lines, "msserv", jco.getMsserv());
+        writeString(lines, "r3name", jco.getR3name());
+        writeString(lines, "group", jco.getGroup());
+        writeString(lines, KEY_ASHOST, jco.getAshost());
+        writeString(lines, "sysnr", jco.getSysnr());
+        writeString(lines, "snc_mode", jco.getSncMode());
+        writeString(lines, "snc_qop", jco.getSncQop());
+        writeString(lines, "snc_partnername", jco.getSncPartnername());
+        writeString(lines, "snc_sso", jco.getSncSso());
+        writeString(lines, "sticky", jco.getSticky());
+        writeString(lines, "deny_initial_password", jco.getDenyInitialPassword());
+    }
+
+    private void writeAdtSectionFields(List<String> lines, SystemProfile.AdtConfig adt) {
+        writeString(lines, KEY_TRANSPORT, adt.getTransport());
+        writeString(lines, KEY_ASHOST, adt.getAshost());
+        writeString(lines, KEY_DISCOVERY_URL, adt.getDiscoveryUrl());
+        writeString(lines, KEY_AUTHENTICATION_KIND, adt.getAuthenticationKind());
+        writeString(lines, KEY_SSO_LANDING_URL, adt.getSsoLandingUrl());
     }
 
     private void writeLocalFragment(Path path, OpenAdtConfig config) throws IOException {

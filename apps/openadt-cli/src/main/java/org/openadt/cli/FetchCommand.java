@@ -108,67 +108,99 @@ public class FetchCommand implements Callable<Integer> {
             CliLog.error("--profile cannot be used with --base-url direct HTTP mode.");
             return 1;
         }
-        ConfigLoader loader = new ConfigLoader();
-        OpenAdtConfig config;
-        SystemProfile system;
-        String adtPath;
-        if (isDirectHttpMode()) {
-            if (explicitClient == null || explicitClient.isBlank()) {
-                CliLog.error("Missing SAP client. Use --client with --base-url.");
-                return 1;
-            }
-            config = explicitHttpConfig();
-            system = explicitHttpSystem();
-            String rawPath = explicitPath != null ? explicitPath : urlOrPath;
-            if (rawPath == null || rawPath.isBlank()) {
-                CliLog.error("Missing ADT path. Use --path with --base-url.");
-                return 1;
-            }
-            adtPath = resolveAdtPath(rawPath);
-        } else {
-            if (systemAlias == null || systemAlias.isBlank() || urlOrPath == null || urlOrPath.isBlank()) {
-                CliLog.error("Usage: openadt fetch <SYSTEM> <URL-OR-PATH> (or use --base-url with --path)");
-                return 1;
-            }
-            Path effectivePath = configPath != null ? configPath : loader.getDefaultConfigPath();
-            config = loader.load(effectivePath);
-            applyHttpOverrides(config);
-            applyProfileCallbackPort(config, systemAlias);
-            try {
-                system = DestinationProfileResolver.resolve(config, systemAlias, profile);
-            } catch (IllegalArgumentException e) {
-                CliLog.error(e.getMessage());
-                return 1;
-            }
-            adtPath = resolveAdtPath(urlOrPath);
+
+        FetchInputs inputs = resolveInputs();
+        if (inputs == null) {
+            return 1;
         }
 
         Map<String, String> headerMap = parseHeaders(this.headers);
-        applyAcceptHeaders(headerMap, adtPath);
+        applyAcceptHeaders(headerMap, inputs.adtPath());
         byte[] requestBody = resolveBody(body);
-        AdtTransportClient transportClient;
-        try {
-            if (!raw && !isDirectHttpMode()) {
-                if (!direct && LocalProxyRegistry.findActive(system.getAlias(), profile).isPresent()) {
-                    CliLog.error("Using local openadt proxy for " + system.getAlias()
-                        + (profile != null && !profile.isBlank() ? " (profile " + profile + ")" : ""));
-                } else if (!direct) {
-                    String profileHint = profile != null && !profile.isBlank()
-                        ? " --profile=" + profile
-                        : "";
-                    CliLog.error("Tip: run 'openadt proxy " + system.getAlias()
-                        + profileHint + "' in another terminal; fetch will reuse it and start faster.");
-                }
-            }
-            transportClient = FetchTransportResolver.resolve(config, system, direct, profile);
-        } catch (IllegalStateException e) {
-            CliLog.error(e.getMessage());
-            return 1;
-        } catch (Exception e) {
-            CliLog.error(e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
+
+        logProxyHints(inputs.system());
+
+        AdtTransportClient transportClient = resolveTransportClient(inputs.config(), inputs.system());
+        if (transportClient == null) {
             return 1;
         }
 
+        return executeFetch(inputs.system(), inputs.adtPath(), transportClient, headerMap, requestBody);
+    }
+
+    private FetchInputs resolveInputs() throws IOException {
+        ConfigLoader loader = new ConfigLoader();
+        if (isDirectHttpMode()) {
+            return resolveDirectHttpInputs();
+        }
+        if (systemAlias == null || systemAlias.isBlank() || urlOrPath == null || urlOrPath.isBlank()) {
+            CliLog.error("Usage: openadt fetch <SYSTEM> <URL-OR-PATH> (or use --base-url with --path)");
+            return null;
+        }
+        Path effectivePath = configPath != null ? configPath : loader.getDefaultConfigPath();
+        OpenAdtConfig config = loader.load(effectivePath);
+        applyHttpOverrides(config);
+        applyProfileCallbackPort(config, systemAlias);
+        SystemProfile system;
+        try {
+            system = DestinationProfileResolver.resolve(config, systemAlias, profile);
+        } catch (IllegalArgumentException e) {
+            CliLog.error(e.getMessage());
+            return null;
+        }
+        return new FetchInputs(config, system, resolveAdtPath(urlOrPath));
+    }
+
+    private FetchInputs resolveDirectHttpInputs() {
+        if (explicitClient == null || explicitClient.isBlank()) {
+            CliLog.error("Missing SAP client. Use --client with --base-url.");
+            return null;
+        }
+        String rawPath = explicitPath != null ? explicitPath : urlOrPath;
+        if (rawPath == null || rawPath.isBlank()) {
+            CliLog.error("Missing ADT path. Use --path with --base-url.");
+            return null;
+        }
+        return new FetchInputs(explicitHttpConfig(), explicitHttpSystem(), resolveAdtPath(rawPath));
+    }
+
+    private void logProxyHints(SystemProfile system) {
+        if (raw || isDirectHttpMode()) {
+            return;
+        }
+        if (!direct && LocalProxyRegistry.findActive(system.getAlias(), profile).isPresent()) {
+            CliLog.error("Using local openadt proxy for " + system.getAlias()
+                + (profile != null && !profile.isBlank() ? " (profile " + profile + ")" : ""));
+            return;
+        }
+        if (!direct) {
+            String profileHint = profile != null && !profile.isBlank()
+                ? " --profile=" + profile
+                : "";
+            CliLog.error("Tip: run 'openadt proxy " + system.getAlias()
+                + profileHint + "' in another terminal; fetch will reuse it and start faster.");
+        }
+    }
+
+    private AdtTransportClient resolveTransportClient(OpenAdtConfig config, SystemProfile system) {
+        try {
+            return FetchTransportResolver.resolve(config, system, direct, profile);
+        } catch (IllegalStateException e) {
+            CliLog.error(e.getMessage());
+            return null;
+        } catch (Exception e) {
+            CliLog.error(e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
+            return null;
+        }
+    }
+
+    private int executeFetch(
+        SystemProfile system,
+        String adtPath,
+        AdtTransportClient transportClient,
+        Map<String, String> headerMap,
+        byte[] requestBody
+    ) throws IOException {
         ProxyRequest request = new ProxyRequest(method, adtPath, "HTTP/1.1", headerMap, requestBody);
         ProxyResponse response;
         try {
@@ -189,6 +221,9 @@ public class FetchCommand implements Callable<Integer> {
             return 1;
         }
         return 0;
+    }
+
+    private record FetchInputs(OpenAdtConfig config, SystemProfile system, String adtPath) {
     }
 
     private String resolveAdtPath(String urlOrPath) {

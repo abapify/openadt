@@ -16,6 +16,7 @@ import picocli.CommandLine.Parameters;
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
+import java.io.IOException;
 
 @Command(
     name = "proxy",
@@ -133,7 +134,7 @@ public class ProxyCommand implements Callable<Integer> {
         String effectiveListen,
         ProxyAuthSettings authSettings,
         AdtTransportClient transportClient
-    ) throws Exception {
+    ) throws IOException {
         LocalAdtProxyServer proxyServer = new LocalAdtProxyServer(transportClient);
         int port = proxyServer.start(
             system,

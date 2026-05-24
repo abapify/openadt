@@ -18,11 +18,12 @@ final class SsoCallbackRegistry {
     }
 
     static void markActive(URI callbackUrl, int port) {
-        ActiveCallback active = new ActiveCallback();
-        active.callbackUrl = callbackUrl.toString();
-        active.port = port;
-        active.pid = ProcessHandle.current().pid();
-        active.startedAt = Instant.now().toString();
+        ActiveCallback active = new ActiveCallback(
+            callbackUrl.toString(),
+            port,
+            ProcessHandle.current().pid(),
+            Instant.now().toString()
+        );
         try {
             Files.createDirectories(runtimeDir());
             MAPPER.writerWithDefaultPrettyPrinter().writeValue(runtimeFile().toFile(), active);
@@ -59,18 +60,18 @@ final class SsoCallbackRegistry {
                 + "Do not reuse reentranceticket tabs or redirect URLs from earlier runs.";
         }
         ActiveCallback current = active.get();
-        if (current.port == requestedPort) {
-            long pid = current.pid;
+        if (current.port() == requestedPort) {
+            long pid = current.pid();
             boolean running = ProcessHandle.of(pid).map(ProcessHandle::isAlive).orElse(false);
             if (!running) {
                 return "Callback port " + requestedPort + " was registered by OpenADT pid " + pid
                     + ", but that process has already exited. Start a fresh fetch/proxy run.";
             }
-            return "OpenADT pid " + pid + " is still waiting on " + current.callbackUrl
+            return "OpenADT pid " + pid + " is still waiting on " + current.callbackUrl()
                 + ". Keep that terminal open until the browser redirect completes.";
         }
         return "Port " + requestedPort + " is from an older OpenADT run. "
-            + "The active callback is " + current.callbackUrl + " (pid " + current.pid + "). "
+            + "The active callback is " + current.callbackUrl() + " (pid " + current.pid() + "). "
             + "Close stale browser tabs and use only the URL from the current terminal.";
     }
 
@@ -82,10 +83,6 @@ final class SsoCallbackRegistry {
         return runtimeDir().resolve(FILE_NAME);
     }
 
-    static final class ActiveCallback {
-        public String callbackUrl;
-        public int port;
-        public long pid;
-        public String startedAt;
+    record ActiveCallback(String callbackUrl, int port, long pid, String startedAt) {
     }
 }

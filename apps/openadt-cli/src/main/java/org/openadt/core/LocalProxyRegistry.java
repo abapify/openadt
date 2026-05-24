@@ -159,14 +159,14 @@ public final class LocalProxyRegistry {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private static final class ProxyEndpointRecord {
-        public String systemAlias;
-        public String profileName;
-        public String host;
-        public int port;
-        public boolean basicAuth;
-        public String username;
-
+    private record ProxyEndpointRecord(
+        String systemAlias,
+        String profileName,
+        String host,
+        int port,
+        boolean basicAuth,
+        String username
+    ) {
         ProxyEndpoint toEndpoint(String fallbackAlias, String fallbackProfile) {
             String alias = systemAlias != null && !systemAlias.isBlank() ? systemAlias : fallbackAlias;
             String profile = profileName != null && !profileName.isBlank() ? profileName : fallbackProfile;

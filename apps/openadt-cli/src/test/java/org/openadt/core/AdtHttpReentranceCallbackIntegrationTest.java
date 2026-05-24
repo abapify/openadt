@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class AdtHttpReentranceCallbackIntegrationTest {
     @Test
     void ticketReceivedPageAttemptsToCloseTab() {
-        String page = AdtHttpReentranceTicketFlow.buildTicketReceivedPage();
+        String page = AdtHttpReentranceTicketFlow.TICKET_RECEIVED_PAGE;
         assertTrue(page.contains("window.close()"));
         assertTrue(page.contains("OpenADT ticket received"));
     }

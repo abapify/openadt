@@ -35,13 +35,12 @@ public final class EclipseDestinationLoader {
         setIfPresent(properties, "language", data::setLanguage);
 
         String configurationName = properties.getProperty("systemConfiguration", id);
-        data.setSystemConfiguration(createSystemConfiguration(id, configurationName, properties));
+        data.setSystemConfiguration(createSystemConfiguration(configurationName, properties));
         data.setSystemConfigurationName(configurationName);
         return data.getReadOnlyClone();
     }
 
     private static ISystemConfiguration createSystemConfiguration(
-        String _destinationId,
         String configurationName,
         Properties properties
     ) {

@@ -13,8 +13,7 @@ class SsoCallbackRegistryTest {
     Path tempHome;
 
     @Test
-    void reportsStalePortWhenAnotherCallbackIsActive() throws Exception {
-        Path runtime = tempHome.resolve(".openadt/runtime");
+    void reportsStalePortWhenAnotherCallbackIsActive() {
         withHome(tempHome, () -> {
             SsoCallbackRegistry.markActive(URI.create("http://localhost:63363/adt/redirect"), 63363);
             String hint = SsoCallbackRegistry.stalePortHint(50705);

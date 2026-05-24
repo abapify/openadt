@@ -14,7 +14,7 @@ public final class SapDestinationResolver {
     private SapDestinationResolver() {
     }
 
-    public static ResolvedDestination resolve(OpenAdtConfig _config, SystemProfile system) {
+    public static ResolvedDestination resolve(SystemProfile system) {
         String query = system.getSystemId() != null ? system.getSystemId() : system.getAlias();
         Optional<EclipseDestinationLocator.EclipseDestinationEntry> eclipse;
         try {

@@ -19,16 +19,22 @@ import java.util.List;
 import java.util.Map;
 
 public class SapRulesDetector implements SystemDetector {
-    private static final String ADT_BC_PATH = "/sap/bc/adt";
+    private static final String DEFAULT_ADT_BC_PATH = "/sap/bc/adt";
 
     private final List<Path> sapRulesFiles;
+    private final String adtBcPath;
 
     public SapRulesDetector() {
         this(SetupPathLocator.sapRulesFiles());
     }
 
     SapRulesDetector(List<Path> sapRulesFiles) {
+        this(sapRulesFiles, DEFAULT_ADT_BC_PATH);
+    }
+
+    SapRulesDetector(List<Path> sapRulesFiles, String adtBcPath) {
         this.sapRulesFiles = List.copyOf(sapRulesFiles);
+        this.adtBcPath = adtBcPath;
     }
 
     @Override
@@ -145,7 +151,7 @@ public class SapRulesDetector implements SystemDetector {
 
     private String mapAdtName(String rawValue, java.util.function.Function<URI, String> mapper) {
         String value = blankToNull(rawValue);
-        if (value == null || !value.contains(ADT_BC_PATH)) {
+        if (value == null || !value.contains(adtBcPath)) {
             return null;
         }
         return mapAdtUri(value, mapper);
@@ -166,7 +172,7 @@ public class SapRulesDetector implements SystemDetector {
     private String toDiscoveryUrl(URI uri) {
         String path = uri.getPath();
         if (path == null || path.isBlank()) {
-            path = ADT_BC_PATH;
+            path = adtBcPath;
         }
         return uri.getScheme() + "://" + uri.getAuthority() + path;
     }

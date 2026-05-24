@@ -48,10 +48,7 @@ class AdtHttpReentranceTicketFlowTest {
 
     @Test
     void defaultsSsoLandingUrlToNullWithoutExplicitConfig() {
-        URI landing = AdtHttpReentranceTicketFlow.resolveSsoLandingUrl(
-            URI.create("https://abap.example.invalid/sap/bc/adt"),
-            null
-        );
+        URI landing = AdtHttpReentranceTicketFlow.resolveSsoLandingUrl(null);
 
         assertTrue(landing == null);
     }
@@ -63,10 +60,7 @@ class AdtHttpReentranceTicketFlowTest {
         adt.setSsoLandingUrl("https://sso.example.invalid/");
         system.setAdt(adt);
 
-        URI landing = AdtHttpReentranceTicketFlow.resolveSsoLandingUrl(
-            URI.create("https://abap.example.invalid/sap/bc/adt"),
-            system
-        );
+        URI landing = AdtHttpReentranceTicketFlow.resolveSsoLandingUrl(system);
 
         assertTrue(landing.toString().equals("https://sso.example.invalid/"));
     }

@@ -64,7 +64,7 @@ final class SetupPathLocator {
             }
             String programFiles = System.getenv("ProgramFiles");
             if (programFiles != null && !programFiles.isBlank()) {
-                paths.add(Path.of(programFiles, "SAP", "SAP Business Client"));
+                paths.add(Path.of(programFiles, "SAP", SAP_BUSINESS_CLIENT));
             }
         }
 
@@ -148,7 +148,7 @@ final class SetupPathLocator {
         String os = System.getProperty(OS_NAME_PROPERTY, "").toLowerCase(Locale.ROOT);
         String appData = System.getenv(APPDATA_ENV);
         if (os.contains("win") && appData != null && !appData.isBlank()) {
-            paths.add(Path.of(appData, "SAP", "Common", "saprules.xml"));
+            paths.add(Path.of(appData, "SAP", SAP_COMMON, "saprules.xml"));
         }
         for (Path windowsHome : windowsUserHomes()) {
             paths.add(windowsHome.resolve("AppData/Roaming/SAP/Common/saprules.xml"));
