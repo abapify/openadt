@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -72,14 +73,15 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
         int requestedPort = resolveCallbackPort(config);
         openPreReentranceBrowserSteps(frontend, system);
 
+        String csrfState = UUID.randomUUID().toString();
         CompletableFuture<String> ticketFuture = new CompletableFuture<>();
         String callbackHost = resolveCallbackHost(config);
-        HttpServer server = createCallbackServer(callbackHost, requestedPort, ticketFuture);
+        HttpServer server = createCallbackServer(callbackHost, requestedPort, ticketFuture, csrfState);
         server.start();
         URI callbackUrl = null;
         try {
             int actualPort = server.getAddress().getPort();
-            callbackUrl = buildCallbackUrl(callbackHost, actualPort);
+            callbackUrl = buildCallbackUrl(callbackHost, actualPort, csrfState);
             SsoCallbackRegistry.markActive(callbackUrl, actualPort);
             URI reentranceUrl = buildReentranceTicketUrl(frontend, system, callbackUrl);
             CliLog.error("Local callback listening on " + callbackUrl + " (keep this terminal open until redirect completes)");
@@ -124,8 +126,8 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
         return message.toString();
     }
 
-    static URI buildCallbackUrl(String host, int port) {
-        return URI.create("http://" + host + ":" + port + CALLBACK_PATH);
+    static URI buildCallbackUrl(String host, int port, String csrfState) {
+        return URI.create("http://" + host + ":" + port + CALLBACK_PATH + "?state=" + csrfState);
     }
 
     static URI buildReentranceTicketUrl(URI frontend, SystemProfile system, URI callbackUrl) {
@@ -312,11 +314,19 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
         };
     }
 
-    private HttpServer createCallbackServer(String host, int requestedPort, CompletableFuture<String> ticketFuture) {
+    private HttpServer createCallbackServer(String host, int requestedPort, CompletableFuture<String> ticketFuture, String expectedState) {
         try {
             HttpServer server = HttpServer.create(new InetSocketAddress(host, requestedPort), 0);
             server.createContext(CALLBACK_PATH, exchange -> {
                 try {
+                    String receivedState = extractQueryParam(exchange.getRequestURI(), "state");
+                    if (receivedState == null || !receivedState.equals(expectedState)) {
+                        writeResponse(exchange, 403, "CSRF state mismatch. Possible cross-site request forgery.");
+                        if (!ticketFuture.isDone()) {
+                            ticketFuture.completeExceptionally(new SecurityException("CSRF state validation failed"));
+                        }
+                        return;
+                    }
                     String ticket = extractQueryParam(exchange.getRequestURI(), "reentrance-ticket");
                     if (ticket != null && !ticket.isBlank()) {
                         if (!ticketFuture.isDone()) {
