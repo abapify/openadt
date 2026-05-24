@@ -253,7 +253,7 @@ public class SecureLoginHubClient {
         TrustManagerFactory trustManagerFactory =
             TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
         trustManagerFactory.init(keyStore);
-        SSLContext context = SSLContext.getInstance("TLS");
+        SSLContext context = SSLContext.getInstance("TLSv1.2");
         context.init(null, trustManagerFactory.getTrustManagers(), new SecureRandom());
         return context;
     }

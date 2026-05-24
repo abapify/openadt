@@ -94,7 +94,7 @@ public final class JCoEclipseBootstrap {
     private static void markJcoRegistrationSuccessful(Object activator) throws ReflectiveOperationException {
         try {
             writeBooleanField(activator, "successfullJCORegistration", true);
-        } catch (NoSuchFieldException error) {
+        } catch (NoSuchFieldException ignored) {
             writeBooleanField(activator, "successfulJCORegistration", true);
         }
     }
