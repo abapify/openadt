@@ -3,6 +3,7 @@ package org.openadt.core;
 import org.junit.jupiter.api.Test;
 
 import java.net.http.HttpClient;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -28,6 +29,31 @@ class HttpAdtTransportClientTest {
     }
 
     @Test
+    void resolvesCookieOnlyOnceDuringDiscoveryLookups() {
+        OpenAdtConfig config = new OpenAdtConfig();
+        AtomicInteger resolveCount = new AtomicInteger();
+        AdtHttpCookieProvider cookieProvider = new AdtHttpCookieProvider(
+            key -> null,
+            (cfg, profile) -> {
+                resolveCount.incrementAndGet();
+                return "ticket-once";
+            }
+        );
+        HttpAdtTransportClient client = new HttpAdtTransportClient(
+            config,
+            HttpClient.newHttpClient(),
+            cookieProvider,
+            new com.fasterxml.jackson.databind.ObjectMapper()
+        );
+        SystemProfile system = system("https://sap.example.com:443", "200");
+
+        client.buildCookieHeader(system);
+        client.buildCookieHeader(system);
+
+        assertEquals(1, resolveCount.get());
+    }
+
+    @Test
     void buildsCookieHeaderFromEnvironmentValueAndClient() {
         OpenAdtConfig config = new OpenAdtConfig();
         HttpAdtTransportClient client = client(config, "ticket-123");
@@ -41,7 +67,16 @@ class HttpAdtTransportClientTest {
     @Test
     void failsWhenCookieIsMissing() {
         OpenAdtConfig config = new OpenAdtConfig();
-        HttpAdtTransportClient client = client(config, null);
+        AdtHttpCookieProvider cookieProvider = new AdtHttpCookieProvider(
+            key -> null,
+            (cfg, profile) -> null
+        );
+        HttpAdtTransportClient client = new HttpAdtTransportClient(
+            config,
+            HttpClient.newHttpClient(),
+            cookieProvider,
+            new com.fasterxml.jackson.databind.ObjectMapper()
+        );
         SystemProfile system = system("https://sap.example.com:443", "200");
 
         IllegalStateException error = assertThrows(IllegalStateException.class, () -> client.buildCookieHeader(system));

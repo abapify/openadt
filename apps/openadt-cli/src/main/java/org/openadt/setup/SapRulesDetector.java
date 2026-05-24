@@ -19,14 +19,22 @@ import java.util.List;
 import java.util.Map;
 
 public class SapRulesDetector implements SystemDetector {
+    private static final String DEFAULT_ADT_BC_PATH = "/sap/bc/adt";
+
     private final List<Path> sapRulesFiles;
+    private final String adtBcPath;
 
     public SapRulesDetector() {
         this(SetupPathLocator.sapRulesFiles());
     }
 
     SapRulesDetector(List<Path> sapRulesFiles) {
+        this(sapRulesFiles, DEFAULT_ADT_BC_PATH);
+    }
+
+    SapRulesDetector(List<Path> sapRulesFiles, String adtBcPath) {
         this.sapRulesFiles = List.copyOf(sapRulesFiles);
+        this.adtBcPath = adtBcPath;
     }
 
     @Override
@@ -119,52 +127,54 @@ public class SapRulesDetector implements SystemDetector {
     }
 
     private String extractAdtDiscoveryUrl(Element rule) {
+        return firstMatchingAdtUri(rule, this::toDiscoveryUrl);
+    }
+
+    private String extractAdtHost(Element rule) {
+        return firstMatchingAdtUri(rule, uri -> blankToNull(uri.getHost()));
+    }
+
+    private String firstMatchingAdtUri(Element rule, java.util.function.Function<URI, String> mapper) {
         Element files = firstChild(rule, "files");
         if (files == null) {
             return null;
         }
         NodeList nameNodes = files.getElementsByTagName("name");
         for (int i = 0; i < nameNodes.getLength(); i++) {
-            String value = blankToNull(nameNodes.item(i).getTextContent());
-            if (value == null || !value.contains("/sap/bc/adt")) {
-                continue;
-            }
-            try {
-                URI uri = URI.create(value);
-                if (uri.getHost() == null) {
-                    continue;
-                }
-                String path = uri.getPath();
-                if (path == null || path.isBlank()) {
-                    path = "/sap/bc/adt";
-                }
-                return uri.getScheme() + "://" + uri.getAuthority() + path;
-            } catch (IllegalArgumentException ignored) {
-                // Ignore invalid URIs and keep scanning.
+            String mapped = mapAdtName(nameNodes.item(i).getTextContent(), mapper);
+            if (mapped != null) {
+                return mapped;
             }
         }
         return null;
     }
 
-    private String extractAdtHost(Element rule) {
-        Element files = firstChild(rule, "files");
-        if (files == null) {
+    private String mapAdtName(String rawValue, java.util.function.Function<URI, String> mapper) {
+        String value = blankToNull(rawValue);
+        if (value == null || !value.contains(adtBcPath)) {
             return null;
         }
-        NodeList nameNodes = files.getElementsByTagName("name");
-        for (int i = 0; i < nameNodes.getLength(); i++) {
-            String value = blankToNull(nameNodes.item(i).getTextContent());
-            if (value == null || !value.contains("/sap/bc/adt")) {
-                continue;
+        return mapAdtUri(value, mapper);
+    }
+
+    private String mapAdtUri(String value, java.util.function.Function<URI, String> mapper) {
+        try {
+            URI uri = URI.create(value);
+            if (uri.getHost() == null) {
+                return null;
             }
-            try {
-                URI uri = URI.create(value);
-                return blankToNull(uri.getHost());
-            } catch (IllegalArgumentException ignored) {
-                // Ignore invalid URIs and keep scanning.
-            }
+            return mapper.apply(uri);
+        } catch (IllegalArgumentException ignored) {
+            return null;
         }
-        return null;
+    }
+
+    private String toDiscoveryUrl(URI uri) {
+        String path = uri.getPath();
+        if (path == null || path.isBlank()) {
+            path = adtBcPath;
+        }
+        return uri.getScheme() + "://" + uri.getAuthority() + path;
     }
 
     private Element firstChild(Element parent, String tagName) {

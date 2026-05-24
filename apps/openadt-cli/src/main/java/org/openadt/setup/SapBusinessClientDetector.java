@@ -3,7 +3,6 @@ package org.openadt.setup;
 import org.openadt.core.SystemProfile;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 
 public class SapBusinessClientDetector implements SystemDetector {

@@ -11,28 +11,35 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 final class SetupPathLocator {
+    private static final String USER_HOME_PROPERTY = "user.home";
+    private static final String OS_NAME_PROPERTY = "os.name";
+    private static final String APPDATA_ENV = "APPDATA";
+    private static final String SAP_COMMON = "Common";
+    private static final String SAPUI_LANDSCAPE = "SAPUILandscape.xml";
+    private static final String SAP_BUSINESS_CLIENT = "SAP Business Client";
+
     private SetupPathLocator() {
     }
 
     static List<Path> sapGuiLandscapeFiles() {
         LinkedHashSet<Path> paths = new LinkedHashSet<>();
-        String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
-        String home = System.getProperty("user.home", "");
+        String os = System.getProperty(OS_NAME_PROPERTY, "").toLowerCase(Locale.ROOT);
+        String home = System.getProperty(USER_HOME_PROPERTY, "");
 
         if (os.contains("win")) {
-            String appData = System.getenv("APPDATA");
+            String appData = System.getenv(APPDATA_ENV);
             if (appData != null && !appData.isBlank()) {
-                paths.add(Path.of(appData, "SAP", "Common", "SAPUILandscape.xml"));
+                paths.add(Path.of(appData, "SAP", SAP_COMMON, SAPUI_LANDSCAPE));
             }
             if (!home.isBlank()) {
-                paths.add(Path.of(home, "AppData", "Roaming", "SAP", "Common", "SAPUILandscape.xml"));
+                paths.add(Path.of(home, "AppData", "Roaming", "SAP", SAP_COMMON, SAPUI_LANDSCAPE));
             }
         } else if (os.contains("mac")) {
-            paths.add(Path.of(home, "Library", "Application Support", "SAP", "Common", "SAPUILandscape.xml"));
+            paths.add(Path.of(home, "Library", "Application Support", "SAP", SAP_COMMON, SAPUI_LANDSCAPE));
         }
 
         for (Path windowsHome : windowsUserHomes()) {
-            paths.add(windowsHome.resolve("AppData/Roaming/SAP/Common/SAPUILandscape.xml"));
+            paths.add(windowsHome.resolve("AppData/Roaming/SAP/" + SAP_COMMON + "/" + SAPUI_LANDSCAPE));
         }
 
         return new ArrayList<>(paths);
@@ -49,15 +56,15 @@ final class SetupPathLocator {
 
     static List<Path> sapBusinessClientPaths() {
         LinkedHashSet<Path> paths = new LinkedHashSet<>();
-        String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+        String os = System.getProperty(OS_NAME_PROPERTY, "").toLowerCase(Locale.ROOT);
         if (os.contains("win")) {
-            String appData = System.getenv("APPDATA");
+            String appData = System.getenv(APPDATA_ENV);
             if (appData != null && !appData.isBlank()) {
-                paths.add(Path.of(appData, "SAP", "SAP Business Client"));
+                paths.add(Path.of(appData, "SAP", SAP_BUSINESS_CLIENT));
             }
             String programFiles = System.getenv("ProgramFiles");
             if (programFiles != null && !programFiles.isBlank()) {
-                paths.add(Path.of(programFiles, "SAP", "SAP Business Client"));
+                paths.add(Path.of(programFiles, "SAP", SAP_BUSINESS_CLIENT));
             }
         }
 
@@ -66,7 +73,7 @@ final class SetupPathLocator {
         }
         for (Path programFilesRoot : windowsProgramFilesRoots()) {
             paths.add(programFilesRoot.resolve("SAP").resolve("NWBC800"));
-            paths.add(programFilesRoot.resolve("SAP").resolve("SAP Business Client"));
+            paths.add(programFilesRoot.resolve("SAP").resolve(SAP_BUSINESS_CLIENT));
         }
         return new ArrayList<>(paths);
     }
@@ -81,7 +88,7 @@ final class SetupPathLocator {
 
     static List<Path> eclipseWorkspacePaths() {
         LinkedHashSet<Path> paths = new LinkedHashSet<>();
-        String home = System.getProperty("user.home", "");
+        String home = System.getProperty(USER_HOME_PROPERTY, "");
         if (!home.isBlank()) {
             paths.add(Path.of(home, "workspace"));
             paths.add(Path.of(home, "eclipse-workspace"));
@@ -138,10 +145,10 @@ final class SetupPathLocator {
 
     static List<Path> sapRulesFiles() {
         LinkedHashSet<Path> paths = new LinkedHashSet<>();
-        String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
-        String appData = System.getenv("APPDATA");
+        String os = System.getProperty(OS_NAME_PROPERTY, "").toLowerCase(Locale.ROOT);
+        String appData = System.getenv(APPDATA_ENV);
         if (os.contains("win") && appData != null && !appData.isBlank()) {
-            paths.add(Path.of(appData, "SAP", "Common", "saprules.xml"));
+            paths.add(Path.of(appData, "SAP", SAP_COMMON, "saprules.xml"));
         }
         for (Path windowsHome : windowsUserHomes()) {
             paths.add(windowsHome.resolve("AppData/Roaming/SAP/Common/saprules.xml"));
@@ -151,8 +158,8 @@ final class SetupPathLocator {
 
     private static List<Path> windowsUserHomes() {
         Set<Path> paths = new LinkedHashSet<>();
-        String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
-        String home = System.getProperty("user.home", "");
+        String os = System.getProperty(OS_NAME_PROPERTY, "").toLowerCase(Locale.ROOT);
+        String home = System.getProperty(USER_HOME_PROPERTY, "");
         String userProfile = System.getenv("USERPROFILE");
 
         if (os.contains("win")) {
@@ -183,7 +190,7 @@ final class SetupPathLocator {
 
     private static List<Path> windowsProgramFilesRoots() {
         Set<Path> paths = new LinkedHashSet<>();
-        String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+        String os = System.getProperty(OS_NAME_PROPERTY, "").toLowerCase(Locale.ROOT);
         if (os.contains("win")) {
             addIfPresent(paths, System.getenv("ProgramFiles"));
             addIfPresent(paths, System.getenv("ProgramFiles(x86)"));

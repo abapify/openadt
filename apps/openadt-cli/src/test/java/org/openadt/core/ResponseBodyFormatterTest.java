@@ -20,6 +20,16 @@ class ResponseBodyFormatterTest {
     }
 
     @Test
+    void prettyPrintsJsonWithEscapedQuotes() {
+        byte[] formatted = ResponseBodyFormatter.format(
+            Map.of("Content-Type", "application/json"),
+            "{\"msg\":\"value with \\\\\"quote\\\"\"}".getBytes(StandardCharsets.UTF_8)
+        );
+        String text = new String(formatted, StandardCharsets.UTF_8);
+        assertTrue(text.contains("\"msg\""));
+    }
+
+    @Test
     void prettyPrintsXml() {
         byte[] formatted = ResponseBodyFormatter.format(
             Map.of("Content-Type", "application/xml"),

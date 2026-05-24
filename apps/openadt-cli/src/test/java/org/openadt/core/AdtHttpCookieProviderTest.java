@@ -56,7 +56,10 @@ class AdtHttpCookieProviderTest {
         adt.setDiscoveryUrl("https://sap.example.com:8001/sap/bc/adt");
         system.setAdt(adt);
 
-        AdtHttpCookieProvider provider = new AdtHttpCookieProvider(key -> null);
+        AdtHttpCookieProvider provider = new AdtHttpCookieProvider(
+            key -> null,
+            (config, profile) -> null
+        );
 
         IllegalStateException error = assertThrows(
             IllegalStateException.class,
@@ -65,5 +68,25 @@ class AdtHttpCookieProviderTest {
 
         assertEquals(true, error.getMessage().contains("MYSAPSSO2"));
         assertEquals(true, error.getMessage().contains("https://sap.example.com:8001/sap/bc/adt"));
+    }
+
+    @Test
+    void fallsBackToReentranceTicketFlowWhenNoCookieInputsExist() {
+        SystemProfile system = new SystemProfile();
+        system.setClient("100");
+        system.setLanguage("EN");
+        SystemProfile.AdtConfig adt = new SystemProfile.AdtConfig();
+        adt.setDiscoveryUrl("https://sap.example.com");
+        system.setAdt(adt);
+
+        AdtHttpCookieProvider provider = new AdtHttpCookieProvider(
+            key -> null,
+            (config, profile) -> "ticket-from-callback"
+        );
+
+        assertEquals("ticket-from-callback", provider.resolveMysapsso2(
+            new OpenAdtConfig(),
+            system
+        ));
     }
 }

@@ -36,6 +36,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Executes ADT requests through the SAP ADT SDK (direct {@code com.sap.adt.*} API).
  */
 public class AdtSdkTransportClient implements AdtTransportClient {
+    private static final String HEADER_ACCEPT = "Accept";
     private static final Set<String> LOGGED_ON_DESTINATIONS = ConcurrentHashMap.newKeySet();
     private static final Map<String, Object> LOGON_LOCKS = new ConcurrentHashMap<>();
 
@@ -58,7 +59,7 @@ public class AdtSdkTransportClient implements AdtTransportClient {
             "GET",
             "/sap/bc/adt/discovery",
             "HTTP/1.1",
-            Map.of("Accept", "application/atomsvc+xml"),
+            Map.of(HEADER_ACCEPT, "application/atomsvc+xml"),
             new byte[0]
         ));
     }
@@ -69,9 +70,9 @@ public class AdtSdkTransportClient implements AdtTransportClient {
             throw new IllegalStateException("ADT SDK transport requires OpenAdt config (use AdtTransportFactory.create)");
         }
         try {
-            SapSdkRuntime.prepare(openAdtConfig, system);
+            SapSdkRuntime.prepare(openAdtConfig);
             SapDestinationResolver.ResolvedDestination resolved =
-                SapDestinationResolver.resolve(openAdtConfig, system);
+                SapDestinationResolver.resolve(system);
             log("destination id=" + resolved.destinationData().getId()
                 + (resolved.fromEclipse() ? " (eclipse)" : " (config)"));
             return executeDestination(
@@ -82,7 +83,7 @@ public class AdtSdkTransportClient implements AdtTransportClient {
         } catch (RuntimeException error) {
             throw error;
         } catch (Exception error) {
-            throw new RuntimeException("Failed to execute ADT SDK call: " + error.getMessage(), error);
+            throw new OpenAdtException("Failed to execute ADT SDK call: " + error.getMessage(), error);
         }
     }
 
@@ -129,7 +130,16 @@ public class AdtSdkTransportClient implements AdtTransportClient {
 
     private static ISystemConfiguration createSystemConfiguration(String destinationId, SystemProfile system) {
         ISystemConfigurationWritable writable = new SystemConfigurationWritable(destinationId);
+        applyBasicSystemFields(writable, system);
+        SystemProfile.JcoConfig jco = system.getJco();
+        if (jco != null) {
+            applyJcoConnectionSettings(writable, system, jco);
+            applySncSettings(writable, jco);
+        }
+        return writable;
+    }
 
+    private static void applyBasicSystemFields(ISystemConfigurationWritable writable, SystemProfile system) {
         if (system.getDescription() != null) {
             writable.setDescription(system.getDescription());
         }
@@ -145,39 +155,42 @@ public class AdtSdkTransportClient implements AdtTransportClient {
         if (system.getUser() != null) {
             writable.setPreferredUser(system.getUser());
         }
+    }
 
-        SystemProfile.JcoConfig jco = system.getJco();
-        if (jco != null) {
-            if (jco.getMshost() != null && !jco.getMshost().isBlank()) {
-                writable.setMessageServer(jco.getMshost());
-                if (jco.getMsserv() != null) {
-                    writable.setMessageServerService(jco.getMsserv());
-                }
-                if (jco.getGroup() != null) {
-                    writable.setGroup(jco.getGroup());
-                }
-            } else {
-                String server = jco.getAshost();
-                if ((server == null || server.isBlank()) && system.getAdt() != null) {
-                    server = system.getAdt().getAshost();
-                }
-                if (server != null && !server.isBlank()) {
-                    writable.setServer(server);
-                }
-                if (jco.getSysnr() != null) {
-                    writable.setSystemNumber(jco.getSysnr());
-                }
+    private static void applyJcoConnectionSettings(
+        ISystemConfigurationWritable writable,
+        SystemProfile system,
+        SystemProfile.JcoConfig jco
+    ) {
+        if (jco.getMshost() != null && !jco.getMshost().isBlank()) {
+            writable.setMessageServer(jco.getMshost());
+            if (jco.getMsserv() != null) {
+                writable.setMessageServerService(jco.getMsserv());
             }
-
-            boolean ssoEnabled = !"0".equals(jco.getSncSso());
-            writable.setSSOEnabled(ssoEnabled);
-            if (jco.getSncPartnername() != null && !jco.getSncPartnername().isBlank()) {
-                writable.setPartnerName(jco.getSncPartnername());
-                writable.setSNCType(resolveSncType(jco.getSncQop()));
+            if (jco.getGroup() != null) {
+                writable.setGroup(jco.getGroup());
             }
+            return;
         }
+        String server = jco.getAshost();
+        if ((server == null || server.isBlank()) && system.getAdt() != null) {
+            server = system.getAdt().getAshost();
+        }
+        if (server != null && !server.isBlank()) {
+            writable.setServer(server);
+        }
+        if (jco.getSysnr() != null) {
+            writable.setSystemNumber(jco.getSysnr());
+        }
+    }
 
-        return writable;
+    private static void applySncSettings(ISystemConfigurationWritable writable, SystemProfile.JcoConfig jco) {
+        boolean ssoEnabled = !"0".equals(jco.getSncSso());
+        writable.setSSOEnabled(ssoEnabled);
+        if (jco.getSncPartnername() != null && !jco.getSncPartnername().isBlank()) {
+            writable.setPartnerName(jco.getSncPartnername());
+            writable.setSNCType(resolveSncType(jco.getSncQop()));
+        }
     }
 
     private static ISystemConfiguration.SNCType resolveSncType(String sncQop) {
@@ -210,9 +223,9 @@ public class AdtSdkTransportClient implements AdtTransportClient {
 
     private IRequest createSdkRequest(ProxyRequest request) {
         IHeaders headers = com.sap.adt.communication.message.HeadersFactory.newHeaders();
-        if (request.headers() == null || request.getHeader("Accept") == null) {
+        if (request.headers() == null || request.getHeader(HEADER_ACCEPT) == null) {
             headers.addField(com.sap.adt.communication.message.HeadersFactory.newField(
-                "Accept",
+                HEADER_ACCEPT,
                 AdtAcceptHeaders.defaultAccept(request.uri())
             ));
         }
@@ -302,7 +315,7 @@ public class AdtSdkTransportClient implements AdtTransportClient {
         if (!Boolean.parseBoolean(System.getenv().getOrDefault("OPENADT_VERBOSE", "false"))) {
             return;
         }
-        System.err.println("[openadt sdk] " + message);
-        System.err.flush();
+        CliLog.error("[openadt sdk] " + message);
+        CliLog.stderr().flush();
     }
 }

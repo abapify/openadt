@@ -40,12 +40,16 @@ Supported fragment areas:
 
 ## [runtime] section
 
-| Field             | Type   | Description                                                                                                                                                                                               |
-| ----------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `jco_jar`         | string | Absolute path to the SAP JCo Java archive. Setup stores a **canonical** path (`com.sap.conn.jco-<version>.jar`); Eclipse p2 names like `com.sap.conn.jco_3.1.13.jar` are copied via `JCoJarCanonicalizer` |
-| `jco_native_dir`  | string | Directory containing JCo native libraries                                                                                                                                                                 |
-| `sapcrypto`       | string | Absolute path to sapcrypto.dll, libsapcrypto.so, or libsapcrypto.dylib                                                                                                                                    |
-| `adt_plugins_dir` | string | Eclipse/ADT plugin directory, typically `~/.p2/pool/plugins`                                                                                                                                              |
+| Field                      | Type   | Description                                                                                                                                                                                               |
+| -------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `jco_jar`                  | string | Absolute path to the SAP JCo Java archive. Setup stores a **canonical** path (`com.sap.conn.jco-<version>.jar`); Eclipse p2 names like `com.sap.conn.jco_3.1.13.jar` are copied via `JCoJarCanonicalizer` |
+| `jco_native_dir`           | string | Directory containing JCo native libraries                                                                                                                                                                 |
+| `sapcrypto`                | string | Absolute path to sapcrypto.dll, libsapcrypto.so, or libsapcrypto.dylib                                                                                                                                    |
+| `adt_plugins_dir`          | string | Eclipse/ADT plugin directory, typically `~/.p2/pool/plugins`                                                                                                                                              |
+| `http_ca_cert`             | string | Optional CA certificate path (PEM/DER) used by HTTP ADT transport TLS trust                                                                                                                               |
+| `http_truststore`          | string | Optional truststore path (JKS/PKCS12) used by HTTP ADT transport TLS trust                                                                                                                                |
+| `http_truststore_password` | string | Optional truststore password for `http_truststore`                                                                                                                                                        |
+| `http_callback_port`       | string | Optional localhost callback port for browser reentrance-ticket flow (`0` or unset = random local port)                                                                                                    |
 
 ## [secure_login] section
 
@@ -69,15 +73,38 @@ Supported fragment areas:
 
 Each destination profile:
 
-| Field         | Type   | Description                                                 |
-| ------------- | ------ | ----------------------------------------------------------- |
-| `alias`       | string | Short name used to reference the system                     |
-| `source`      | string | How the system was discovered (sapgui, eclipse-adt, manual) |
-| `description` | string | Human-readable name                                         |
-| `system_id`   | string | SAP system ID (SID, e.g. "PRD")                             |
-| `client`      | string | SAP client number (e.g. "100")                              |
-| `language`    | string | Logon language (e.g. "EN")                                  |
-| `user`        | string | Default logon user                                          |
+| Field             | Type   | Description                                                 |
+| ----------------- | ------ | ----------------------------------------------------------- |
+| `alias`           | string | Short name used to reference the system                     |
+| `source`          | string | How the system was discovered (sapgui, eclipse-adt, manual) |
+| `description`     | string | Human-readable name                                         |
+| `system_id`       | string | SAP system ID (SID, e.g. "PRD")                             |
+| `client`          | string | SAP client number (e.g. "100")                              |
+| `language`        | string | Logon language (e.g. "EN")                                  |
+| `user`            | string | Default logon user                                          |
+| `default_profile` | string | Profile name used when `fetch`/`proxy` omit `--profile`     |
+
+Legacy destinations without `default_profile` or `profiles.*` keep working: OpenADT uses destination-level `[destinations.<ALIAS>.jco]` and `[destinations.<ALIAS>.adt]` as today.
+
+### [destinations.<ALIAS>.profiles.<PROFILE>] subsection
+
+Named authentication profiles overlay destination defaults. Shared target details (client, JCo message-server settings, and so on) live on the destination; each profile selects transport and auth behavior.
+
+| Field                 | Type   | Description                                                          |
+| --------------------- | ------ | -------------------------------------------------------------------- |
+| `transport`           | string | ADT transport for this profile (`sdk`, `rest-rfc`, `http`)           |
+| `authentication_kind` | string | Authentication kind for this profile (e.g. `browser-sso`, `snc`)     |
+| `discovery_url`       | string | Logical frontend base URL for HTTP transport in this profile         |
+| `callback_port`       | string | Browser SSO callback port for this profile (`0` = random local port) |
+
+Optional nested subsections:
+
+- `[destinations.<ALIAS>.profiles.<PROFILE>.jco]` — JCo/SNC overrides for this profile
+- `[destinations.<ALIAS>.profiles.<PROFILE>.adt]` — ADT overrides for this profile
+
+When `--profile` is omitted and `default_profile` is set, OpenADT resolves that profile. When both are omitted, legacy destination-level `jco`/`adt` settings apply unchanged.
+
+Manual destinations created with `openadt config destinations create` are written to `destinations/manual.openadt.toml` when the entrypoint uses merge includes.
 
 ### [destinations.<ALIAS>.jco] subsection
 
@@ -114,12 +141,51 @@ description = "Development System"
 system_id = "DEV"
 client = "100"
 language = "EN"
+default_profile = "snc"
+
+[destinations.DEV.jco]
+mshost = "dev-ms.example.com"
+msserv = "3600"
+r3name = "DEV"
+group = "PUBLIC"
+
+[destinations.DEV.adt]
+discovery_url = "https://dev-adt.example.com/sap/bc/adt"
+
+[destinations.DEV.profiles.snc]
+transport = "sdk"
+authentication_kind = "snc"
+
+[destinations.DEV.profiles.snc.jco]
+snc_mode = "1"
+snc_qop = "9"
+snc_partnername = "p:CN=SAPServiceDEV"
+snc_sso = "1"
+
+[destinations.DEV.profiles.sso]
+transport = "http"
+authentication_kind = "browser-sso"
+discovery_url = "https://dev-adt.example.com/sap/bc/adt"
+callback_port = "0"
+```
+
+Legacy single-profile example (still supported):
+
+```toml
+version = 1
+
+[destinations.DEV]
+alias = "DEV"
+description = "Development System"
+system_id = "DEV"
+client = "100"
+language = "EN"
 
 [destinations.DEV.jco]
 ashost = "devserver.example.com"
 sysnr = "00"
 snc_mode = "1"
 snc_qop = "9"
-snc_partnername = "p:CN=DEV, O=Example, C=DE"
+snc_partnername = "p:CN=SAPServiceDEV"
 snc_sso = "1"
 ```

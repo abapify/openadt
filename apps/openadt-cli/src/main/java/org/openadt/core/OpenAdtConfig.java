@@ -30,6 +30,16 @@ public class OpenAdtConfig {
         private String sapcrypto;
         @JsonProperty("adt_plugins_dir")
         private String adtPluginsDir;
+        @JsonProperty("http_ca_cert")
+        private String httpCaCert;
+        @JsonProperty("http_truststore")
+        private String httpTruststore;
+        @JsonProperty("http_truststore_password")
+        private String httpTruststorePassword;
+        @JsonProperty("http_callback_port")
+        private String httpCallbackPort;
+        @JsonProperty("http_callback_host")
+        private String httpCallbackHost;
 
         public String getJcoJar() { return jcoJar; }
         public void setJcoJar(String jcoJar) { this.jcoJar = jcoJar; }
@@ -39,6 +49,16 @@ public class OpenAdtConfig {
         public void setSapcrypto(String sapcrypto) { this.sapcrypto = sapcrypto; }
         public String getAdtPluginsDir() { return adtPluginsDir; }
         public void setAdtPluginsDir(String adtPluginsDir) { this.adtPluginsDir = adtPluginsDir; }
+        public String getHttpCaCert() { return httpCaCert; }
+        public void setHttpCaCert(String httpCaCert) { this.httpCaCert = httpCaCert; }
+        public String getHttpTruststore() { return httpTruststore; }
+        public void setHttpTruststore(String httpTruststore) { this.httpTruststore = httpTruststore; }
+        public String getHttpTruststorePassword() { return httpTruststorePassword; }
+        public void setHttpTruststorePassword(String httpTruststorePassword) { this.httpTruststorePassword = httpTruststorePassword; }
+        public String getHttpCallbackPort() { return httpCallbackPort; }
+        public void setHttpCallbackPort(String httpCallbackPort) { this.httpCallbackPort = httpCallbackPort; }
+        public String getHttpCallbackHost() { return httpCallbackHost; }
+        public void setHttpCallbackHost(String httpCallbackHost) { this.httpCallbackHost = httpCallbackHost; }
     }
 
     public static class SecureLoginConfig {

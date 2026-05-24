@@ -18,27 +18,29 @@ public final class MfaBrowserLauncher {
         }
         URI uri = URI.create(url.trim());
         String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
-        if (os.contains("win")) {
-            openWindows(uri);
+        if (tryDesktopBrowse(uri)) {
             return;
         }
-        if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
-            try {
-                Desktop.getDesktop().browse(uri);
-                return;
-            } catch (Exception error) {
-                System.err.println("[openadt sdk] Desktop.browse failed: " + error.getMessage());
-            }
+        if (os.contains("win")) {
+            throw new IOException(
+                "Unable to open browser on Windows: Desktop.browse is unavailable or failed. "
+                    + "Run OpenADT in an interactive desktop session."
+            );
         }
         openViaOsShell(uri, os);
     }
 
-    private static void openWindows(URI uri) throws IOException {
-        Process process = new ProcessBuilder("cmd", "/c", "start", "", uri.toString())
-            .redirectErrorStream(true)
-            .start();
-        System.err.println("[openadt sdk] started browser via: cmd /c start " + uri);
-        System.err.flush();
+    private static boolean tryDesktopBrowse(URI uri) {
+        if (!Desktop.isDesktopSupported() || !Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
+            return false;
+        }
+        try {
+            Desktop.getDesktop().browse(uri);
+            return true;
+        } catch (Exception error) {
+            CliLog.error("[openadt sdk] Desktop.browse failed: " + error.getMessage());
+            return false;
+        }
     }
 
     private static void openViaOsShell(URI uri, String os) throws IOException {

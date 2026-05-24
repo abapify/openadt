@@ -30,7 +30,7 @@ Reusable workflows: **`.agents/skills/<name>/`** — `SKILL.md` plus optional he
 | `openadt-local-sap-runtime`         | SAP runtime, fetch, proxy, setup                                |
 | `openadt-devcontainer-host-runtime` | Devcontainer / WSL vs host                                      |
 
-**GitHub Copilot** (cloud agent): `.github/copilot-instructions.md` for Copilot-only `/act` rules (MCP, firewall).
+**GitHub Copilot** (cloud agent / code review on GitHub): [`.github/copilot-instructions.md`](.github/copilot-instructions.md) (repository-wide) plus path-specific [`.github/instructions/`](.github/instructions/) — see [GitHub docs](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/add-custom-instructions/add-repository-instructions). **Never edit PR title or description** unless the user asks.
 
 **OpenAI Codex** (cloud on GitHub): reads this file and `.agents/skills/act/SKILL.md` for `@codex /act` — use the shared skill, not Copilot instructions.
 
@@ -38,7 +38,7 @@ Reusable workflows: **`.agents/skills/<name>/`** — `SKILL.md` plus optional he
 
 ## Cloud agents on GitHub (`@codex /act`, `@claude /act`)
 
-**`/act` is not “resolve all threads”.** It means: implement review feedback in **product code**, reply in each thread, **then** resolve.
+**`/act` is not “resolve all threads”.** It means: implement review feedback in **product code**, reply **in each thread**, **then** resolve. **Do not edit PR title or description** unless the user explicitly asks.
 
 Follow [`.agents/skills/act/SKILL.md`](.agents/skills/act/SKILL.md):
 

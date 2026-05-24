@@ -1,5 +1,6 @@
 package org.openadt.cli;
 
+import org.openadt.core.CliLog;
 import org.openadt.core.ConfigLoader;
 import org.openadt.setup.ConfigBootstrapRunner;
 import org.openadt.setup.ConfigRuntimeBuilder;
@@ -33,8 +34,8 @@ public class SetupCommand implements Callable<Integer> {
             return 0;
         }
         if (!SetupRuntimePreparer.shouldPrepare(outcome.adtPluginsDir())) {
-            System.out.println("\nNo adt_plugins_dir detected; skipping SDK runtime build.");
-            System.out.println("fetch/proxy with SDK transport require Eclipse ADT plugins.");
+            CliLog.info("\nNo adt_plugins_dir detected; skipping SDK runtime build.");
+            CliLog.info("fetch/proxy with SDK transport requires Eclipse ADT plugins.");
             return 0;
         }
         return ConfigRuntimeBuilder.build(configPath, false);

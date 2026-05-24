@@ -9,7 +9,7 @@ public final class SapSdkRuntime {
     private SapSdkRuntime() {
     }
 
-    public static void prepare(OpenAdtConfig config, SystemProfile system) {
+    public static void prepare(OpenAdtConfig config) {
         if (config == null || config.getRuntime() == null) {
             throw new IllegalStateException("Runtime not configured. Run 'openadt setup' first.");
         }
@@ -22,15 +22,11 @@ public final class SapSdkRuntime {
             }
             JCoRuntimeBootstrap.prepare(config.getRuntime());
             AdtCommunicationBootstrap.prepare();
-            String systemId = system != null && system.getSystemId() != null
-                ? system.getSystemId()
-                : (system != null ? system.getAlias() : null);
             SecureLoginBootstrap.prepareForJco(
                 config,
                 SecureLoginBootstrap.hubBrowserMonitorEnabled(),
                 false,
-                false,
-                systemId
+                false
             );
             prepared = true;
         }

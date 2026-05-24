@@ -1,5 +1,6 @@
 package org.openadt.core;
 
+import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -17,7 +18,6 @@ class LocalProxyRegistryTest {
 
     @Test
     void registerReadAndUnregisterRoundTrip() throws IOException {
-        Path runtime = tempHome.resolve(".openadt/runtime");
         System.setProperty("user.home", tempHome.toString());
         try {
             LocalProxyRegistry.ProxyEndpoint endpoint = new LocalProxyRegistry.ProxyEndpoint(
@@ -29,7 +29,7 @@ class LocalProxyRegistryTest {
             );
             LocalProxyRegistry.register(endpoint);
             assertTrue(LocalProxyRegistry.read("DEV").isPresent());
-            assertEquals(8079, LocalProxyRegistry.read("DEV").orElseThrow().port());
+            assertEquals(8079, LocalProxyRegistry.read("DEV").orElseThrow().getPort());
             LocalProxyRegistry.unregister("DEV");
             assertFalse(LocalProxyRegistry.read("DEV").isPresent());
         } finally {
@@ -53,5 +53,27 @@ class LocalProxyRegistryTest {
             "openadt"
         );
         assertFalse(LocalProxyRegistry.isAlive(endpoint));
+    }
+
+    @Test
+    void isAliveReturnsTrueForLoopbackHttpServer() throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/__openadt/health", exchange -> {
+            exchange.sendResponseHeaders(204, -1);
+            exchange.close();
+        });
+        server.start();
+        try {
+            LocalProxyRegistry.ProxyEndpoint endpoint = new LocalProxyRegistry.ProxyEndpoint(
+                "DEV",
+                "127.0.0.1",
+                server.getAddress().getPort(),
+                false,
+                "openadt"
+            );
+            assertTrue(LocalProxyRegistry.isAlive(endpoint));
+        } finally {
+            server.stop(0);
+        }
     }
 }

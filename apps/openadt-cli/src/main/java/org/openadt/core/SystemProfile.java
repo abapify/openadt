@@ -2,6 +2,8 @@ package org.openadt.core;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.util.Map;
+
 public class SystemProfile {
     private String alias;
     private String source;
@@ -11,6 +13,9 @@ public class SystemProfile {
     private String client;
     private String language;
     private String user;
+    @JsonProperty("default_profile")
+    private String defaultProfile;
+    private Map<String, ProfileConfig> profiles;
     private JcoConfig jco;
     private AdtConfig adt;
 
@@ -28,6 +33,10 @@ public class SystemProfile {
     public void setLanguage(String language) { this.language = language; }
     public String getUser() { return user; }
     public void setUser(String user) { this.user = user; }
+    public String getDefaultProfile() { return defaultProfile; }
+    public void setDefaultProfile(String defaultProfile) { this.defaultProfile = defaultProfile; }
+    public Map<String, ProfileConfig> getProfiles() { return profiles; }
+    public void setProfiles(Map<String, ProfileConfig> profiles) { this.profiles = profiles; }
     public JcoConfig getJco() { return jco; }
     public void setJco(JcoConfig jco) { this.jco = jco; }
     public AdtConfig getAdt() { return adt; }
@@ -85,6 +94,8 @@ public class SystemProfile {
         private String discoveryUrl;
         @JsonProperty("authentication_kind")
         private String authenticationKind;
+        @JsonProperty("sso_landing_url")
+        private String ssoLandingUrl;
 
         public String getTransport() { return transport; }
         public void setTransport(String transport) { this.transport = transport; }
@@ -94,5 +105,36 @@ public class SystemProfile {
         public void setDiscoveryUrl(String discoveryUrl) { this.discoveryUrl = discoveryUrl; }
         public String getAuthenticationKind() { return authenticationKind; }
         public void setAuthenticationKind(String authenticationKind) { this.authenticationKind = authenticationKind; }
+        public String getSsoLandingUrl() { return ssoLandingUrl; }
+        public void setSsoLandingUrl(String ssoLandingUrl) { this.ssoLandingUrl = ssoLandingUrl; }
+    }
+
+    public static class ProfileConfig {
+        private String transport;
+        @JsonProperty("authentication_kind")
+        private String authenticationKind;
+        @JsonProperty("discovery_url")
+        private String discoveryUrl;
+        @JsonProperty("callback_port")
+        private String callbackPort;
+        @JsonProperty("sso_landing_url")
+        private String ssoLandingUrl;
+        private JcoConfig jco;
+        private AdtConfig adt;
+
+        public String getTransport() { return transport; }
+        public void setTransport(String transport) { this.transport = transport; }
+        public String getAuthenticationKind() { return authenticationKind; }
+        public void setAuthenticationKind(String authenticationKind) { this.authenticationKind = authenticationKind; }
+        public String getDiscoveryUrl() { return discoveryUrl; }
+        public void setDiscoveryUrl(String discoveryUrl) { this.discoveryUrl = discoveryUrl; }
+        public String getCallbackPort() { return callbackPort; }
+        public void setCallbackPort(String callbackPort) { this.callbackPort = callbackPort; }
+        public String getSsoLandingUrl() { return ssoLandingUrl; }
+        public void setSsoLandingUrl(String ssoLandingUrl) { this.ssoLandingUrl = ssoLandingUrl; }
+        public JcoConfig getJco() { return jco; }
+        public void setJco(JcoConfig jco) { this.jco = jco; }
+        public AdtConfig getAdt() { return adt; }
+        public void setAdt(AdtConfig adt) { this.adt = adt; }
     }
 }

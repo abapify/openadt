@@ -9,8 +9,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -31,7 +29,7 @@ public final class LocalProxyHttpClient implements AdtTransportClient {
     @Override
     public ProxyResponse execute(SystemProfile system, ProxyRequest request) {
         try {
-            URI uri = URI.create("http://" + endpoint.host() + ":" + endpoint.port() + request.uri());
+            URI uri = URI.create("http://" + endpoint.getHost() + ":" + endpoint.getPort() + request.uri());
             HttpRequest.Builder builder = HttpRequest.newBuilder(uri)
                 .timeout(Duration.ofMinutes(5))
                 .method(request.method(), bodyPublisher(request.body()));
@@ -40,14 +38,14 @@ public final class LocalProxyHttpClient implements AdtTransportClient {
                 builder.header(header.getKey(), header.getValue());
             }
 
-            if (endpoint.basicAuth()) {
+            if (endpoint.isBasicAuth()) {
                 String password = System.getenv("OPENADT_PROXY_PASSWORD");
                 if (password == null || password.isBlank()) {
                     throw new IllegalStateException(
                         "Local proxy requires basic auth. Set OPENADT_PROXY_PASSWORD or start proxy without --local-auth."
                     );
                 }
-                String username = endpoint.username() != null ? endpoint.username() : "openadt";
+                String username = endpoint.getUsername() != null ? endpoint.getUsername() : "openadt";
                 String token = Base64.getEncoder().encodeToString(
                     (username + ":" + password).getBytes(StandardCharsets.UTF_8)
                 );
@@ -61,9 +59,9 @@ public final class LocalProxyHttpClient implements AdtTransportClient {
             return toProxyResponse(response);
         } catch (InterruptedException error) {
             Thread.currentThread().interrupt();
-            throw new RuntimeException("Local proxy request interrupted", error);
+            throw new OpenAdtException("Local proxy request interrupted", error);
         } catch (IOException error) {
-            throw new RuntimeException("Local proxy request failed: " + error.getMessage(), error);
+            throw new OpenAdtException("Local proxy request failed: " + error.getMessage(), error);
         }
     }
 

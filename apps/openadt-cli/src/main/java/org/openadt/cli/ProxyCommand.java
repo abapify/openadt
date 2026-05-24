@@ -2,7 +2,9 @@ package org.openadt.cli;
 
 import org.openadt.core.AdtTransportClient;
 import org.openadt.core.AdtTransportFactory;
+import org.openadt.core.CliLog;
 import org.openadt.core.ConfigLoader;
+import org.openadt.core.DestinationProfileResolver;
 import org.openadt.core.LocalProxyRegistry;
 import org.openadt.core.OpenAdtConfig;
 import org.openadt.core.SystemProfile;
@@ -13,6 +15,8 @@ import picocli.CommandLine.Parameters;
 
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.io.IOException;
 
 @Command(
     name = "proxy",
@@ -40,74 +44,149 @@ public class ProxyCommand implements Callable<Integer> {
     @Option(names = {"--config", "-c"}, description = "Config file path")
     private Path configPath;
 
+    @Option(names = {"--profile"}, description = "Authentication profile name (e.g. snc, sso)")
+    private String profile;
+
     @Override
     public Integer call() throws Exception {
         ConfigLoader loader = new ConfigLoader();
         Path effectivePath = configPath != null ? configPath : loader.getDefaultConfigPath();
         OpenAdtConfig config = loader.load(effectivePath);
 
-        SystemProfile system = findSystem(config, systemAlias);
+        String effectiveAlias = resolveEffectiveAlias(config);
+        SystemProfile system = resolveSystem(config, effectiveAlias);
         if (system == null) {
-            System.err.println("System not found: " + systemAlias);
             return 1;
         }
 
         String effectiveListen = resolveListen(config);
-
-        // Resolve effective auth settings: CLI flags override config file
-        String effectiveAuth = localAuth != null ? localAuth
-            : (config.getProxy() != null ? config.getProxy().getAuth() : null);
-        String effectiveUsername = localUsername != null ? localUsername
-            : (config.getProxy() != null && config.getProxy().getUsername() != null
-                ? config.getProxy().getUsername() : "openadt");
-        String effectivePassword = localPassword != null ? localPassword
-            : System.getenv("OPENADT_PROXY_PASSWORD");
-
-        if ("basic".equalsIgnoreCase(effectiveAuth) && (effectivePassword == null || effectivePassword.isBlank())) {
-            System.err.println("Local proxy password required for basic auth. " +
-                "Use --local-password or set OPENADT_PROXY_PASSWORD environment variable.");
+        ProxyAuthSettings authSettings = resolveAuthSettings(config);
+        if (!validateBasicAuth(authSettings)) {
             return 1;
         }
 
-        AdtTransportClient transportClient;
+        AdtTransportClient transportClient = createTransportClient(config, system);
+        if (transportClient == null) {
+            return 1;
+        }
+
+        return runUntilShutdown(system, effectiveListen, authSettings, transportClient);
+    }
+
+    private String resolveEffectiveAlias(OpenAdtConfig config) {
+        if (systemAlias != null && !systemAlias.isBlank()) {
+            return systemAlias;
+        }
+        if (config.getSystems() != null && !config.getSystems().isEmpty()) {
+            return config.getSystems().get(0).getAlias();
+        }
+        return systemAlias;
+    }
+
+    private SystemProfile resolveSystem(OpenAdtConfig config, String effectiveAlias) {
         try {
-            transportClient = AdtTransportFactory.create(config, system);
-        } catch (IllegalStateException e) {
-            System.err.println(e.getMessage());
-            return 1;
+            return DestinationProfileResolver.resolve(config, effectiveAlias, profile);
+        } catch (IllegalArgumentException e) {
+            CliLog.error(e.getMessage());
+            return null;
         }
+    }
 
+    private ProxyAuthSettings resolveAuthSettings(OpenAdtConfig config) {
+        String effectiveAuth = localAuth;
+        if (effectiveAuth == null && config.getProxy() != null) {
+            effectiveAuth = config.getProxy().getAuth();
+        }
+        String effectiveUsername = localUsername;
+        if (effectiveUsername == null && config.getProxy() != null && config.getProxy().getUsername() != null) {
+            effectiveUsername = config.getProxy().getUsername();
+        }
+        if (effectiveUsername == null) {
+            effectiveUsername = "openadt";
+        }
+        String effectivePassword = localPassword != null ? localPassword : System.getenv("OPENADT_PROXY_PASSWORD");
+        return new ProxyAuthSettings(effectiveAuth, effectiveUsername, effectivePassword);
+    }
+
+    private boolean validateBasicAuth(ProxyAuthSettings authSettings) {
+        if (!"basic".equalsIgnoreCase(authSettings.auth())) {
+            return true;
+        }
+        if (authSettings.password() != null && !authSettings.password().isBlank()) {
+            return true;
+        }
+        CliLog.error("Local proxy password required for basic auth. " +
+            "Use --local-password or set OPENADT_PROXY_PASSWORD environment variable.");
+        return false;
+    }
+
+    private AdtTransportClient createTransportClient(OpenAdtConfig config, SystemProfile system) throws Exception {
+        try {
+            return AdtTransportFactory.create(config, system);
+        } catch (IllegalStateException e) {
+            CliLog.error(e.getMessage());
+            return null;
+        }
+    }
+
+    private int runUntilShutdown(
+        SystemProfile system,
+        String effectiveListen,
+        ProxyAuthSettings authSettings,
+        AdtTransportClient transportClient
+    ) throws IOException {
         LocalAdtProxyServer proxyServer = new LocalAdtProxyServer(transportClient);
-        int port = proxyServer.start(system, effectiveListen, effectiveAuth, effectiveUsername, effectivePassword);
+        int port = proxyServer.start(
+            system,
+            effectiveListen,
+            authSettings.auth(),
+            authSettings.username(),
+            authSettings.password()
+        );
         String host = parseHost(effectiveListen);
         String bound = host + ":" + port;
 
         LocalProxyRegistry.register(new LocalProxyRegistry.ProxyEndpoint(
             system.getAlias(),
+            profile,
             host,
             port,
-            "basic".equalsIgnoreCase(effectiveAuth),
-            effectiveUsername
+            "basic".equalsIgnoreCase(authSettings.auth()),
+            authSettings.username()
         ));
 
-        System.out.printf("OpenADT proxy for system '%s' listening on %s%n", system.getAlias(), bound);
-        System.out.println("Keep this running; openadt fetch reuses it automatically.");
-        System.out.println("Press Ctrl+C to stop.");
-        Object lock = new Object();
+        CliLog.info("OpenADT proxy for system '%s'%s listening on %s%n",
+            system.getAlias(),
+            formatProfileSuffix(profile),
+            bound);
+        CliLog.info("Keep this running; openadt fetch reuses it automatically.");
+        CliLog.info("Press Ctrl+C to stop.");
+        CountDownLatch keepRunning = new CountDownLatch(1);
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             try {
-                LocalProxyRegistry.unregister(system.getAlias());
+                LocalProxyRegistry.unregister(system.getAlias(), profile);
             } catch (Exception ignored) {
                 // best effort
             }
             proxyServer.stop();
-            synchronized (lock) { lock.notifyAll(); }
+            keepRunning.countDown();
         }));
-        synchronized (lock) {
-            try { lock.wait(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+        try {
+            keepRunning.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
-
         return 0;
+    }
+
+    private static String formatProfileSuffix(String profileName) {
+        if (profileName == null || profileName.isBlank()) {
+            return "";
+        }
+        return " (profile " + profileName + ")";
+    }
+
+    private record ProxyAuthSettings(String auth, String username, String password) {
     }
 
     private String resolveListen(OpenAdtConfig config) {
@@ -130,16 +209,5 @@ public class ProxyCommand implements Callable<Integer> {
             return listenAddress;
         }
         return listenAddress.substring(0, lastColon);
-    }
-
-    private SystemProfile findSystem(OpenAdtConfig config, String alias) {
-        if (config.getSystems() == null) return null;
-        if (alias == null && !config.getSystems().isEmpty()) {
-            return config.getSystems().get(0);
-        }
-        return config.getSystems().stream()
-            .filter(s -> alias.equals(s.getAlias()))
-            .findFirst()
-            .orElse(null);
     }
 }

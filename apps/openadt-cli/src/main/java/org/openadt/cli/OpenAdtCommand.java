@@ -1,5 +1,7 @@
 package org.openadt.cli;
 
+import org.openadt.core.CliLog;
+
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 
@@ -24,6 +26,6 @@ public class OpenAdtCommand implements Runnable {
 
     @Override
     public void run() {
-        new CommandLine(this).usage(System.out);
+        new CommandLine(this).usage(CliLog.stdout());
     }
 }

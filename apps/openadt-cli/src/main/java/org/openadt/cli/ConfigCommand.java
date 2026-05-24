@@ -1,5 +1,6 @@
 package org.openadt.cli;
 
+import org.openadt.core.CliLog;
 import org.openadt.core.ConfigLoader;
 import org.openadt.core.OpenAdtConfig;
 import org.openadt.core.SystemProfile;
@@ -21,7 +22,8 @@ import java.util.concurrent.Callable;
     description = "Show or manage OpenADT configuration",
     subcommands = {
         ConfigCommand.BootstrapCommand.class,
-        ConfigCommand.BuildCommand.class
+        ConfigCommand.BuildCommand.class,
+        ConfigDestinationsCommand.class
     }
 )
 public class ConfigCommand implements Callable<Integer> {
@@ -34,7 +36,7 @@ public class ConfigCommand implements Callable<Integer> {
         Path effectivePath = configPath != null ? configPath : loader.getDefaultConfigPath();
         OpenAdtConfig config = loader.load(effectivePath);
 
-        System.out.println("Config: " + effectivePath);
+        CliLog.info("Config: " + effectivePath);
         printSystems(config);
         printRuntime(config.getRuntime());
         printSecureLogin(config.getSecureLogin());
@@ -47,13 +49,13 @@ public class ConfigCommand implements Callable<Integer> {
     }
 
     private void printSystems(OpenAdtConfig config) {
-        System.out.println("\nSystems:");
+        CliLog.info("\nSystems:");
         if (config.getSystems() == null || config.getSystems().isEmpty()) {
-            System.out.println("  (none configured)");
+            CliLog.info("  (none configured)");
             return;
         }
         for (SystemProfile sys : config.getSystems()) {
-            System.out.printf("  - %s (%s)%n",
+            CliLog.info("  - %s (%s)%n",
                 sys.getAlias() != null ? sys.getAlias() : sys.getSystemId(),
                 sys.getSource() != null ? sys.getSource() : "config");
         }
@@ -63,18 +65,18 @@ public class ConfigCommand implements Callable<Integer> {
         if (runtime == null) {
             return;
         }
-        System.out.println("\nRuntime:");
+        CliLog.info("\nRuntime:");
         if (runtime.getJcoJar() != null) {
-            System.out.println("  - jco_jar: " + runtime.getJcoJar());
+            CliLog.info("  - jco_jar: " + runtime.getJcoJar());
         }
         if (runtime.getJcoNativeDir() != null) {
-            System.out.println("  - jco_native_dir: " + runtime.getJcoNativeDir());
+            CliLog.info("  - jco_native_dir: " + runtime.getJcoNativeDir());
         }
         if (runtime.getSapcrypto() != null) {
-            System.out.println("  - sapcrypto: " + runtime.getSapcrypto());
+            CliLog.info("  - sapcrypto: " + runtime.getSapcrypto());
         }
         if (runtime.getAdtPluginsDir() != null) {
-            System.out.println("  - adt_plugins_dir: " + runtime.getAdtPluginsDir());
+            CliLog.info("  - adt_plugins_dir: " + runtime.getAdtPluginsDir());
         }
     }
 
@@ -82,18 +84,18 @@ public class ConfigCommand implements Callable<Integer> {
         if (secureLogin == null || secureLogin.getLocalSecurityHub() == null) {
             return;
         }
-        System.out.println("\nSecure login:");
-        System.out.println("  - local_security_hub: " + secureLogin.getLocalSecurityHub());
+        CliLog.info("\nSecure login:");
+        CliLog.info("  - local_security_hub: " + secureLogin.getLocalSecurityHub());
     }
 
     private void printSdkRuntimeStatus() throws IOException {
         String version = SetupRuntimePreparer.readInstalledVersion();
         boolean ready = SetupRuntimePreparer.runtimeJarReady(version);
-        System.out.println("\nSDK runtime:");
-        System.out.println("  - openadt version: " + version);
-        System.out.println("  - built: " + (ready ? "yes" : "no"));
+        CliLog.info("\nSDK runtime:");
+        CliLog.info("  - openadt version: " + version);
+        CliLog.info("  - built: " + (ready ? "yes" : "no"));
         if (!ready) {
-            System.out.println("  - hint: run 'openadt config build' or 'openadt setup'");
+            CliLog.info("  - hint: run 'openadt config build' or 'openadt setup'");
         }
     }
 

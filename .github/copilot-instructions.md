@@ -1,6 +1,17 @@
 # OpenADT — Copilot repository instructions
 
+This file is the **repository-wide custom instructions** for GitHub Copilot ([official docs](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/add-custom-instructions/add-repository-instructions)). Copilot **cloud agent** and **Copilot code review** on GitHub load it automatically. Path-specific rules live under [`.github/instructions/`](instructions/).
+
 Trust this file and **do not re-discover** layout each session. For full agent rules, read [AGENTS.md](../AGENTS.md) at the repo root.
+
+## PR metadata — do not touch unless asked
+
+**Never edit a pull request title or description** unless the user explicitly asks you to update them.
+
+- Do **not** rename the PR to progress labels like “Addressing PR comments” or “Fix review feedback”.
+- Do **not** replace the author’s summary with an agent checklist, thread counts, or CI status.
+- On `/act`, track progress in **review thread replies** and commits — not by overwriting the PR body.
+- If the user asks to restore title/body, use GraphQL `pullRequest.userContentEdits` to find the author’s last version before agent edits.
 
 ## What this repo is
 
@@ -26,14 +37,17 @@ Assume **`gh` is installed and authenticated** (`gh auth status`).
 
 ## PR / review workflow (`/act`)
 
-Follow [`.agents/skills/act/SKILL.md`](../.agents/skills/act/SKILL.md).
+Follow [`.agents/skills/act/SKILL.md`](../.agents/skills/act/SKILL.md) and [`.github/instructions/act.instructions.md`](instructions/act.instructions.md).
 
-**Do not** run `resolve-open-threads.sh` until review comments are **fixed in code** (or answered in each thread). The script only closes GitHub UI state; it does not implement feedback.
+**Do not** run `resolve-open-threads.sh` until review comments are **fixed in code** (or answered **in each thread**). The script only closes GitHub UI state; it does not implement feedback.
 
-Order: read threads → product commits → reply in threads → then:
+**Wrong:** resolve all threads with no replies, then post one PR comment “addressed feedback”.  
+**Right:** per thread — fix or answer in that thread → commit → then resolve that thread (P4).
+
+Order: read threads → product commits → **reply in every thread** → then:
 
 ```bash
-bash .agents/skills/act/resolve-open-threads.sh abapify openadt 2
+bash .agents/skills/act/resolve-open-threads.sh abapify openadt <PR_NUMBER>
 ```
 
 Before pushing TS under `tools/`: `bunx nx format:write`.

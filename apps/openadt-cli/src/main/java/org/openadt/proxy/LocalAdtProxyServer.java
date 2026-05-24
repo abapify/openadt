@@ -9,6 +9,8 @@ import java.net.InetSocketAddress;
 import java.util.concurrent.Executors;
 
 public class LocalAdtProxyServer {
+    private static final String HEALTH_PATH = "/__openadt/health";
+
     private final AdtTransportClient transportClient;
     private HttpServer server;
 
@@ -31,6 +33,10 @@ public class LocalAdtProxyServer {
                      String username, String password) throws IOException {
         InetSocketAddress bindAddress = parseListenAddress(listenAddress);
         server = HttpServer.create(bindAddress, 0);
+        server.createContext(HEALTH_PATH, exchange -> {
+            exchange.sendResponseHeaders(204, -1);
+            exchange.close();
+        });
         AdtProxyHandler handler = new AdtProxyHandler(system, transportClient);
 
         var context = server.createContext("/", handler);

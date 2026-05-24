@@ -1,5 +1,6 @@
 package org.openadt.setup;
 
+import org.openadt.core.CliLog;
 import org.openadt.core.ConfigLoader;
 import org.openadt.core.OpenAdtConfig;
 import org.openadt.core.SystemProfile;
@@ -18,20 +19,20 @@ public final class ConfigBootstrapRunner {
         SetupAnalyzer analyzer = new SetupAnalyzer();
         SetupAnalyzer.SetupResult result = analyzer.analyze();
 
-        System.out.println("Detected systems:");
+        CliLog.info("Detected systems:");
         if (result.systems().isEmpty()) {
-            System.out.println("  (none found)");
+            CliLog.info("  (none found)");
         } else {
             for (SystemProfile sys : result.systems()) {
-                System.out.printf("  - %s (%s)%n",
+                CliLog.info("  - %s (%s)%n",
                     sys.getAlias() != null ? sys.getAlias() : sys.getSystemId(),
                     sys.getSource());
             }
         }
 
         if (!result.warnings().isEmpty()) {
-            System.out.println("\nWarnings:");
-            result.warnings().forEach(w -> System.out.println("  ! " + w));
+            CliLog.info("\nWarnings:");
+            result.warnings().forEach(w -> CliLog.info("  ! " + w));
         }
 
         printRuntime(result.runtime());
@@ -49,7 +50,7 @@ public final class ConfigBootstrapRunner {
         mergeRuntime(config, result.runtime());
         mergeSecureLogin(config, result.secureLogin());
         loader.saveSetupConfig(config, effectivePath);
-        System.out.println("\nConfig saved to: " + effectivePath);
+        CliLog.info("\nConfig saved to: " + effectivePath);
 
         String adtPluginsDir = config.getRuntime() != null ? config.getRuntime().getAdtPluginsDir() : null;
         return new Outcome(true, adtPluginsDir);
@@ -67,18 +68,18 @@ public final class ConfigBootstrapRunner {
         if (runtime == null) {
             return;
         }
-        System.out.println("\nDetected runtime:");
+        CliLog.info("\nDetected runtime:");
         if (runtime.getJcoJar() != null) {
-            System.out.println("  - jco_jar: " + runtime.getJcoJar());
+            CliLog.info("  - jco_jar: " + runtime.getJcoJar());
         }
         if (runtime.getJcoNativeDir() != null) {
-            System.out.println("  - jco_native_dir: " + runtime.getJcoNativeDir());
+            CliLog.info("  - jco_native_dir: " + runtime.getJcoNativeDir());
         }
         if (runtime.getSapcrypto() != null) {
-            System.out.println("  - sapcrypto: " + runtime.getSapcrypto());
+            CliLog.info("  - sapcrypto: " + runtime.getSapcrypto());
         }
         if (runtime.getAdtPluginsDir() != null) {
-            System.out.println("  - adt_plugins_dir: " + runtime.getAdtPluginsDir());
+            CliLog.info("  - adt_plugins_dir: " + runtime.getAdtPluginsDir());
         }
     }
 
@@ -86,8 +87,8 @@ public final class ConfigBootstrapRunner {
         if (secureLogin == null || secureLogin.getLocalSecurityHub() == null) {
             return;
         }
-        System.out.println("\nDetected secure login:");
-        System.out.println("  - local_security_hub: " + secureLogin.getLocalSecurityHub());
+        CliLog.info("\nDetected secure login:");
+        CliLog.info("  - local_security_hub: " + secureLogin.getLocalSecurityHub());
     }
 
     private static void mergeRuntime(OpenAdtConfig config, OpenAdtConfig.RuntimeConfig detectedRuntime) {

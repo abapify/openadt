@@ -60,6 +60,48 @@ Options:
 
 ---
 
+### openadt config destinations create
+
+Create or update a destination authentication profile in config.
+
+```bash
+openadt config destinations create \
+  --alias DEV \
+  --profile sso \
+  --transport http \
+  --auth browser-sso \
+  --discovery-url https://dev-adt.example.com/sap/bc/adt \
+  --client 100 \
+  --language EN \
+  --default-profile
+```
+
+Options:
+
+- `--alias <name>` — Destination alias (required)
+- `--profile <name>` — Profile name (required)
+- `--transport <mode>` — ADT transport (`sdk`, `http`, `rest-rfc`)
+- `--auth <kind>` — Authentication kind (e.g. `browser-sso`, `snc`)
+- `--discovery-url <url>` — ADT discovery URL (required for HTTP/browser SSO profiles)
+- `--client <client>` — SAP client (required)
+- `--language <lang>` — SAP language (default: `EN`)
+- `--description <text>` — Destination description
+- `--system-id <sid>` — SAP system ID (defaults to alias)
+- `--default-profile` — Set this profile as the destination default
+- `--callback-port <port>` — Browser SSO callback port (`0` = random)
+- `--jco-mshost`, `--jco-msserv`, `--jco-r3name`, `--jco-group` — Shared JCo message-server settings
+- `--snc-partnername`, `--snc-qop` — SNC profile overrides
+- `--config, -c <path>` — Config file path
+
+Behavior:
+
+- Non-interactive mode requires all mandatory flags; never prompts for or stores passwords or SSO tickets
+- Interactive mode prompts for missing required values when `System.console()` is available
+- Re-running for the same alias/profile updates that profile instead of duplicating tables
+- Fragment-based entrypoints write to `destinations/manual.openadt.toml`; flat configs are updated in place
+
+---
+
 ### openadt setup
 
 Shorthand for **`config bootstrap` + `config build`**: detect, save config, then build the SDK runtime when `adt_plugins_dir` is present.
@@ -126,6 +168,7 @@ Start the local ADT proxy server for a system.
 
 ```bash
 openadt proxy DEV
+openadt proxy DEV --profile snc
 openadt proxy DEV --listen 127.0.0.1:8080
 openadt proxy DEV --local-auth basic
 openadt proxy DEV --local-username openadt --local-password <password>
@@ -133,7 +176,7 @@ openadt proxy DEV --local-username openadt --local-password <password>
 
 Default listen address: `127.0.0.1:8079` (or `proxy.listen` from config).
 
-While the proxy is running, `openadt fetch` for the same system reuses it automatically (warm SAP session, no cold JVM/SDK startup). Use `openadt fetch --direct` to bypass the local proxy.
+While the proxy is running, `openadt fetch` for the same system and profile reuses it automatically (warm SAP session, no cold JVM/SDK startup). Use `openadt fetch --direct` to bypass the local proxy.
 
 Arguments:
 
@@ -145,6 +188,7 @@ Options:
 - `--local-auth <type>` — Local auth type (`basic`)
 - `--local-username <name>` — Local proxy username (default: `openadt`)
 - `--local-password <password>` — Local proxy password (falls back to `OPENADT_PROXY_PASSWORD` env var)
+- `--profile <name>` — Authentication profile (e.g. `snc`, `sso`; defaults to destination `default_profile` or legacy destination settings)
 - `--config, -c <path>` — Config file path
 
 Behavior:
@@ -165,9 +209,11 @@ Fetch a single ADT resource via the configured ADT transport.
 
 ```bash
 openadt fetch DEV /sap/bc/adt/core/http/systeminformation --pretty
-openadt fetch DEV /sap/bc/adt/core/discovery --pretty
+openadt fetch DEV /sap/bc/adt/core/http/systeminformation --profile sso --pretty
+openadt fetch DEV /sap/bc/adt/core/discovery --profile snc --pretty
 openadt fetch DEV /sap/bc/adt/core/http/systeminformation --pretty --raw
 openadt fetch DEV /sap/bc/adt/example --method POST --body @request.xml --header "Content-Type: application/xml"
+openadt fetch --base-url https://abap.example.invalid --client 100 --language EN --path /sap/bc/adt/core/http/systeminformation --accept application/vnd.sap.adt.core.http.systeminformation.v1+json
 ```
 
 Arguments:
@@ -188,10 +234,19 @@ Options:
 - `--raw` — Body only on stdout; no proxy/tip messages on stderr (for scripting; combine with `--pretty`)
 - `--direct` — Call SAP via SDK/JCo even when a local `openadt proxy` is running
 - `--config, -c <path>` — Config file path (default load order: `./.openadt/config.toml`, then `~/.openadt/config.toml`)
+- `--base-url <url>` — Direct HTTP ADT mode (browser SSO reentrance-ticket flow, no system alias required)
+- `--path <adt-path>` — ADT path in direct HTTP ADT mode
+- `--client <client>` — SAP client in direct HTTP ADT mode
+- `--language <lang>` — SAP language in direct HTTP ADT mode (default: `EN`)
+- `--ca-cert <path>` — CA certificate for explicit HTTPS trust in HTTP transport mode
+- `--truststore <path>` — Truststore file for explicit HTTPS trust in HTTP transport mode
+- `--truststore-password <secret>` — Truststore password for explicit HTTPS trust in HTTP transport mode
+- `--callback-port <port>` — Callback bind port for browser SSO flow (`0` picks a random local port)
+- `--profile <name>` — Authentication profile (e.g. `snc`, `sso`; cannot be combined with `--base-url`)
 
 Behavior:
 
-- When `openadt proxy <SYSTEM>` is running, `fetch` reuses it over loopback (fast path)
+- When `openadt proxy <SYSTEM>` is running for the same profile, `fetch` reuses it over loopback (fast path)
 - Without a running proxy, `fetch` starts a cold SDK/JCo session (slow first call)
 - `--body @file` reads request bytes from a file
 - `--output <file>` writes response body bytes
@@ -216,9 +271,12 @@ HTTP transport (`adt.transport = "http"`):
 
 - Does not use JCo or the ADT SDK
 - Requires `destinations.<alias>.adt.discovery_url` (logical frontend from `saprules.xml`)
-- Requires a SAP logon ticket via `OPENADT_MYSAPSSO2`, `secure_login.mysapsso2`, or `OPENADT_COOKIE_FILE`
+- Accepts SAP logon tickets from `OPENADT_MYSAPSSO2`, `secure_login.mysapsso2`, or `OPENADT_COOKIE_FILE`
+- If no ticket is available, OpenADT starts a localhost callback (`/adt/redirect`), opens the browser against `/sap/bc/adt/core/http/reentranceticket`, and captures the returned `reentrance-ticket` in memory
+- Reentrance tickets are kept in memory for the active request flow only; no ticket file is written by default
 - Uses the Secure Login hub only to verify Web Adapter login when `secure_login.origin` and `secure_login.web_adapter_profile_id` are configured
 - Resolves the ADT API base via `/.well-known/sap-adt-info` or `/sap/public/bc/icf/virtualhost`
+- Supports explicit TLS trust override via runtime config (`runtime.http_ca_cert`, `runtime.http_truststore`, `runtime.http_truststore_password`) or env (`OPENADT_HTTP_CA_CERT`, `OPENADT_HTTP_TRUSTSTORE`, `OPENADT_HTTP_TRUSTSTORE_PASSWORD`)
 
 Local SDK dev runner (not required in production installs):
 

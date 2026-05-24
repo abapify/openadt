@@ -13,6 +13,7 @@ class AdtRestRfcClientTest {
 
     static class FakeFunction {
         public void execute(DestinationContract destination) {
+            // test double noop
         }
     }
 

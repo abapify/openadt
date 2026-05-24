@@ -147,3 +147,5 @@ After merging detector results, `SetupAnalyzer` applies conservative defaults fo
 - `adt.transport = "rest-rfc"` when `runtime.adt_plugins_dir` is missing and `runtime.jco_jar` is detected
 - `adt.transport = "sdk"` when neither runtime prerequisite is detected yet
 - `adt.authentication_kind = "sso"` when SNC SSO is enabled
+
+`openadt setup` / `config bootstrap` continue to write legacy destination-level `jco` and `adt` tables (no `profiles.*` yet). Use `openadt config destinations create` to add named profiles such as `sso` for HTTP browser SSO alongside detected SNC destinations.
