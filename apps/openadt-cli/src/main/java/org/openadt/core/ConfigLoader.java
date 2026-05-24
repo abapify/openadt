@@ -790,28 +790,13 @@ public class ConfigLoader {
     private void writeJcoSection(List<String> lines, String alias, SystemProfile.JcoConfig jco) {
         lines.add("");
         lines.add(DESTINATIONS_PREFIX + quoteKey(alias) + ".jco]");
-        writeString(lines, "mshost", jco.getMshost());
-        writeString(lines, "msserv", jco.getMsserv());
-        writeString(lines, "r3name", jco.getR3name());
-        writeString(lines, "group", jco.getGroup());
-        writeString(lines, KEY_ASHOST, jco.getAshost());
-        writeString(lines, "sysnr", jco.getSysnr());
-        writeString(lines, "snc_mode", jco.getSncMode());
-        writeString(lines, "snc_qop", jco.getSncQop());
-        writeString(lines, "snc_partnername", jco.getSncPartnername());
-        writeString(lines, "snc_sso", jco.getSncSso());
-        writeString(lines, "sticky", jco.getSticky());
-        writeString(lines, "deny_initial_password", jco.getDenyInitialPassword());
+        writeJcoSectionFields(lines, jco);
     }
 
     private void writeAdtSection(List<String> lines, String alias, SystemProfile.AdtConfig adt) {
         lines.add("");
         lines.add(DESTINATIONS_PREFIX + quoteKey(alias) + ".adt]");
-        writeString(lines, KEY_TRANSPORT, adt.getTransport());
-        writeString(lines, KEY_ASHOST, adt.getAshost());
-        writeString(lines, KEY_DISCOVERY_URL, adt.getDiscoveryUrl());
-        writeString(lines, KEY_AUTHENTICATION_KIND, adt.getAuthenticationKind());
-        writeString(lines, KEY_SSO_LANDING_URL, adt.getSsoLandingUrl());
+        writeAdtSectionFields(lines, adt);
     }
 
     private void writeProfileSection(
