@@ -19,11 +19,13 @@ final class LoopbackHubTlsProbe {
     private LoopbackHubTlsProbe() {
     }
 
-    static X509Certificate probeCertificate(int port) throws IOException {
+    static X509Certificate probeCertificate(InetAddress loopback, int port) throws IOException {
+        if (loopback == null || !loopback.isLoopbackAddress()) {
+            throw new IOException("Refusing TLS probe for non-loopback address: " + loopback);
+        }
         if (port < 1 || port > 65535) {
             throw new IOException("Refusing TLS probe for invalid loopback port: " + port);
         }
-        InetAddress loopback = InetAddress.getLoopbackAddress();
         AtomicReference<X509Certificate> captured = new AtomicReference<>();
         try {
             SSLContext probeContext = SSLContext.getInstance("TLSv1.2");
@@ -52,6 +54,7 @@ final class LoopbackHubTlsProbe {
     ) throws IOException {
         try (SSLSocket socket = (SSLSocket) probeContext.getSocketFactory().createSocket()) {
             socket.connect(new InetSocketAddress(loopback, port), 5_000);
+            socket.setSoTimeout(5_000);
             socket.startHandshake();
         } catch (IOException handshakeFailure) {
             X509Certificate certificate = captured.get();

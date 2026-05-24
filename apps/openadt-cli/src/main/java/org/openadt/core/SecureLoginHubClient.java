@@ -6,7 +6,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManagerFactory;
 import java.io.IOException;
+import java.net.ConnectException;
 import java.net.InetAddress;
+import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -169,11 +171,15 @@ public class SecureLoginHubClient {
             try {
                 builder.sslContext(trustLocalHub(hubBaseUrl));
             } catch (IllegalStateException error) {
-                CliLog.error(
-                    "Secure Login hub TLS pinning skipped ("
-                        + error.getMessage()
-                        + "). HTTPS hub calls will fail until the hub is reachable and OpenADT is restarted."
-                );
+                if (isHubOffline(error)) {
+                    CliLog.error(
+                        "Secure Login hub TLS pinning skipped ("
+                            + error.getMessage()
+                            + "). HTTPS hub calls will fail until the hub is reachable and OpenADT is restarted."
+                    );
+                } else {
+                    throw error;
+                }
             }
         }
         return builder.build();
@@ -189,6 +195,24 @@ public class SecureLoginHubClient {
         } catch (Exception error) {
             return false;
         }
+    }
+
+    private static boolean isHubOffline(IllegalStateException error) {
+        Throwable cause = error;
+        while (cause != null) {
+            if (cause instanceof ConnectException || cause instanceof SocketTimeoutException) {
+                return true;
+            }
+            String message = cause.getMessage();
+            if (message != null
+                && (message.contains("Connection refused")
+                    || message.contains("connect timed out")
+                    || message.contains("No certificate captured"))) {
+                return true;
+            }
+            cause = cause.getCause();
+        }
+        return false;
     }
 
     private static SSLContext trustLocalHub(String hubBaseUrl) {
@@ -215,7 +239,11 @@ public class SecureLoginHubClient {
             throw new IllegalArgumentException("Secure Login hub URL must include a host: " + hubBaseUrl);
         }
         int port = hubUri.getPort() > 0 ? hubUri.getPort() : 443;
-        X509Certificate hubCertificate = LoopbackHubTlsProbe.probeCertificate(port);
+        InetAddress loopback = InetAddress.getByName(host);
+        if (!loopback.isLoopbackAddress()) {
+            throw new IllegalArgumentException("Secure Login hub TLS pinning requires a loopback host: " + host);
+        }
+        X509Certificate hubCertificate = LoopbackHubTlsProbe.probeCertificate(loopback, port);
         KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
         keyStore.load(null, null);
         keyStore.setCertificateEntry("secure-login-hub", hubCertificate);

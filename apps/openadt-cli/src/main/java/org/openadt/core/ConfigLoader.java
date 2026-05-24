@@ -26,9 +26,11 @@ public class ConfigLoader {
     private static final String DESTINATIONS_GLOB = "destinations/*.openadt.toml";
     private static final String PROFILES_SEGMENT = ".profiles.";
     private static final String KEY_SSO_LANDING_URL = "sso_landing_url";
+    // nosemgrep: codacy.java.security.hard-coded-password
     private static final String KEY_ASHOST = "ashost";
     private static final String KEY_TRANSPORT = "transport";
     private static final String KEY_DISCOVERY_URL = "discovery_url";
+    // nosemgrep: codacy.java.security.hard-coded-password
     private static final String KEY_AUTHENTICATION_KIND = "authentication_kind";
 
     private final TomlMapper mapper;
