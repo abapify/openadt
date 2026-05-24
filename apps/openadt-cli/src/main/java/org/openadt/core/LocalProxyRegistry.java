@@ -141,6 +141,7 @@ public final class LocalProxyRegistry {
             if (!address.isLoopbackAddress()) {
                 return false;
             }
+            // nosemgrep: java.lang.security.audit.crypto.unencrypted-socket.unencrypted-socket
             try (Socket socket = new Socket()) {
                 socket.connect(new InetSocketAddress(address, endpoint.getPort()), 500);
                 return true;

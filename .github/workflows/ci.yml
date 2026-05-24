@@ -19,13 +19,13 @@ jobs:
           filter: tree:0
           fetch-depth: 0
 
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
 
       # Connect with `bunx nx connect` and uncomment for Nx Agents + distributed CI.
       # - run: bunx nx start-ci-run --distribute-on="3 linux-medium-js" --stop-agents-after="test"
 
       - run: bun install --frozen-lockfile
-      - uses: nrwl/nx-set-shas@v5
+      - uses: nrwl/nx-set-shas@afb73a62d26e41464e9254689e1fd6122ee683c1 # v5
 
       - run: bunx nx format:check
       - run: bunx nx affected -t lint typecheck
