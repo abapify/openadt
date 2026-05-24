@@ -29,6 +29,7 @@ final class LoopbackHubTlsProbe {
             SSLContext probeContext = SSLContext.getInstance("TLSv1.2");
             probeContext.init(null, new TrustManager[]{captureTrustManager(captured)}, new SecureRandom());
             try (SSLSocket socket = (SSLSocket) probeContext.getSocketFactory().createSocket()) {
+                // nosemgrep: Semgrep_java_ssrf_rule-SSRF -- loopback-only Secure Login hub probe; address validated above
                 socket.connect(new InetSocketAddress(address, port), 5_000);
                 socket.startHandshake();
             } catch (IOException handshakeFailure) {
