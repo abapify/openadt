@@ -1,6 +1,7 @@
 package org.openadt.core;
 
-import java.lang.reflect.Field;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.lang.reflect.Method;
 
 /**
@@ -78,6 +79,8 @@ public final class JCoEclipseBootstrap {
         Method method = environmentClass.getMethod(registerMethod, providerClass);
         try {
             method.invoke(null, provider);
+        } catch (IllegalStateException error) {
+            log("JCo Environment." + registerMethod + " already registered (continuing)");
         } catch (ReflectiveOperationException error) {
             Throwable cause = error.getCause();
             if (cause instanceof IllegalStateException) {
@@ -89,27 +92,28 @@ public final class JCoEclipseBootstrap {
     }
 
     private static void markJcoRegistrationSuccessful(Object activator) throws ReflectiveOperationException {
-        Field flag = activator.getClass().getDeclaredField("successfullJCORegistration");
-        flag.setAccessible(true);
-        flag.setBoolean(activator, true);
+        writeBooleanField(activator, "successfullJCORegistration", true);
     }
 
     private static Object readField(Object target, String fieldName) throws ReflectiveOperationException {
-        Field field = target.getClass().getDeclaredField(fieldName);
-        field.setAccessible(true);
-        return field.get(target);
+        return privateFieldHandle(target.getClass(), fieldName).get(target);
     }
 
     private static Object getPluginInstance(Class<?> activatorClass) throws ReflectiveOperationException {
-        Field plugin = activatorClass.getDeclaredField("plugin");
-        plugin.setAccessible(true);
-        return plugin.get(null);
+        return privateFieldHandle(activatorClass, "plugin").get();
     }
 
     private static void setPluginInstance(Class<?> activatorClass, Object activator) throws ReflectiveOperationException {
-        Field plugin = activatorClass.getDeclaredField("plugin");
-        plugin.setAccessible(true);
-        plugin.set(null, activator);
+        privateFieldHandle(activatorClass, "plugin").set(activator);
+    }
+
+    private static void writeBooleanField(Object target, String fieldName, boolean value) throws ReflectiveOperationException {
+        privateFieldHandle(target.getClass(), fieldName).set(target, value);
+    }
+
+    private static VarHandle privateFieldHandle(Class<?> owner, String fieldName) throws ReflectiveOperationException {
+        MethodHandles.Lookup lookup = MethodHandles.privateLookupIn(owner, MethodHandles.lookup());
+        return lookup.unreflectVarHandle(owner.getDeclaredField(fieldName));
     }
 
     private static void log(String message) {
