@@ -19,18 +19,17 @@ final class LoopbackHubTlsProbe {
     private LoopbackHubTlsProbe() {
     }
 
-    static X509Certificate probeCertificate(String host, int port) throws IOException {
-        InetAddress address = InetAddress.getByName(host);
-        if (!address.isLoopbackAddress()) {
-            throw new IOException("Refusing TLS probe for non-loopback host: " + host);
+    static X509Certificate probeCertificate(int port) throws IOException {
+        if (port < 1 || port > 65535) {
+            throw new IOException("Refusing TLS probe for invalid loopback port: " + port);
         }
+        InetAddress loopback = InetAddress.getLoopbackAddress();
         AtomicReference<X509Certificate> captured = new AtomicReference<>();
         try {
             SSLContext probeContext = SSLContext.getInstance("TLSv1.2");
             probeContext.init(null, new TrustManager[]{captureTrustManager(captured)}, new SecureRandom());
             try (SSLSocket socket = (SSLSocket) probeContext.getSocketFactory().createSocket()) {
-                // nosemgrep: Semgrep_java_ssrf_rule-SSRF -- loopback-only Secure Login hub probe; address validated above
-                socket.connect(new InetSocketAddress(address, port), 5_000);
+                socket.connect(new InetSocketAddress(loopback, port), 5_000);
                 socket.startHandshake();
             } catch (IOException handshakeFailure) {
                 X509Certificate certificate = captured.get();
@@ -42,11 +41,11 @@ final class LoopbackHubTlsProbe {
         } catch (IOException error) {
             throw error;
         } catch (Exception error) {
-            throw new IOException("Failed TLS probe for loopback hub " + host + ":" + port, error);
+            throw new IOException("Failed TLS probe for loopback hub on port " + port, error);
         }
         X509Certificate certificate = captured.get();
         if (certificate == null) {
-            throw new IOException("No certificate captured from loopback hub " + host + ":" + port);
+            throw new IOException("No certificate captured from loopback hub on port " + port);
         }
         return certificate;
     }

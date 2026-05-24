@@ -205,7 +205,7 @@ public class SecureLoginHubClient {
             throw new IllegalArgumentException("Secure Login hub URL must include a host: " + hubBaseUrl);
         }
         int port = hubUri.getPort() > 0 ? hubUri.getPort() : 443;
-        X509Certificate hubCertificate = LoopbackHubTlsProbe.probeCertificate(host, port);
+        X509Certificate hubCertificate = LoopbackHubTlsProbe.probeCertificate(port);
         KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
         keyStore.load(null, null);
         keyStore.setCertificateEntry("secure-login-hub", hubCertificate);
