@@ -46,7 +46,7 @@ Supported fragment areas:
 | `jco_native_dir`           | string | Directory containing JCo native libraries                                                                                                                                                                 |
 | `sapcrypto`                | string | Absolute path to sapcrypto.dll, libsapcrypto.so, or libsapcrypto.dylib                                                                                                                                    |
 | `adt_plugins_dir`          | string | Eclipse/ADT plugin directory, typically `~/.p2/pool/plugins`                                                                                                                                              |
-| `http_ca_cert`             | string | Optional CA certificate path (PEM/DER) used by HTTP ADT transport TLS trust                                                                                                                               |
+| `http_ca_cert`             | string | Optional **global fallback** CA certificate path (PEM) for HTTP transport TLS. Prefer per-destination `destinations.*.adt.http_ca_cert` or `profiles.*.http_ca_cert` when landscapes differ.              |
 | `http_truststore`          | string | Optional truststore path (JKS/PKCS12) used by HTTP ADT transport TLS trust                                                                                                                                |
 | `http_truststore_password` | string | Optional truststore password for `http_truststore`                                                                                                                                                        |
 | `http_callback_port`       | string | Optional localhost callback port for browser reentrance-ticket flow (`0` or unset = random local port)                                                                                                    |
@@ -90,12 +90,15 @@ Legacy destinations without `default_profile` or `profiles.*` keep working: Open
 
 Named authentication profiles overlay destination defaults. Shared target details (client, JCo message-server settings, and so on) live on the destination; each profile selects transport and auth behavior.
 
-| Field                 | Type   | Description                                                          |
-| --------------------- | ------ | -------------------------------------------------------------------- |
-| `transport`           | string | ADT transport for this profile (`sdk`, `rest-rfc`, `http`)           |
-| `authentication_kind` | string | Authentication kind for this profile (e.g. `browser-sso`, `snc`)     |
-| `discovery_url`       | string | Logical frontend base URL for HTTP transport in this profile         |
-| `callback_port`       | string | Browser SSO callback port for this profile (`0` = random local port) |
+| Field                      | Type   | Description                                                                         |
+| -------------------------- | ------ | ----------------------------------------------------------------------------------- |
+| `transport`                | string | ADT transport for this profile (`sdk`, `rest-rfc`, `http`)                          |
+| `authentication_kind`      | string | Authentication kind for this profile (e.g. `browser-sso`, `snc`)                    |
+| `discovery_url`            | string | Logical frontend base URL for HTTP transport in this profile                        |
+| `http_ca_cert`             | string | CA certificate chain (PEM) for this profile's HTTP frontend (overrides `[runtime]`) |
+| `http_truststore`          | string | Truststore for this profile's HTTP frontend                                         |
+| `http_truststore_password` | string | Truststore password                                                                 |
+| `callback_port`            | string | Browser SSO callback port for this profile (`0` = random local port)                |
 
 Optional nested subsections:
 
@@ -123,12 +126,16 @@ Manual destinations created with `openadt config destinations create` are writte
 
 ### [destinations.<ALIAS>.adt] subsection
 
-| Field                 | Type   | Description                                                                                            |
-| --------------------- | ------ | ------------------------------------------------------------------------------------------------------ |
-| `transport`           | string | ADT transport (`sdk`, `rest-rfc`, `http`)                                                              |
-| `ashost`              | string | ADT server hostname (if different from JCo)                                                            |
-| `discovery_url`       | string | Logical frontend base URL for HTTP transport (e.g. `https://host:8001/sap/bc/adt` from `saprules.xml`) |
-| `authentication_kind` | string | Authentication kind for ADT                                                                            |
+| Field                      | Type   | Description                                                                                                                |
+| -------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `transport`                | string | ADT transport (`sdk`, `rest-rfc`, `http`)                                                                                  |
+| `ashost`                   | string | ADT server hostname (if different from JCo)                                                                                |
+| `discovery_url`            | string | Logical frontend base URL for HTTP transport (e.g. `https://host:8001/sap/bc/adt` from `saprules.xml`)                     |
+| `sso_landing_url`          | string | Optional corporate/IdP entry URL (your Okta app URL — not bare frontend `/`); also on `profiles.<PROFILE>.sso_landing_url` |
+| `http_ca_cert`             | string | CA certificate chain (PEM) for this destination's HTTP frontend TLS (overrides `[runtime] http_ca_cert`)                   |
+| `http_truststore`          | string | Optional truststore (JKS/PKCS12) for this destination's HTTP frontend                                                      |
+| `http_truststore_password` | string | Truststore password                                                                                                        |
+| `authentication_kind`      | string | Authentication kind for ADT                                                                                                |
 
 ## Example fragments
 

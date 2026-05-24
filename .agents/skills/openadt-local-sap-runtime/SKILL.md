@@ -153,9 +153,9 @@ fetch / proxy (--profile=sso)
     → AdtHttpCookieProvider.resolveMysapsso2()
          OPENADT_MYSAPSSO2 / secure_login.mysapsso2 / OPENADT_COOKIE_FILE
          else AdtHttpReentranceTicketFlow.acquireTicket()
-              1) optional sso_landing_url (only if configured — not site root by default)
-              2) open discovery_url mapped to /sap/bc/adt/core/discovery when config ends at bare /sap/bc/adt — establish ICF browser session without ExceptionResourceNotFound
-              3) localhost /adt/open launches popup → /sap/bc/adt/core/http/reentranceticket → /adt/redirect (auto-close when popup allowed)
+              1) optional sso_landing_url only (IdP/Okta URL — never default frontend /; that opens Fiori)
+              2) default: localhost /adt/open → reentranceticket (SAML redirects here on cold login)
+              3) optional bridge when OPENADT_HTTP_SSO_OPEN_BRIDGE=1 → /sap/bc/adt/discovery if discovery_url ends at bare /sap/bc/adt
     → Cookie: MYSAPSSO2=<ticket>
     → discoverAdtApiBase (well-known / virtualhost) + ADT request
 ```

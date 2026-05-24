@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
+import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
@@ -29,20 +30,13 @@ final class HttpTlsConfigurer {
     }
 
     SSLContext buildSslContext(OpenAdtConfig config) {
-        String truststorePath = runtime(config, OpenAdtConfig.RuntimeConfig::getHttpTruststore);
-        if (truststorePath == null) {
-            truststorePath = blankToNull(envProvider.apply("OPENADT_HTTP_TRUSTSTORE"));
-        }
+        return buildSslContext(config, null);
+    }
 
-        String truststorePassword = runtime(config, OpenAdtConfig.RuntimeConfig::getHttpTruststorePassword);
-        if (truststorePassword == null) {
-            truststorePassword = blankToNull(envProvider.apply("OPENADT_HTTP_TRUSTSTORE_PASSWORD"));
-        }
-
-        String caCertPath = runtime(config, OpenAdtConfig.RuntimeConfig::getHttpCaCert);
-        if (caCertPath == null) {
-            caCertPath = blankToNull(envProvider.apply("OPENADT_HTTP_CA_CERT"));
-        }
+    SSLContext buildSslContext(OpenAdtConfig config, SystemProfile system) {
+        String truststorePath = HttpTlsTrustResolver.resolveTruststore(config, system, envProvider);
+        String truststorePassword = HttpTlsTrustResolver.resolveTruststorePassword(config, system, envProvider);
+        String caCertPath = HttpTlsTrustResolver.resolveCaCert(config, system, envProvider);
 
         if (truststorePath == null && caCertPath == null) {
             return null;
@@ -55,7 +49,7 @@ final class HttpTlsConfigurer {
                 importTruststoreEntries(store, Path.of(truststorePath), truststorePassword);
             }
             if (caCertPath != null) {
-                importCertificate(store, Path.of(caCertPath));
+                importCertificates(store, Path.of(caCertPath));
             }
 
             TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
@@ -103,12 +97,14 @@ final class HttpTlsConfigurer {
         }
     }
 
-    private void importCertificate(KeyStore target, Path certificatePath)
+    private void importCertificates(KeyStore target, Path certificatePath)
         throws IOException, CertificateException, KeyStoreException {
         CertificateFactory factory = CertificateFactory.getInstance("X.509");
         try (InputStream stream = Files.newInputStream(certificatePath)) {
-            X509Certificate certificate = (X509Certificate) factory.generateCertificate(stream);
-            target.setCertificateEntry("ca-cert", certificate);
+            int index = 0;
+            for (Certificate certificate : factory.generateCertificates(stream)) {
+                target.setCertificateEntry("ca-cert-" + index++, certificate);
+            }
         }
     }
 

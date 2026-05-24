@@ -1,5 +1,6 @@
 package org.openadt.core;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.Map;
@@ -18,6 +19,9 @@ public class SystemProfile {
     private Map<String, ProfileConfig> profiles;
     private JcoConfig jco;
     private AdtConfig adt;
+    /** Set by {@link DestinationProfileResolver} when {@code --profile} or {@code default_profile} applies; not persisted in TOML. */
+    @JsonIgnore
+    private String activeProfile;
 
     public String getAlias() { return alias; }
     public void setAlias(String alias) { this.alias = alias; }
@@ -41,6 +45,8 @@ public class SystemProfile {
     public void setJco(JcoConfig jco) { this.jco = jco; }
     public AdtConfig getAdt() { return adt; }
     public void setAdt(AdtConfig adt) { this.adt = adt; }
+    public String getActiveProfile() { return activeProfile; }
+    public void setActiveProfile(String activeProfile) { this.activeProfile = activeProfile; }
 
     public static class JcoConfig {
         private String mshost;
@@ -96,6 +102,12 @@ public class SystemProfile {
         private String authenticationKind;
         @JsonProperty("sso_landing_url")
         private String ssoLandingUrl;
+        @JsonProperty("http_ca_cert")
+        private String httpCaCert;
+        @JsonProperty("http_truststore")
+        private String httpTruststore;
+        @JsonProperty("http_truststore_password")
+        private String httpTruststorePassword;
 
         public String getTransport() { return transport; }
         public void setTransport(String transport) { this.transport = transport; }
@@ -107,6 +119,14 @@ public class SystemProfile {
         public void setAuthenticationKind(String authenticationKind) { this.authenticationKind = authenticationKind; }
         public String getSsoLandingUrl() { return ssoLandingUrl; }
         public void setSsoLandingUrl(String ssoLandingUrl) { this.ssoLandingUrl = ssoLandingUrl; }
+        public String getHttpCaCert() { return httpCaCert; }
+        public void setHttpCaCert(String httpCaCert) { this.httpCaCert = httpCaCert; }
+        public String getHttpTruststore() { return httpTruststore; }
+        public void setHttpTruststore(String httpTruststore) { this.httpTruststore = httpTruststore; }
+        public String getHttpTruststorePassword() { return httpTruststorePassword; }
+        public void setHttpTruststorePassword(String httpTruststorePassword) {
+            this.httpTruststorePassword = httpTruststorePassword;
+        }
     }
 
     public static class ProfileConfig {
@@ -119,6 +139,12 @@ public class SystemProfile {
         private String callbackPort;
         @JsonProperty("sso_landing_url")
         private String ssoLandingUrl;
+        @JsonProperty("http_ca_cert")
+        private String httpCaCert;
+        @JsonProperty("http_truststore")
+        private String httpTruststore;
+        @JsonProperty("http_truststore_password")
+        private String httpTruststorePassword;
         private JcoConfig jco;
         private AdtConfig adt;
 
@@ -132,6 +158,14 @@ public class SystemProfile {
         public void setCallbackPort(String callbackPort) { this.callbackPort = callbackPort; }
         public String getSsoLandingUrl() { return ssoLandingUrl; }
         public void setSsoLandingUrl(String ssoLandingUrl) { this.ssoLandingUrl = ssoLandingUrl; }
+        public String getHttpCaCert() { return httpCaCert; }
+        public void setHttpCaCert(String httpCaCert) { this.httpCaCert = httpCaCert; }
+        public String getHttpTruststore() { return httpTruststore; }
+        public void setHttpTruststore(String httpTruststore) { this.httpTruststore = httpTruststore; }
+        public String getHttpTruststorePassword() { return httpTruststorePassword; }
+        public void setHttpTruststorePassword(String httpTruststorePassword) {
+            this.httpTruststorePassword = httpTruststorePassword;
+        }
         public JcoConfig getJco() { return jco; }
         public void setJco(JcoConfig jco) { this.jco = jco; }
         public AdtConfig getAdt() { return adt; }

@@ -36,7 +36,7 @@ public final class JCoEclipseBootstrap {
         } catch (ReflectiveOperationException error) {
             throw new IllegalStateException(
                 "Failed to initialize SAP JCo Eclipse bridge (com.sap.conn.jco.eclipse): "
-                    + error.getMessage(),
+                    + describeReflectiveFailure(error),
                 error
             );
         }
@@ -118,11 +118,23 @@ public final class JCoEclipseBootstrap {
         return lookup.unreflectVarHandle(owner.getDeclaredField(fieldName));
     }
 
-    private static void log(String message) {
-        if (!Boolean.parseBoolean(System.getenv().getOrDefault("OPENADT_VERBOSE", "true"))) {
-            return;
+    private static String describeReflectiveFailure(ReflectiveOperationException error) {
+        String message = error.getMessage();
+        if (message != null && !message.isBlank()) {
+            return message;
         }
-        CliLog.error("[openadt sdk] " + message);
-        CliLog.stderr().flush();
+        Throwable cause = error.getCause();
+        if (cause != null) {
+            String causeMessage = cause.getMessage();
+            if (causeMessage != null && !causeMessage.isBlank()) {
+                return cause.getClass().getSimpleName() + ": " + causeMessage;
+            }
+            return cause.getClass().getSimpleName();
+        }
+        return error.getClass().getSimpleName();
+    }
+
+    private static void log(String message) {
+        CliLog.sdk(message);
     }
 }

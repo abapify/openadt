@@ -25,10 +25,16 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
     private static final Duration DEFAULT_BRIDGE_WAIT = Duration.ofSeconds(15);
     private static final String CALLBACK_PATH = "/adt/redirect";
     private static final String SSO_LAUNCH_PATH = "/adt/open";
-    /** Core Atom discovery; lighter than full {@code /sap/bc/adt/discovery} for browser SSO bridge. */
-    private static final String SSO_BRIDGE_DISCOVERY_PATH = "/sap/bc/adt/core/discovery";
+    /**
+     * Full ADT Atom discovery for browser SSO bridge. Triggers ICF session on the ADT path after
+     * corporate landing. {@code /sap/bc/adt/core/discovery} often returns {@code 200} Atom that the
+     * browser downloads instead of SAML redirects on a cold login.
+     */
+    private static final String SSO_BRIDGE_DISCOVERY_PATH = "/sap/bc/adt/discovery";
     private static final String OPENADT_HTTP_SSO_NON_INTERACTIVE = "OPENADT_HTTP_SSO_NON_INTERACTIVE";
     private static final String OPENADT_HTTP_SSO_SKIP_BRIDGE = "OPENADT_HTTP_SSO_SKIP_BRIDGE";
+    /** Opt-in: open ADT discovery bridge tab before reentrance (often unnecessary; default is reentrance-only). */
+    private static final String OPENADT_HTTP_SSO_OPEN_BRIDGE = "OPENADT_HTTP_SSO_OPEN_BRIDGE";
     static final String SSO_LAUNCH_PAGE = """
             <!DOCTYPE html>
             <html lang="en">
@@ -103,7 +109,8 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
     public String acquireTicket(OpenAdtConfig config, SystemProfile system) {
         URI frontend = resolveFrontend(system);
         String alias = system != null && system.getAlias() != null ? system.getAlias() : "unknown";
-        CliLog.error("Browser SSO using destinations." + alias + " discovery_url: " + frontend);
+        CliLog.error("Browser SSO for " + alias + " — complete sign-in in the browser; keep this terminal open.");
+        CliLog.diagnostic("Browser SSO using destinations." + alias + " discovery_url: " + frontend);
         int requestedPort = resolveCallbackPort(config);
         SsoStepPlan ssoSteps = openPreReentranceBrowserSteps(frontend, system);
 
@@ -118,14 +125,17 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
             callbackUrl = buildCallbackUrl(callbackHost, actualPort, csrfState);
             SsoCallbackRegistry.markActive(callbackUrl, actualPort);
             URI reentranceUrl = buildReentranceTicketUrl(frontend, system, callbackUrl);
-            CliLog.error("Local callback listening on " + callbackUrl + " (keep this terminal open until redirect completes)");
-            waitBeforeReentranceStep();
             CliLog.error(
+                "Waiting for SSO callback on http://" + callbackHost + ":" + actualPort + CALLBACK_PATH
+            );
+            CliLog.diagnostic("Local callback URL: " + callbackUrl);
+            waitBeforeReentranceStep();
+            CliLog.diagnostic(
                 "Step "
                     + ssoSteps.reentranceStep()
                     + "/"
                     + ssoSteps.totalSteps()
-                    + ": open reentrance-ticket (expect redirect to the callback URL above): "
+                    + ": reentrance-ticket: "
                     + reentranceUrl
             );
             browserOpener.accept(buildSsoLaunchUrl(callbackHost, actualPort, reentranceUrl));
@@ -218,14 +228,14 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
             assertLiveBrowserUrl(landing, system, "sso_landing_url");
             return landing;
         }
-        // Do not default to site root: an existing portal SSO session often opens Fiori
-        // (/fiori#Shell-home) without establishing the ADT ICF browser session we need.
+        // Never default to frontend / — warm portal sessions open Fiori (/fiori#Shell-home)
+        // without ADT ICF cookies. Set sso_landing_url to your IdP/Okta app URL when needed.
         return null;
     }
 
     /**
      * Browser URL that establishes the ADT ICF session before reentrance-ticket.
-     * When {@code discovery_url} ends at {@code /sap/bc/adt}, map to {@code /sap/bc/adt/core/discovery}
+     * When {@code discovery_url} ends at {@code /sap/bc/adt}, map to {@code /sap/bc/adt/discovery}
      * so the browser does not show ExceptionResourceNotFound for the bare collection path.
      */
     static URI resolveSsoBridgeUrl(URI frontend) {
@@ -259,11 +269,13 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
         Console console = System.console();
         boolean interactive = console != null && !isTruthy(envProvider.apply(OPENADT_HTTP_SSO_NON_INTERACTIVE));
         int step = 1;
-        int totalSteps = (landingUrl != null ? 1 : 0) + (bridgeUrl != null ? 1 : 0) + 1;
+        boolean openBridge = bridgeUrl != null && shouldOpenBridgeInBrowser(interactive);
+        int totalSteps = (landingUrl != null ? 1 : 0) + (openBridge ? 1 : 0) + 1;
 
         if (landingUrl != null) {
-            CliLog.error(
-                "Step " + step + "/" + totalSteps + ": optional Okta/corporate landing (only when configured): "
+            CliLog.diagnostic(
+                "Step " + step + "/" + totalSteps
+                    + ": optional sso_landing_url (your IdP/Okta entry — not site /): "
                     + landingUrl
             );
             browserOpener.accept(landingUrl);
@@ -275,33 +287,28 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
             step++;
         }
 
-        if (bridgeUrl != null) {
-            boolean openBridgeTab = shouldOpenBridgeInBrowser(interactive);
-            CliLog.error(
+        if (openBridge) {
+            CliLog.diagnostic(
                 "Step " + step + "/" + totalSteps
-                    + ": ADT browser session"
-                    + (openBridgeTab ? " (open this URL; SAML redirects may appear here on a cold login)" : " (skipped — warm session assumed)")
-                    + ": "
+                    + ": optional ADT bridge (OPENADT_HTTP_SSO_OPEN_BRIDGE): "
                     + bridgeUrl
             );
-            if (openBridgeTab) {
-                browserOpener.accept(bridgeUrl);
-            } else {
-                CliLog.error(
-                    "No bridge tab opened. CLI cannot read browser cookies; reentrance-ticket will open next. "
-                        + "If you see HTTP Basic on reentrance-ticket, sign in at the URL above manually or unset "
-                        + OPENADT_HTTP_SSO_SKIP_BRIDGE + " / raise OPENADT_HTTP_SSO_BRIDGE_WAIT_SECONDS."
-                );
-            }
+            browserOpener.accept(bridgeUrl);
             waitForSsoStep(
                 console,
                 interactive,
-                openBridgeTab
-                    ? "When ADT is ready (Atom feed without redirect is OK if already signed in), press Enter to continue..."
-                    : "Press Enter to continue..."
+                "When ADT ICF session is ready, press Enter to continue..."
             );
             waitForBridgeInNonInteractiveMode();
-        } else if (landingUrl == null) {
+            step++;
+        } else if (bridgeUrl != null) {
+            CliLog.diagnostic(
+                "ADT bridge tab skipped (default). SSO runs via reentrance-ticket redirects. "
+                    + "Set " + OPENADT_HTTP_SSO_OPEN_BRIDGE + "=1 to open " + bridgeUrl + " first."
+            );
+        }
+
+        if (bridgeUrl == null && landingUrl == null) {
             throw new IllegalStateException(
                 "HTTP browser SSO requires destinations.<alias>.adt.discovery_url with an ADT path such as /sap/bc/adt."
             );
@@ -319,7 +326,7 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
         if (wait.isZero() || wait.isNegative()) {
             return;
         }
-        CliLog.error(
+        CliLog.diagnostic(
             "Non-interactive terminal: waiting "
                 + wait.toSeconds()
                 + "s for browser SAML on ADT entry before opening reentrance-ticket..."
@@ -333,20 +340,14 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
     }
 
     private boolean shouldOpenBridgeInBrowser(boolean interactive) {
-        if (isTruthy(envProvider.apply(OPENADT_HTTP_SSO_SKIP_BRIDGE))) {
-            return false;
-        }
-        if (!interactive) {
-            Duration wait = resolveBridgeWait();
-            if (wait.isZero() || wait.isNegative()) {
-                return false;
-            }
-        }
-        return true;
+        return shouldOpenBridgeInBrowser(envProvider, interactive);
     }
 
     static boolean shouldOpenBridgeInBrowser(UnaryOperator<String> envProvider, boolean interactive) {
         if (isTruthy(envProvider.apply(OPENADT_HTTP_SSO_SKIP_BRIDGE))) {
+            return false;
+        }
+        if (!isTruthy(envProvider.apply(OPENADT_HTTP_SSO_OPEN_BRIDGE))) {
             return false;
         }
         if (!interactive) {

@@ -93,6 +93,21 @@ cd openadt/apps/openadt-cli
 mvn package -DskipTests
 ```
 
+From the repository root (dev build, not Scoop/winget):
+
+```powershell
+cd openadt
+.\openadt.ps1 --help
+.\openadt.cmd fetch DEV /sap/bc/adt/core/http/systeminformation --profile sso
+```
+
+```bash
+chmod +x openadt   # once, on Unix / Git Bash
+./openadt setup
+```
+
+Uses the newest `apps/openadt-cli/target/openadt-*.jar`. For `--profile snc`, use `scripts/openadt-sdk.ps1` on Windows.
+
 ### Windows launcher
 
 ```powershell
@@ -139,8 +154,8 @@ Three steps: **install → setup → proxy + fetch**.
 scoop bucket add openadt https://github.com/abapify/scoop-bucket.git
 scoop install openadt
 openadt setup
-openadt proxy S0D
-openadt fetch S0D /sap/bc/adt/core/http/systeminformation --json
+openadt proxy DEV
+openadt fetch DEV /sap/bc/adt/core/http/systeminformation --json
 ```
 
 Keep `openadt proxy` running in one terminal; `fetch` reuses it automatically (fast). Without proxy, `fetch` still works but starts a cold SAP session each time (~15 s).

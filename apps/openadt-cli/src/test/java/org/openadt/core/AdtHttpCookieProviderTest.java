@@ -71,6 +71,26 @@ class AdtHttpCookieProviderTest {
     }
 
     @Test
+    void prefersDiskCacheBeforeBrowserFlow(@TempDir Path openadtHome) throws Exception {
+        SystemProfile system = new SystemProfile();
+        system.setAlias("DEV");
+        system.setClient("100");
+        SystemProfile.AdtConfig adt = new SystemProfile.AdtConfig();
+        adt.setDiscoveryUrl("https://dev-adt.example.com/sap/bc/adt");
+        system.setAdt(adt);
+
+        HttpSsoTicketCache cache = new HttpSsoTicketCache(openadtHome, key -> null);
+        cache.write(system, "cached-ticket");
+
+        AdtHttpTicketProvider neverCalled = (config, profile) -> {
+            throw new AssertionError("browser SSO should not run when cache is valid");
+        };
+        AdtHttpCookieProvider provider = new AdtHttpCookieProvider(key -> null, neverCalled, cache);
+
+        assertEquals("cached-ticket", provider.resolveMysapsso2(new OpenAdtConfig(), system));
+    }
+
+    @Test
     void fallsBackToReentranceTicketFlowWhenNoCookieInputsExist() {
         SystemProfile system = new SystemProfile();
         system.setClient("100");

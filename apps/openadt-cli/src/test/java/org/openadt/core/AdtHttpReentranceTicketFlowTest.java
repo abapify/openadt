@@ -51,10 +51,20 @@ class AdtHttpReentranceTicketFlowTest {
     }
 
     @Test
-    void defaultsSsoLandingUrlToNullWithoutExplicitConfig() {
+    void defaultsSsoLandingUrlToNullWithoutSystem() {
         URI landing = AdtHttpReentranceTicketFlow.resolveSsoLandingUrl(null);
 
         assertNull(landing);
+    }
+
+    @Test
+    void neverAutoOpensFrontendRootAsLanding() {
+        SystemProfile system = new SystemProfile();
+        SystemProfile.AdtConfig adt = new SystemProfile.AdtConfig();
+        adt.setDiscoveryUrl("https://abap.example.corp/sap/bc/adt");
+        system.setAdt(adt);
+
+        assertNull(AdtHttpReentranceTicketFlow.resolveSsoLandingUrl(system));
     }
 
     @Test
@@ -115,21 +125,21 @@ class AdtHttpReentranceTicketFlowTest {
     }
 
     @Test
-    void resolvesSsoBridgeUrlToCoreDiscoveryWhenDiscoveryEndsAtAdtCollection() {
+    void resolvesSsoBridgeUrlToFullDiscoveryWhenDiscoveryEndsAtAdtCollection() {
         URI bridge = AdtHttpReentranceTicketFlow.resolveSsoBridgeUrl(
             URI.create("https://abap.example.invalid/sap/bc/adt")
         );
 
-        assertEquals("https://abap.example.invalid/sap/bc/adt/core/discovery", bridge.toString());
+        assertEquals("https://abap.example.invalid/sap/bc/adt/discovery", bridge.toString());
     }
 
     @Test
-    void resolvesSsoBridgeUrlToCoreDiscoveryWhenDiscoveryHasTrailingSlash() {
+    void resolvesSsoBridgeUrlToFullDiscoveryWhenDiscoveryHasTrailingSlash() {
         URI bridge = AdtHttpReentranceTicketFlow.resolveSsoBridgeUrl(
             URI.create("https://abap.example.invalid/sap/bc/adt/")
         );
 
-        assertEquals("https://abap.example.invalid/sap/bc/adt/core/discovery", bridge.toString());
+        assertEquals("https://abap.example.invalid/sap/bc/adt/discovery", bridge.toString());
     }
 
     @Test
@@ -160,8 +170,16 @@ class AdtHttpReentranceTicketFlowTest {
     }
 
     @Test
-    void opensBridgeTabByDefaultInInteractiveMode() {
-        assertTrue(AdtHttpReentranceTicketFlow.shouldOpenBridgeInBrowser(key -> null, true));
+    void skipsBridgeTabByDefaultInInteractiveMode() {
+        assertFalse(AdtHttpReentranceTicketFlow.shouldOpenBridgeInBrowser(key -> null, true));
+    }
+
+    @Test
+    void opensBridgeTabWhenOpenBridgeEnvSet() {
+        assertTrue(AdtHttpReentranceTicketFlow.shouldOpenBridgeInBrowser(
+            key -> "OPENADT_HTTP_SSO_OPEN_BRIDGE".equals(key) ? "1" : null,
+            true
+        ));
     }
 
     @Test
@@ -183,7 +201,11 @@ class AdtHttpReentranceTicketFlowTest {
     @Test
     void opensBridgeTabInNonInteractiveModeWhenBridgeWaitIsPositive() {
         assertTrue(AdtHttpReentranceTicketFlow.shouldOpenBridgeInBrowser(
-            key -> "OPENADT_HTTP_SSO_BRIDGE_WAIT_SECONDS".equals(key) ? "15" : null,
+            key -> switch (key) {
+                case "OPENADT_HTTP_SSO_OPEN_BRIDGE" -> "1";
+                case "OPENADT_HTTP_SSO_BRIDGE_WAIT_SECONDS" -> "15";
+                default -> null;
+            },
             false
         ));
     }

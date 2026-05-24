@@ -89,7 +89,25 @@ public class ConfigLoader {
         if (!Files.exists(path)) {
             return new OpenAdtConfig();
         }
-        return loadFragment(path.toAbsolutePath().normalize(), new LinkedHashSet<>());
+        OpenAdtConfig config = loadFragment(path.toAbsolutePath().normalize(), new LinkedHashSet<>());
+        canonicalizeRuntimeJcoJar(config);
+        return config;
+    }
+
+    private static void canonicalizeRuntimeJcoJar(OpenAdtConfig config) {
+        if (config.getRuntime() == null || config.getRuntime().getJcoJar() == null) {
+            return;
+        }
+        String configured = config.getRuntime().getJcoJar().trim();
+        if (configured.isEmpty()) {
+            return;
+        }
+        try {
+            Path canonical = JCoJarCanonicalizer.canonicalize(Path.of(configured));
+            config.getRuntime().setJcoJar(canonical.toString());
+        } catch (IOException ignored) {
+            // Keep configured path when the file is missing or unreadable.
+        }
     }
 
     public void save(OpenAdtConfig config, Path path) throws IOException {
@@ -629,6 +647,15 @@ public class ConfigLoader {
         if (source.getSsoLandingUrl() != null) {
             target.setSsoLandingUrl(source.getSsoLandingUrl());
         }
+        if (source.getHttpCaCert() != null) {
+            target.setHttpCaCert(source.getHttpCaCert());
+        }
+        if (source.getHttpTruststore() != null) {
+            target.setHttpTruststore(source.getHttpTruststore());
+        }
+        if (source.getHttpTruststorePassword() != null) {
+            target.setHttpTruststorePassword(source.getHttpTruststorePassword());
+        }
         if (source.getJco() != null) {
             SystemProfile.JcoConfig jco = target.getJco();
             if (jco == null) {
@@ -701,6 +728,15 @@ public class ConfigLoader {
         }
         if (source.getSsoLandingUrl() != null) {
             target.setSsoLandingUrl(source.getSsoLandingUrl());
+        }
+        if (source.getHttpCaCert() != null) {
+            target.setHttpCaCert(source.getHttpCaCert());
+        }
+        if (source.getHttpTruststore() != null) {
+            target.setHttpTruststore(source.getHttpTruststore());
+        }
+        if (source.getHttpTruststorePassword() != null) {
+            target.setHttpTruststorePassword(source.getHttpTruststorePassword());
         }
     }
 
@@ -867,6 +903,9 @@ public class ConfigLoader {
         writeString(lines, KEY_DISCOVERY_URL, profile.getDiscoveryUrl());
         writeString(lines, "callback_port", profile.getCallbackPort());
         writeString(lines, KEY_SSO_LANDING_URL, profile.getSsoLandingUrl());
+        writeString(lines, "http_ca_cert", profile.getHttpCaCert());
+        writeString(lines, "http_truststore", profile.getHttpTruststore());
+        writeString(lines, "http_truststore_password", profile.getHttpTruststorePassword());
 
         if (profile.getJco() != null) {
             lines.add("");
@@ -901,6 +940,9 @@ public class ConfigLoader {
         writeString(lines, KEY_DISCOVERY_URL, adt.getDiscoveryUrl());
         writeString(lines, KEY_AUTHENTICATION_KIND, adt.getAuthenticationKind());
         writeString(lines, KEY_SSO_LANDING_URL, adt.getSsoLandingUrl());
+        writeString(lines, "http_ca_cert", adt.getHttpCaCert());
+        writeString(lines, "http_truststore", adt.getHttpTruststore());
+        writeString(lines, "http_truststore_password", adt.getHttpTruststorePassword());
     }
 
     private void writeLocalFragment(Path path, OpenAdtConfig config) throws IOException {

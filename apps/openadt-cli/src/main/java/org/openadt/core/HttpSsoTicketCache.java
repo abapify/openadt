@@ -1,0 +1,276 @@
+package org.openadt.core;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.io.IOException;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
+import java.security.MessageDigest;
+import java.util.HexFormat;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.UnaryOperator;
+
+/**
+ * Persists HTTP SSO sessions (MYSAPSSO2 + resolved ADT API base) under {@code ~/.openadt/cache/http-sso/}.
+ */
+public final class HttpSsoTicketCache {
+    static final String DISABLE_ENV = "OPENADT_HTTP_SSO_NO_CACHE";
+    private static final String CACHE_SUBDIR = "cache/http-sso";
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    private final Path cacheRoot;
+    private final UnaryOperator<String> envProvider;
+
+    public HttpSsoTicketCache() {
+        this(resolveUserOpenAdtHome(), System::getenv);
+    }
+
+    HttpSsoTicketCache(Path openadtHome, UnaryOperator<String> envProvider) {
+        this.cacheRoot = openadtHome.resolve(CACHE_SUBDIR);
+        this.envProvider = envProvider;
+    }
+
+    public record CachedSession(String ticket, String apiBase, Map<String, String> cookies) {
+        public CachedSession(String ticket, String apiBase) {
+            this(ticket, apiBase, Map.of());
+        }
+
+        public boolean hasTicket() {
+            return ticket != null && !ticket.isBlank();
+        }
+
+        public boolean hasApiBase() {
+            return apiBase != null && !apiBase.isBlank();
+        }
+
+        public Map<String, String> cookiesOrEmpty() {
+            return cookies != null ? cookies : Map.of();
+        }
+    }
+
+    public Optional<CachedSession> readSession(SystemProfile system) {
+        if (cacheDisabled()) {
+            CliLog.httpSso("disk cache disabled (" + DISABLE_ENV + " is set)");
+            return Optional.empty();
+        }
+        Path file = cacheFile(system);
+        if (!Files.isRegularFile(file)) {
+            logCacheKeyMaterial(system);
+            return Optional.empty();
+        }
+        try {
+            String raw = Files.readString(file, StandardCharsets.UTF_8).trim();
+            if (raw.isEmpty()) {
+                return Optional.empty();
+            }
+            CachedSession session = parseSession(raw);
+            if (!session.hasTicket()) {
+                return Optional.empty();
+            }
+            return Optional.of(session);
+        } catch (IOException error) {
+            CliLog.httpSso("cache read failed for " + file + ": " + error.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    public Optional<String> read(SystemProfile system) {
+        return readSession(system).map(CachedSession::ticket);
+    }
+
+    public void write(SystemProfile system, String ticket) {
+        CachedSession existing = readSession(system).orElse(null);
+        String apiBase = existing != null ? existing.apiBase() : null;
+        Map<String, String> cookies = existing != null ? existing.cookiesOrEmpty() : Map.of();
+        writeSession(system, new CachedSession(ticket, apiBase, cookies));
+    }
+
+    public void writeApiBase(SystemProfile system, String apiBase) {
+        CachedSession existing = readSession(system).orElse(null);
+        if (existing == null || !existing.hasTicket()) {
+            return;
+        }
+        writeSession(system, new CachedSession(existing.ticket(), apiBase, existing.cookiesOrEmpty()));
+    }
+
+    public void mergeCookies(SystemProfile system, Map<String, String> incoming) {
+        if (incoming == null || incoming.isEmpty()) {
+            return;
+        }
+        CachedSession existing = readSession(system).orElse(null);
+        if (existing == null || !existing.hasTicket()) {
+            return;
+        }
+        Map<String, String> merged = HttpSapCookieStore.copyOf(existing.cookiesOrEmpty());
+        HttpSapCookieStore.merge(merged, incoming);
+        writeSession(system, new CachedSession(existing.ticket(), existing.apiBase(), merged));
+    }
+
+    public void writeSession(SystemProfile system, CachedSession session) {
+        if (cacheDisabled()) {
+            CliLog.httpSso("disk cache disabled; session not stored");
+            return;
+        }
+        if (session == null || !session.hasTicket()) {
+            CliLog.httpSso("disk cache skip: empty session");
+            return;
+        }
+        Path file = cacheFile(system);
+        try {
+            Files.createDirectories(file.getParent());
+            Files.writeString(file, serializeSession(session), StandardCharsets.UTF_8);
+            restrictToOwner(file);
+            logCacheKeyMaterial(system);
+        } catch (IOException error) {
+            CliLog.httpSso("cache write failed for " + file + ": " + error.getMessage());
+        }
+    }
+
+    public void invalidate(SystemProfile system) {
+        if (cacheDisabled()) {
+            return;
+        }
+        Path file = cacheFile(system);
+        try {
+            if (Files.deleteIfExists(file)) {
+                CliLog.httpSso("cache invalidated: " + file);
+            }
+        } catch (IOException error) {
+            CliLog.httpSso("cache delete failed for " + file + ": " + error.getMessage());
+        }
+    }
+
+    Path cacheDirectory() {
+        return cacheRoot;
+    }
+
+    Path cacheFile(SystemProfile system) {
+        return cacheRoot.resolve(cacheKey(system));
+    }
+
+    static String cacheKey(SystemProfile system) {
+        return sha256Hex(cacheKeyMaterial(system)) + ".ticket";
+    }
+
+    static String cacheKeyMaterial(SystemProfile system) {
+        String alias = system != null && system.getAlias() != null ? system.getAlias().trim() : "unknown";
+        String profile = system != null && system.getActiveProfile() != null ? system.getActiveProfile().trim() : "";
+        String client = system != null && system.getClient() != null ? system.getClient().trim() : "";
+        String discovery = "";
+        if (system != null && system.getAdt() != null && system.getAdt().getDiscoveryUrl() != null) {
+            discovery = normalizeDiscoveryUrl(system.getAdt().getDiscoveryUrl());
+        }
+        return alias + "|" + profile + "|" + client + "|" + discovery;
+    }
+
+    static String normalizeDiscoveryUrl(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "";
+        }
+        String value = raw.trim();
+        if (!value.startsWith("http://") && !value.startsWith("https://")) {
+            value = "https://" + value;
+        }
+        URI uri = URI.create(value);
+        String scheme = uri.getScheme() != null ? uri.getScheme().toLowerCase() : "https";
+        String host = uri.getHost() != null ? uri.getHost().toLowerCase() : "";
+        int port = uri.getPort();
+        String authority = port > 0 && port != 443 && port != 80 ? host + ":" + port : host;
+        String path = uri.getPath() != null ? uri.getPath() : "";
+        while (path.endsWith("/") && path.length() > 1) {
+            path = path.substring(0, path.length() - 1);
+        }
+        if (path.isBlank()) {
+            path = "/";
+        }
+        return scheme + "://" + authority + path;
+    }
+
+    private static CachedSession parseSession(String raw) throws IOException {
+        if (raw.startsWith("{")) {
+            SessionFileDto dto = MAPPER.readValue(raw, SessionFileDto.class);
+            return new CachedSession(
+                blankToNull(dto.ticket),
+                blankToNull(dto.apiBase),
+                dto.cookies != null ? new LinkedHashMap<>(dto.cookies) : Map.of()
+            );
+        }
+        String ticket = raw;
+        if (ticket.startsWith("MYSAPSSO2=")) {
+            ticket = ticket.substring("MYSAPSSO2=".length()).trim();
+        }
+        return new CachedSession(ticket, null, Map.of());
+    }
+
+    private static String serializeSession(CachedSession session) throws IOException {
+        SessionFileDto dto = new SessionFileDto();
+        dto.ticket = session.ticket();
+        dto.apiBase = session.apiBase();
+        dto.cookies = session.cookiesOrEmpty().isEmpty() ? null : new LinkedHashMap<>(session.cookiesOrEmpty());
+        return MAPPER.writeValueAsString(dto);
+    }
+
+    private static String blankToNull(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
+    }
+
+    private void logCacheKeyMaterial(SystemProfile system) {
+        if (!CliLog.verbose()) {
+            return;
+        }
+        CliLog.httpSso("cache key material: " + cacheKeyMaterial(system));
+        CliLog.httpSso("cache key file: " + cacheKey(system));
+    }
+
+    private boolean cacheDisabled() {
+        String value = envProvider.apply(DISABLE_ENV);
+        return value != null && !value.isBlank()
+            && !"0".equals(value.trim())
+            && !"false".equalsIgnoreCase(value.trim());
+    }
+
+    static Path resolveUserOpenAdtHome() {
+        String home = System.getProperty("user.home");
+        if (home == null || home.isBlank()) {
+            throw new IllegalStateException("user.home is not set; cannot store HTTP SSO ticket cache");
+        }
+        return Path.of(home).resolve(".openadt");
+    }
+
+    private static String sha256Hex(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(value.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (Exception error) {
+            throw new IllegalStateException("SHA-256 not available", error);
+        }
+    }
+
+    private static void restrictToOwner(Path file) {
+        try {
+            Set<PosixFilePermission> ownerOnly = Set.of(
+                PosixFilePermission.OWNER_READ,
+                PosixFilePermission.OWNER_WRITE
+            );
+            Files.setPosixFilePermissions(file, ownerOnly);
+        } catch (UnsupportedOperationException | IOException ignored) {
+            // Windows or restricted FS — best effort only.
+        }
+    }
+
+    private static final class SessionFileDto {
+        public String ticket;
+        public String apiBase;
+        public Map<String, String> cookies;
+    }
+}
