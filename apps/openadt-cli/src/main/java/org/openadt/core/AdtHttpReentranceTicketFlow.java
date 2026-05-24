@@ -28,6 +28,7 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
     /** Core Atom discovery; lighter than full {@code /sap/bc/adt/discovery} for browser SSO bridge. */
     private static final String SSO_BRIDGE_DISCOVERY_PATH = "/sap/bc/adt/core/discovery";
     private static final String OPENADT_HTTP_SSO_NON_INTERACTIVE = "OPENADT_HTTP_SSO_NON_INTERACTIVE";
+    private static final String OPENADT_HTTP_SSO_SKIP_BRIDGE = "OPENADT_HTTP_SSO_SKIP_BRIDGE";
     static final String SSO_LAUNCH_PAGE = """
             <!DOCTYPE html>
             <html lang="en">
@@ -101,6 +102,8 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
     @Override
     public String acquireTicket(OpenAdtConfig config, SystemProfile system) {
         URI frontend = resolveFrontend(system);
+        String alias = system != null && system.getAlias() != null ? system.getAlias() : "unknown";
+        CliLog.error("Browser SSO using destinations." + alias + " discovery_url: " + frontend);
         int requestedPort = resolveCallbackPort(config);
         SsoStepPlan ssoSteps = openPreReentranceBrowserSteps(frontend, system);
 
@@ -211,7 +214,9 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
             configured = system != null && system.getAdt() != null ? system.getAdt().getSsoLandingUrl() : null;
         }
         if (configured != null && !configured.isBlank()) {
-            return URI.create(configured.trim());
+            URI landing = URI.create(configured.trim());
+            assertLiveBrowserUrl(landing, system, "sso_landing_url");
+            return landing;
         }
         // Do not default to site root: an existing portal SSO session often opens Fiori
         // (/fiori#Shell-home) without establishing the ADT ICF browser session we need.
@@ -271,16 +276,29 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
         }
 
         if (bridgeUrl != null) {
+            boolean openBridgeTab = shouldOpenBridgeInBrowser(interactive);
             CliLog.error(
                 "Step " + step + "/" + totalSteps
-                    + ": open ADT entry (expect SAML/redirect here, not Fiori shell home): "
+                    + ": ADT browser session"
+                    + (openBridgeTab ? " (open this URL; SAML redirects may appear here on a cold login)" : " (skipped — warm session assumed)")
+                    + ": "
                     + bridgeUrl
             );
-            browserOpener.accept(bridgeUrl);
+            if (openBridgeTab) {
+                browserOpener.accept(bridgeUrl);
+            } else {
+                CliLog.error(
+                    "No bridge tab opened. CLI cannot read browser cookies; reentrance-ticket will open next. "
+                        + "If you see HTTP Basic on reentrance-ticket, sign in at the URL above manually or unset "
+                        + OPENADT_HTTP_SSO_SKIP_BRIDGE + " / raise OPENADT_HTTP_SSO_BRIDGE_WAIT_SECONDS."
+                );
+            }
             waitForSsoStep(
                 console,
                 interactive,
-                "When ADT is ready (or after any SAML redirect completes), press Enter to continue..."
+                openBridgeTab
+                    ? "When ADT is ready (Atom feed without redirect is OK if already signed in), press Enter to continue..."
+                    : "Press Enter to continue..."
             );
             waitForBridgeInNonInteractiveMode();
         } else if (landingUrl == null) {
@@ -314,7 +332,37 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
         }
     }
 
+    private boolean shouldOpenBridgeInBrowser(boolean interactive) {
+        if (isTruthy(envProvider.apply(OPENADT_HTTP_SSO_SKIP_BRIDGE))) {
+            return false;
+        }
+        if (!interactive) {
+            Duration wait = resolveBridgeWait();
+            if (wait.isZero() || wait.isNegative()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    static boolean shouldOpenBridgeInBrowser(UnaryOperator<String> envProvider, boolean interactive) {
+        if (isTruthy(envProvider.apply(OPENADT_HTTP_SSO_SKIP_BRIDGE))) {
+            return false;
+        }
+        if (!interactive) {
+            Duration wait = resolveBridgeWait(envProvider);
+            if (wait.isZero() || wait.isNegative()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private Duration resolveBridgeWait() {
+        return resolveBridgeWait(envProvider);
+    }
+
+    private static Duration resolveBridgeWait(UnaryOperator<String> envProvider) {
         String rawSeconds = envProvider.apply("OPENADT_HTTP_SSO_BRIDGE_WAIT_SECONDS");
         if (rawSeconds != null && !rawSeconds.isBlank()) {
             try {
@@ -561,7 +609,39 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
         if (!value.startsWith("http://") && !value.startsWith("https://")) {
             value = "https://" + value;
         }
-        return URI.create(value);
+        URI frontend = URI.create(value);
+        assertLiveBrowserUrl(frontend, system, "discovery_url");
+        return frontend;
+    }
+
+    /**
+     * Docs/tests use {@code *.example.com} and {@code *.example.invalid}; reject them before opening a browser.
+     */
+    static boolean isFictionalExampleHost(String host) {
+        if (host == null || host.isBlank()) {
+            return false;
+        }
+        String normalized = host.trim().toLowerCase();
+        return normalized.endsWith(".example.com")
+            || normalized.endsWith(".example.invalid")
+            || normalized.equals("example.com")
+            || normalized.equals("example.invalid");
+    }
+
+    private static void assertLiveBrowserUrl(URI url, SystemProfile system, String fieldName) {
+        if (url == null || !isFictionalExampleHost(url.getHost())) {
+            return;
+        }
+        String alias = system != null && system.getAlias() != null ? system.getAlias() : "<alias>";
+        throw new IllegalStateException(
+            "Browser SSO "
+                + fieldName
+                + " uses fictional fixture host '"
+                + url.getHost()
+                + "'. Configure destinations."
+                + alias
+                + " with your logical ADT frontend (from saprules.xml), not docs/test placeholders."
+        );
     }
 
     private static URI originUri(URI uri) {

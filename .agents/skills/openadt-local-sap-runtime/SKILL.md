@@ -253,7 +253,8 @@ Or env: `OPENADT_HTTP_CA_CERT`. Export server cert from a successful TLS handsha
 | `OPENADT_HTTP_CALLBACK_HOST` | Callback hostname in redirect-url (default `localhost`) |
 | `OPENADT_HTTP_CALLBACK_TIMEOUT_MINUTES` | Wait for browser redirect (default 5) |
 | `OPENADT_HTTP_SSO_NON_INTERACTIVE` | Skip Enter prompts |
-| `OPENADT_HTTP_SSO_BRIDGE_WAIT_SECONDS` | Delay before reentranceticket when no console (default 15) |
+| `OPENADT_HTTP_SSO_BRIDGE_WAIT_SECONDS` | Delay before reentranceticket when no console (default 15); `0` also skips opening the bridge tab |
+| `OPENADT_HTTP_SSO_SKIP_BRIDGE` | Do not open bridge tab (warm ADT session in browser) |
 | `OPENADT_HTTP_SSO_SKIP_LANDING` | Skip optional landing URL |
 | `OPENADT_HTTP_SSO_LANDING_URL` | Override landing URL |
 
