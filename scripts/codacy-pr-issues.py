@@ -12,12 +12,11 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import os
 import sys
-import urllib.error
 import urllib.parse
-import urllib.request
 from pathlib import Path
 
 
@@ -48,20 +47,46 @@ def validate_api_base(base: str) -> str:
 
 def api_get(base: str, token: str, path: str) -> tuple[int, object]:
     safe_base = validate_api_base(base)
-    request = urllib.request.Request(
-        f"{safe_base.rstrip('/')}{path}",
-        headers={"api-token": token, "Accept": "application/json"},
+    url = f"{safe_base.rstrip('/')}{path}"
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError(f"Disallowed URL scheme: {parsed.scheme!r}")
+
+    request_path = parsed.path
+    if parsed.query:
+        request_path = f"{request_path}?{parsed.query}"
+
+    conn_class = (
+        http.client.HTTPSConnection
+        if parsed.scheme == "https"
+        else http.client.HTTPConnection
     )
+    conn = conn_class(parsed.netloc, timeout=60)
     try:
-        with urllib.request.urlopen(request, timeout=60) as response:
-            return response.status, json.loads(response.read().decode())
-    except urllib.error.HTTPError as error:
-        body = error.read().decode(errors="replace")
+        conn.request(
+            "GET",
+            request_path,
+            headers={"api-token": token, "Accept": "application/json"},
+        )
+        response = conn.getresponse()
+        body = response.read().decode(errors="replace")
         try:
-            payload = json.loads(body)
+            payload = json.loads(body) if body else {}
         except json.JSONDecodeError:
             payload = body[:500]
-        return error.code, payload
+        return response.status, payload
+    finally:
+        conn.close()
+
+
+def flatten_issue(item: dict) -> dict:
+    """Codacy PR issues nest fields under commitIssue."""
+    nested = item.get("commitIssue")
+    if isinstance(nested, dict):
+        merged = {**nested, **item}
+        merged.pop("commitIssue", None)
+        return merged
+    return item
 
 
 def main() -> int:
@@ -118,17 +143,27 @@ def main() -> int:
         print("no issues")
         return 0
 
-    for item in items:
-        if not isinstance(item, dict):
+    for raw in items:
+        if not isinstance(raw, dict):
             continue
+        item = flatten_issue(raw)
         file_path = item.get("filePath") or item.get("file") or "?"
         line = item.get("lineNumber") or item.get("line") or "?"
-        level = item.get("level") or item.get("severity") or item.get("priority") or "?"
-        message = item.get("message") or ""
         pattern = item.get("patternInfo") or {}
+        level = (
+            item.get("level")
+            or item.get("severity")
+            or item.get("priority")
+            or (pattern.get("level") if isinstance(pattern, dict) else None)
+            or (pattern.get("severityLevel") if isinstance(pattern, dict) else None)
+            or "?"
+        )
+        message = item.get("message") or ""
         if not message and isinstance(pattern, dict):
             message = pattern.get("title") or pattern.get("id") or ""
-        print(f"[{level}] {file_path}:{line} {message}")
+        pattern_id = pattern.get("id") if isinstance(pattern, dict) else ""
+        suffix = f" ({pattern_id})" if pattern_id and pattern_id not in message else ""
+        print(f"[{level}] {file_path}:{line} {message}{suffix}")
 
     print(f"total={len(items)} status={args.status}")
     return 0
