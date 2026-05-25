@@ -60,4 +60,5 @@ packaging/windows/launcher/obj/
 .nx/workspace-data
 .nx/self-healing
 .codacy/codacy.yaml
+__pycache__/
 .env

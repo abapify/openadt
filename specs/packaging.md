@@ -24,7 +24,7 @@ Workflows use current stable major tags: `actions/checkout@v6`, `actions/setup-j
 Manual **Release** workflow (Actions → Release → Run workflow):
 
 1. Choose **version bump**: `patch`, `minor`, `major`, `prerelease`, `prepatch`, `preminor`, `premajor`
-2. Choose **prerelease id** when applicable: `rc`, `beta`, `alpha`
+2. Optionally set **prerelease id** (`rc`, `beta`, `alpha`) — required only for `prerelease`, `prepatch`, `preminor`, and `premajor` (omit for `patch` / `minor` / `major`)
 3. Job `bump` reads the latest `v*` tag (or `pom.xml` baseline), bumps `pom.xml`, winget manifests, Homebrew `STABLE`, and Scoop `openadt.json`, then commits and pushes the version-bump commit
 4. Job `publish` checks out that bump commit, builds, runs `package:release`, commits winget/homebrew/scoop checksum updates, tags `vX.Y.Z`, pushes, and publishes GitHub Release assets
 

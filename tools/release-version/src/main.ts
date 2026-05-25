@@ -12,9 +12,15 @@ const root = resolve(import.meta.dir, "../../..");
 const bumpArg = process.argv
   .find((a) => a.startsWith("--bump="))
   ?.split("=")[1];
-const prereleaseId =
-  process.argv.find((a) => a.startsWith("--prerelease-id="))?.split("=")[1] ??
-  "rc";
+const prereleaseIdArg = process.argv.find((a) =>
+  a.startsWith("--prerelease-id="),
+);
+const prereleaseId = prereleaseIdArg
+  ? prereleaseIdArg.slice("--prerelease-id=".length).trim()
+  : "";
+
+const PRE_BUMPS = new Set(["prerelease", "prepatch", "preminor", "premajor"]);
+const ALLOWED_PRE_IDS = new Set(["rc", "beta", "alpha"]);
 
 if (!bumpArg) {
   console.error(
@@ -249,10 +255,33 @@ function writeGithubOutput(version: string): void {
   writeFileSync(output, `version=${version}\ntag=v${version}\n`, { flag: "a" });
 }
 
+function requiresPrereleaseId(bump: string, current: SemVer): boolean {
+  if (!PRE_BUMPS.has(bump)) {
+    return false;
+  }
+  if (bump === "prerelease" && current.prerelease.length > 0) {
+    return false;
+  }
+  return true;
+}
+
 const latestTag = latestGitTag();
 const baseVersion = latestTag
   ? parseVersion(latestTag)
   : readPomBaselineVersion();
+
+if (requiresPrereleaseId(bumpArg, baseVersion) && !prereleaseId) {
+  console.error(
+    `--prerelease-id is required for bump=${bumpArg} (use rc, beta, or alpha)`,
+  );
+  process.exit(1);
+}
+if (prereleaseId && !ALLOWED_PRE_IDS.has(prereleaseId)) {
+  console.error(
+    `Invalid --prerelease-id=${prereleaseId} (use rc, beta, or alpha)`,
+  );
+  process.exit(1);
+}
 
 const nextVersion = formatVersion(
   bumpVersion(baseVersion, bumpArg, prereleaseId),

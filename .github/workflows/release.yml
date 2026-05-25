@@ -17,14 +17,9 @@ on:
           - preminor
           - premajor
       prerelease_id:
-        description: Pre-release identifier (rc, beta, alpha)
-        required: true
-        type: choice
-        default: rc
-        options:
-          - rc
-          - beta
-          - alpha
+        description: Pre-release id (rc, beta, alpha) — only for prerelease/prepatch/preminor/premajor bumps
+        required: false
+        type: string
 
 permissions:
   contents: write
