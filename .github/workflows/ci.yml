@@ -1,4 +1,5 @@
-# CI: Nx checks + Java tests + Codacy SARIF → GitHub Code Scanning (no Codacy upload).
+# CI: Nx checks + Java tests + OpenGrep SARIF → GitHub Code Scanning.
+# Codacy stays on the Codacy cloud app (not in CI).
 name: CI
 
 on:
@@ -12,31 +13,30 @@ permissions:
   contents: read
 
 jobs:
-  codacy:
-    name: Codacy Security Scan
+  opengrep:
+    name: OpenGrep
     runs-on: ubuntu-latest
     permissions:
       contents: read
       security-events: write
     steps:
       - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
 
-      - name: Run Codacy Analysis CLI
-        uses: codacy/codacy-analysis-cli-action@v4.4.7
-        with:
-          output: results.sarif
-          format: sarif
-          gh-code-scanning-compat: true
-          max-allowed-issues: 2147483647
-          force-file-permissions: true
-          fail-if-incomplete: false
+      - name: Install OpenGrep
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Scan with repository rules
+        run: opengrep scan --config .semgrep.yml --sarif-output=opengrep.sarif --metrics=off .
+        continue-on-error: true
 
       - name: Upload SARIF to GitHub Code Scanning
+        if: always() && hashFiles('opengrep.sarif') != ''
         uses: github/codeql-action/upload-sarif@v4
         with:
-          sarif_file: results.sarif
+          sarif_file: opengrep.sarif
+          category: opengrep
 
   main:
     runs-on: ubuntu-latest
