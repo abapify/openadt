@@ -1,16 +1,16 @@
 {
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Local bridge for SAP ADT traffic",
   "homepage": "https://github.com/abapify/openadt",
   "license": "Apache-2.0",
   "notes": "Requires Java 21 on PATH. Optional: scoop bucket add java && scoop install openjdk21",
   "architecture": {
     "64bit": {
-      "url": "https://github.com/abapify/openadt/releases/download/v1.1.1/openadt-1.1.1.zip",
-      "hash": "3e575e9e1a94d461d4a100a8030a2340192cd5289ac771f0130f5377ff051376"
+      "url": "https://github.com/abapify/openadt/releases/download/v1.1.2/openadt-1.1.2.zip",
+      "hash": "PLACEHOLDER_RUN_PACKAGE_RELEASE"
     }
   },
-  "extract_dir": "openadt-1.1.1",
+  "extract_dir": "openadt-1.1.2",
   "bin": "openadt.exe",
   "suggest": {
     "JDK 21": "java/openjdk21"
