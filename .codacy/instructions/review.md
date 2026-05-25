@@ -46,6 +46,10 @@ Use and expect fictional values in docs/tests: SID `DEV`, client `100`, user `DE
 - Java: `./mvnw.cmd -q test` under `apps/openadt-cli`.
 - SAP/JCo integration tests are `@Tag("integration")` and skipped by default.
 
+## Hard-coded password (disabled)
+
+The Guardrails rule `hardcoded-password` is **OFF** in [`.codacy/guardrails.yaml`](../guardrails.yaml). OpenADT uses TOML field names such as `http_truststore_password` and Java constants like `KEY_HTTP_TRUSTSTORE_PASSWORD` — these are configuration keys, not credentials. Do not flag them as hard-coded secrets.
+
 ## PR expectations
 
 - No real SAP landscape data in commits.
