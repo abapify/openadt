@@ -33,7 +33,27 @@ public class HttpAdtTransportClient implements AdtTransportClient {
     }
 
     public HttpAdtTransportClient(OpenAdtConfig config) {
-        this(config, null, new AdtHttpCookieProvider(), new ObjectMapper());
+        this(config, false);
+    }
+
+    public HttpAdtTransportClient(OpenAdtConfig config, boolean httpSsoNoCache) {
+        this(
+            config,
+            null,
+            httpSsoCookieProvider(httpSsoNoCache),
+            new ObjectMapper()
+        );
+    }
+
+    private static AdtHttpCookieProvider httpSsoCookieProvider(boolean httpSsoNoCache) {
+        if (!httpSsoNoCache) {
+            return new AdtHttpCookieProvider();
+        }
+        return new AdtHttpCookieProvider(
+            System::getenv,
+            null,
+            new HttpSsoTicketCache(HttpSsoTicketCache.resolveUserOpenAdtHome(), System::getenv, true)
+        );
     }
 
     HttpAdtTransportClient(OpenAdtConfig config, HttpClient httpClient, AdtHttpCookieProvider cookieProvider, ObjectMapper objectMapper) {

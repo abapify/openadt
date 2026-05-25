@@ -7,7 +7,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AdtHttpCookieProviderTest {
     @Test
@@ -91,6 +93,28 @@ class AdtHttpCookieProviderTest {
             provider.resolveMysapsso2(new OpenAdtConfig(), system);
         assertEquals("cached-ticket", resolution.ticket());
         assertEquals(true, resolution.usedDiskCache());
+    }
+
+    @Test
+    void skipsDiskCacheWhenRequestNoCache(@TempDir Path openadtHome) throws Exception {
+        SystemProfile system = new SystemProfile();
+        system.setAlias("DEV");
+        system.setClient("100");
+        SystemProfile.AdtConfig adt = new SystemProfile.AdtConfig();
+        adt.setDiscoveryUrl("https://dev-adt.example.com/sap/bc/adt");
+        system.setAdt(adt);
+
+        HttpSsoTicketCache cache = new HttpSsoTicketCache(openadtHome, key -> null, true);
+        cache.write(system, "cached-ticket");
+
+        AdtHttpTicketProvider browser = (config, profile) -> "fresh-ticket";
+        AdtHttpCookieProvider provider = new AdtHttpCookieProvider(key -> null, browser, cache);
+
+        AdtHttpCookieProvider.Mysapsso2Resolution resolution =
+            provider.resolveMysapsso2(new OpenAdtConfig(), system);
+        assertEquals("fresh-ticket", resolution.ticket());
+        assertFalse(resolution.usedDiskCache());
+        assertTrue(cache.read(system).isEmpty());
     }
 
     @Test

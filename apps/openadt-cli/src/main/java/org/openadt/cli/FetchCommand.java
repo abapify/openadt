@@ -103,6 +103,12 @@ public class FetchCommand implements Callable<Integer> {
     @Option(names = {"--profile"}, description = "Authentication profile name (e.g. snc, sso)")
     private String profile;
 
+    @Option(
+        names = {"--no-cache"},
+        description = "For HTTP SSO: skip reading and writing ~/.openadt/cache/http-sso/ for this fetch only"
+    )
+    boolean noCache;
+
     @Override
     public Integer call() throws Exception {
         if (!isDirectHttpMode()) {
@@ -188,7 +194,7 @@ public class FetchCommand implements Callable<Integer> {
 
     private AdtTransportClient resolveTransportClient(OpenAdtConfig config, SystemProfile destination) {
         try {
-            return FetchTransportResolver.resolve(config, destination, direct, profile);
+            return FetchTransportResolver.resolve(config, destination, direct, profile, noCache);
         } catch (Exception e) {
             SystemProfile hintSource = findConfiguredDestination(config, destination.getAlias());
             CliLog.error(ProfileFetchHints.formatTransportError(

@@ -17,8 +17,18 @@ public final class FetchTransportResolver {
         boolean direct,
         String profileName
     ) throws Exception {
+        return resolve(config, system, direct, profileName, false);
+    }
+
+    public static AdtTransportClient resolve(
+        OpenAdtConfig config,
+        SystemProfile system,
+        boolean direct,
+        String profileName,
+        boolean httpSsoNoCache
+    ) throws Exception {
         if (direct) {
-            return AdtTransportFactory.create(config, system);
+            return AdtTransportFactory.create(config, system, httpSsoNoCache);
         }
         String alias = system.getAlias();
         if (alias != null) {
@@ -27,6 +37,6 @@ public final class FetchTransportResolver {
                 return new LocalProxyHttpClient(active.get());
             }
         }
-        return AdtTransportFactory.create(config, system);
+        return AdtTransportFactory.create(config, system, httpSsoNoCache);
     }
 }

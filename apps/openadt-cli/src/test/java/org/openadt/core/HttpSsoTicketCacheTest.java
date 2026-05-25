@@ -37,6 +37,14 @@ class HttpSsoTicketCacheTest {
     }
 
     @Test
+    void disabledForRequestNoCache(@TempDir Path openadtHome) throws Exception {
+        SystemProfile system = sampleSystem();
+        HttpSsoTicketCache cache = new HttpSsoTicketCache(openadtHome, key -> null, true);
+        cache.write(system, "ticket");
+        assertTrue(cache.read(system).isEmpty());
+    }
+
+    @Test
     void cacheKeyIgnoresTrailingSlashOnDiscoveryUrl() {
         SystemProfile a = sampleSystem();
         SystemProfile b = sampleSystem();

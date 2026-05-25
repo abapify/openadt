@@ -29,14 +29,20 @@ public final class HttpSsoTicketCache {
 
     private final Path cacheRoot;
     private final UnaryOperator<String> envProvider;
+    private final boolean requestNoCache;
 
     public HttpSsoTicketCache() {
-        this(resolveUserOpenAdtHome(), System::getenv);
+        this(resolveUserOpenAdtHome(), System::getenv, false);
     }
 
     HttpSsoTicketCache(Path openadtHome, UnaryOperator<String> envProvider) {
+        this(openadtHome, envProvider, false);
+    }
+
+    HttpSsoTicketCache(Path openadtHome, UnaryOperator<String> envProvider, boolean requestNoCache) {
         this.cacheRoot = openadtHome.resolve(CACHE_SUBDIR);
         this.envProvider = envProvider;
+        this.requestNoCache = requestNoCache;
     }
 
     public record CachedSession(String ticket, String apiBase, Map<String, String> cookies) {
@@ -59,7 +65,7 @@ public final class HttpSsoTicketCache {
 
     public Optional<CachedSession> readSession(SystemProfile system) {
         if (cacheDisabled()) {
-            CliLog.httpSso("disk cache disabled (" + DISABLE_ENV + " is set)");
+            logCacheDisabled();
             return Optional.empty();
         }
         Path file = cacheFile(system);
@@ -117,7 +123,7 @@ public final class HttpSsoTicketCache {
 
     public void writeSession(SystemProfile system, CachedSession session) {
         if (cacheDisabled()) {
-            CliLog.httpSso("disk cache disabled; session not stored");
+            logCacheDisabledWrite();
             return;
         }
         if (session == null || !session.hasTicket()) {
@@ -268,10 +274,37 @@ public final class HttpSsoTicketCache {
     }
 
     private boolean cacheDisabled() {
+        if (requestNoCache) {
+            return true;
+        }
+        return envCacheDisabled();
+    }
+
+    static boolean envCacheDisabled(UnaryOperator<String> envProvider) {
         String value = envProvider.apply(DISABLE_ENV);
         return value != null && !value.isBlank()
             && !"0".equals(value.trim())
             && !"false".equalsIgnoreCase(value.trim());
+    }
+
+    private boolean envCacheDisabled() {
+        return envCacheDisabled(envProvider);
+    }
+
+    private void logCacheDisabled() {
+        if (requestNoCache) {
+            CliLog.httpSso("disk cache disabled for this fetch (--no-cache)");
+        } else {
+            CliLog.httpSso("disk cache disabled (" + DISABLE_ENV + " is set)");
+        }
+    }
+
+    private void logCacheDisabledWrite() {
+        if (requestNoCache) {
+            CliLog.httpSso("disk cache disabled for this fetch; session not stored (--no-cache)");
+        } else {
+            CliLog.httpSso("disk cache disabled; session not stored");
+        }
     }
 
     static Path resolveUserOpenAdtHome() {

@@ -243,6 +243,7 @@ Options:
 - `--truststore-password <secret>` — Truststore password for explicit HTTPS trust in HTTP transport mode
 - `--callback-port <port>` — Callback bind port for browser SSO flow (`0` picks a random local port)
 - `--profile <name>` — Authentication profile (e.g. `snc`, `sso`; cannot be combined with `--base-url`)
+- `--no-cache` — For HTTP SSO on this fetch only: do not read or write `~/.openadt/cache/http-sso/` (forces browser ticket flow when no `OPENADT_MYSAPSSO2`). Ignored for SDK/JCo transport. Does not apply when fetch reuses a running `openadt proxy` (use `--direct` to bypass the proxy)
 
 Behavior:
 
@@ -274,7 +275,7 @@ HTTP transport (`adt.transport = "http"`):
 - Requires `destinations.<alias>.adt.discovery_url` (logical frontend from `saprules.xml`)
 - Accepts SAP logon tickets from `OPENADT_MYSAPSSO2`, `secure_login.mysapsso2`, or `OPENADT_COOKIE_FILE`
 - If no ticket is available, OpenADT runs browser reentrance-ticket SSO (see below)
-- After browser SSO, OpenADT warms the SAP session (`GET …/sap/bc/adt/discovery`) and caches **`Set-Cookie` values** (e.g. `SAP_SESSIONID_*`) together with the reentrance ticket under `~/.openadt/cache/http-sso/` (user home only), plus resolved ADT API base. A second `fetch` should reuse ticket + session cookies without another callback. For many requests in one session, `openadt proxy <SYSTEM> --profile=sso` remains the fastest path. Set `OPENADT_HTTP_SSO_NO_CACHE=1` to disable disk cache
+- After browser SSO, OpenADT warms the SAP session (`GET …/sap/bc/adt/discovery`) and caches **`Set-Cookie` values** (e.g. `SAP_SESSIONID_*`) together with the reentrance ticket under `~/.openadt/cache/http-sso/` (user home only), plus resolved ADT API base. A second `fetch` should reuse ticket + session cookies without another callback. For many requests in one session, `openadt proxy <SYSTEM> --profile=sso` remains the fastest path. Use `fetch --no-cache` or `OPENADT_HTTP_SSO_NO_CACHE=1` to skip disk cache for one fetch or all processes
 - `openadt fetch` reuses a running `openadt proxy` for the same alias/profile when present, so HTTP SSO (and extra browser tabs) run once per proxy process, not on every fetch
 
 #### Browser reentrance-ticket SSO
@@ -299,6 +300,7 @@ Environment (optional):
 | `OPENADT_HTTP_SSO_LANDING_URL`                              | Override landing URL (else `destinations.*.adt.sso_landing_url`)                                                                           |
 | `OPENADT_HTTP_CALLBACK_HOST` / `OPENADT_HTTP_CALLBACK_PORT` | Loopback callback bind (`localhost` required for SAP redirect validation)                                                                  |
 | `OPENADT_HTTP_CALLBACK_TIMEOUT_MINUTES`                     | Max wait for redirect (default `5`)                                                                                                        |
+| `OPENADT_HTTP_SSO_NO_CACHE`                                 | Disable HTTP SSO disk cache read/write for the whole process (`1`/`true`; same effect as `fetch --no-cache` per fetch)                     |
 | `OPENADT_VERBOSE`                                           | `true` — SDK/JCo/SNC bootstrap, HTTP SSO cache/cookie, proxy tip, SSO step URLs (default off)                                              |
 
 To avoid browser SSO entirely: set `OPENADT_MYSAPSSO2` or `OPENADT_COOKIE_FILE`, or keep `openadt proxy` running after the first successful SSO so subsequent `fetch` calls reuse the proxy's in-memory ticket.

@@ -8,9 +8,14 @@ public final class AdtTransportFactory {
     }
 
     public static AdtTransportClient create(OpenAdtConfig config, SystemProfile system) throws Exception {
+        return create(config, system, false);
+    }
+
+    public static AdtTransportClient create(OpenAdtConfig config, SystemProfile system, boolean httpSsoNoCache)
+        throws Exception {
         String transport = system.getAdt() != null ? system.getAdt().getTransport() : null;
         if ("http".equalsIgnoreCase(transport)) {
-            return new HttpAdtTransportClient(config);
+            return new HttpAdtTransportClient(config, httpSsoNoCache);
         }
         if ("sdk".equalsIgnoreCase(transport) && !hasAdtPluginsDir(config)) {
             throw new IllegalStateException("ADT SDK transport requires runtime.adt_plugins_dir to be configured.");
