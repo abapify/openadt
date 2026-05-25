@@ -27,6 +27,31 @@ public final class CliLog {
         System.err.printf(format, args);
     }
 
+    /** Diagnostics (SSO steps, URLs). Off by default; set {@code OPENADT_VERBOSE=true}. */
+    public static void diagnostic(String message) {
+        if (verbose()) {
+            error(message);
+        }
+    }
+
+    /** HTTP SSO diagnostics (no secrets). Off by default; set {@code OPENADT_VERBOSE=true}. */
+    public static void httpSso(String message) {
+        if (verbose()) {
+            error("[openadt http-sso] " + message);
+        }
+    }
+
+    /** SDK/JCo/SNC bootstrap diagnostics. Off by default; set {@code OPENADT_VERBOSE=true}. */
+    public static void sdk(String message) {
+        if (verbose()) {
+            error("[openadt sdk] " + message);
+        }
+    }
+
+    public static boolean verbose() {
+        return Boolean.parseBoolean(System.getenv().getOrDefault("OPENADT_VERBOSE", "false"));
+    }
+
     public static PrintStream stdout() {
         return System.out;
     }

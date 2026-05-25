@@ -8,9 +8,14 @@ public final class AdtTransportFactory {
     }
 
     public static AdtTransportClient create(OpenAdtConfig config, SystemProfile system) throws Exception {
+        return create(config, system, false);
+    }
+
+    public static AdtTransportClient create(OpenAdtConfig config, SystemProfile system, boolean httpSsoNoCache)
+        throws Exception {
         String transport = system.getAdt() != null ? system.getAdt().getTransport() : null;
         if ("http".equalsIgnoreCase(transport)) {
-            return new HttpAdtTransportClient(config);
+            return new HttpAdtTransportClient(config, httpSsoNoCache);
         }
         if ("sdk".equalsIgnoreCase(transport) && !hasAdtPluginsDir(config)) {
             throw new IllegalStateException("ADT SDK transport requires runtime.adt_plugins_dir to be configured.");
@@ -52,11 +57,21 @@ public final class AdtTransportFactory {
                     + "Use transport = \"rest-rfc\" or \"http\", or run with scripts/openadt-sdk.ps1 and Eclipse ADT plugins."
             );
         } catch (InvocationTargetException e) {
-            Throwable cause = e.getCause();
-            if (cause instanceof Exception exception) {
-                throw exception;
-            }
-            throw new OpenAdtException(cause.getMessage() != null ? cause.getMessage() : cause.toString(), cause);
+            throw wrapSdkBootstrapFailure(e.getCause());
+        } catch (LinkageError error) {
+            throw wrapSdkBootstrapFailure(error);
         }
+    }
+
+    private static IllegalStateException wrapSdkBootstrapFailure(Throwable cause) {
+        String hint =
+            "ADT SDK classpath is incomplete for this launch (java -jar cannot load all Eclipse/ADT bundles). "
+                + "For HTTP SSO use: --profile=sso. "
+                + "For SNC/SDK use: nx run openadt-cli:run-sdk -- … or scripts/openadt-sdk.ps1, "
+                + "or nx run openadt-cli:run -- … (dev launcher adds sap-lib classpath when --profile is omitted).";
+        if (cause instanceof Exception exception) {
+            return new IllegalStateException(hint + " " + exception.getMessage(), exception);
+        }
+        return new IllegalStateException(hint + " " + cause, cause);
     }
 }

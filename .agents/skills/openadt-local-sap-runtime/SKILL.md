@@ -153,9 +153,9 @@ fetch / proxy (--profile=sso)
     → AdtHttpCookieProvider.resolveMysapsso2()
          OPENADT_MYSAPSSO2 / secure_login.mysapsso2 / OPENADT_COOKIE_FILE
          else AdtHttpReentranceTicketFlow.acquireTicket()
-              1) optional sso_landing_url (only if configured — not site root by default)
-              2) open discovery_url (e.g. /sap/bc/adt) — establish ICF browser session
-              3) localhost callback + /sap/bc/adt/core/http/reentranceticket
+              1) optional sso_landing_url only (IdP/Okta URL — never default frontend /; that opens Fiori)
+              2) default: localhost /adt/open → reentranceticket (SAML redirects here on cold login)
+              3) optional bridge when OPENADT_HTTP_SSO_OPEN_BRIDGE=1 → bare /sap/bc/adt only (never /sap/bc/adt/discovery in the browser)
     → Cookie: MYSAPSSO2=<ticket>
     → discoverAdtApiBase (well-known / virtualhost) + ADT request
 ```
@@ -194,11 +194,11 @@ Override: `OPENADT_HTTP_CALLBACK_HOST` or `runtime.http_callback_host`.
 
 **Interactive terminal** (`System.console()` present):
 
-1. Open `/sap/bc/adt` → user presses Enter after SAML
-2. Press Enter → callback starts → reentranceticket opens
-3. Browser redirects to `http://localhost:<port>/adt/redirect?reentrance-ticket=...`
+1. Optional `sso_landing_url` / Enter prompts when interactive
+2. Press Enter → callback starts → `http://localhost:<port>/adt/open` opens a popup to **reentranceticket only** (never `/sap/bc/adt/discovery` in the browser)
+3. Popup redirects to `http://localhost:<port>/adt/redirect?reentrance-ticket=...` and tries `window.close()`
 
-**Non-interactive** (Scoop `openadt.exe`, piped stdout, CI): no Enter prompts. After opening `/sap/bc/adt`, waits **`OPENADT_HTTP_SSO_BRIDGE_WAIT_SECONDS`** (default **15**) before reentranceticket so SAML can finish. Set `OPENADT_HTTP_SSO_NON_INTERACTIVE=true` to skip Enter prompts in a real terminal too. Set bridge wait to `0` when SSO session is already warm.
+**Non-interactive** (Scoop `openadt.exe`, piped stdout, CI): no Enter prompts. Optional `OPENADT_HTTP_SSO_OPEN_BRIDGE=1` may open bare `/sap/bc/adt` before reentrance — never discovery. CLI may still `GET /sap/bc/adt/discovery` server-side after the ticket for cookie warmup.
 
 **Do not open site root by default** — an existing portal SSO session often lands on Fiori (`/fiori#Shell-home`) without an ADT ICF session. Root landing is opt-in via `sso_landing_url` or `OPENADT_HTTP_SSO_LANDING_URL`.
 
@@ -214,7 +214,7 @@ The localhost callback exists **only while `fetch`/`proxy` is waiting** for the 
 
 Active callback registry (while waiting): `~/.openadt/runtime/sso-callback.json` (`callbackUrl`, `port`, `pid`).
 
-After ticket received, callback stays up **30s** (grace) so late redirects still get 200. Success page tries `window.close()`; browsers often block closing tabs not opened by `window.open()` — fallback text remains.
+After ticket received, callback stays up **30s** (grace) so late redirects still get 200. Reentrance-ticket is opened via `/adt/open` (`window.open(..., 'openadt_sso')`) so the success page can usually `window.close()` the popup; tabs opened only by `Desktop.browse` (bridge step, blocked popups) may still need manual close.
 
 **Recommendation:** fixed callback port for repeat use: `--callback-port 63363` or `callback_port = "63363"` in profile.
 
@@ -253,7 +253,8 @@ Or env: `OPENADT_HTTP_CA_CERT`. Export server cert from a successful TLS handsha
 | `OPENADT_HTTP_CALLBACK_HOST` | Callback hostname in redirect-url (default `localhost`) |
 | `OPENADT_HTTP_CALLBACK_TIMEOUT_MINUTES` | Wait for browser redirect (default 5) |
 | `OPENADT_HTTP_SSO_NON_INTERACTIVE` | Skip Enter prompts |
-| `OPENADT_HTTP_SSO_BRIDGE_WAIT_SECONDS` | Delay before reentranceticket when no console (default 15) |
+| `OPENADT_HTTP_SSO_BRIDGE_WAIT_SECONDS` | Delay before reentranceticket when no console (default 15); `0` also skips opening the bridge tab |
+| `OPENADT_HTTP_SSO_SKIP_BRIDGE` | Do not open bridge tab (warm ADT session in browser) |
 | `OPENADT_HTTP_SSO_SKIP_LANDING` | Skip optional landing URL |
 | `OPENADT_HTTP_SSO_LANDING_URL` | Override landing URL |
 
@@ -302,7 +303,7 @@ Use the **host OS Java** that matches installed `sapjco3.dll` / `sapcrypto.dll`.
 | `Invalid redirect URL` (SADT_RESOURCE 034) | `redirect-url` uses `127.0.0.1` | Use `localhost` (default) |
 | `ERR_CONNECTION_REFUSED` on callback | Stale port / fetch exited | Fresh run; `--callback-port`; keep terminal open |
 | `PKIX path building failed` | Corporate CA not in Java trust | `runtime.http_ca_cert` / `OPENADT_HTTP_CA_CERT` |
-| HTTP Basic on reentranceticket | Wrong `discovery_url` (app server) or cold browser | Frontend URL; open `/sap/bc/adt` first (interactive Enter) |
+| HTTP Basic on `/sap/bc/adt/discovery` in browser | OpenADT or user opened Atom discovery URL | Never open discovery in browser; use reentranceticket popup or `sso_landing_url`; server-side warmup only |
 | Three browser SSO popups | Old bug: discovery re-acquired ticket | Fixed: `HttpAdtTransportClient` caches cookie |
 | Secure Login `LOGGED_OUT` with default profile | `default_profile=snc` needs hub | Use `--profile=sso` for HTTP or log in Web Adapter |
 

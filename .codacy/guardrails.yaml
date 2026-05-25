@@ -1,0 +1,5 @@
+# Codacy Guardrails IDE/MCP only. Cloud Opengrep uses root .semgrep.yaml (not this file).
+# TOML config keys such as http_truststore_password are not secrets.
+rules:
+  - id: hardcoded-password
+    severity: OFF

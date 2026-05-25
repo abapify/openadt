@@ -159,8 +159,7 @@ public final class SecureLoginBootstrap {
     }
 
     private static void log(String message) {
-        CliLog.error("[openadt sdk] " + message);
-        CliLog.stderr().flush();
+        CliLog.sdk(message);
     }
 
     /**

@@ -208,8 +208,37 @@ Requires JDK 17 or 21, Maven 3.x.
 ```bash
 cd apps/openadt-cli
 mvn package
-java -jar target/openadt-1.0.0-SNAPSHOT.jar setup
+java -jar target/openadt-*.jar setup
 ```
+
+From the repo root after `package`, use the dev launchers (same config as `~/.openadt`, not Scoop):
+
+```powershell
+# Windows PowerShell
+.\openadt.ps1 --help
+.\openadt.cmd fetch DEV /sap/bc/adt/core/http/systeminformation --profile sso
+```
+
+```bash
+# Git Bash / Linux / macOS
+./openadt --help
+```
+
+SNC/SDK transport: `scripts/openadt-sdk.ps1` (full JCo/ADT classpath).
+
+With [Nx](https://nx.dev) (build + run in one step, forwards CLI args):
+
+```bash
+bun install
+bun run openadt -- fetch DEV /sap/bc/adt/core/http/systeminformation --profile=sso
+# or: nx run openadt-cli:run -- fetch DEV ... --profile=sso   (note `--` before fetch args)
+# SNC (default_profile=snc): nx run openadt-cli:run -- fetch DEV ...  (dev launcher uses sap-lib classpath)
+# or: nx run openadt-cli:run-sdk -- fetch DEV ... --profile=snc
+```
+
+Nx caches `openadt-cli:build` when Java sources are unchanged (no Maven on cache hit). Force rebuild: `nx run openadt-cli:build --skip-nx-cache`. Nx TUI is disabled in `nx.json`.
+
+Non-interactive SSO (no Enter prompts): set `OPENADT_HTTP_SSO_NON_INTERACTIVE=true` and `OPENADT_HTTP_SSO_BRIDGE_WAIT_SECONDS=20` in the environment before `run`.
 
 ## Prerequisites (not included)
 

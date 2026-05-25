@@ -312,10 +312,6 @@ public class AdtSdkTransportClient implements AdtTransportClient {
     }
 
     private static void log(String message) {
-        if (!Boolean.parseBoolean(System.getenv().getOrDefault("OPENADT_VERBOSE", "false"))) {
-            return;
-        }
-        CliLog.error("[openadt sdk] " + message);
-        CliLog.stderr().flush();
+        CliLog.sdk(message);
     }
 }

@@ -1,3 +1,5 @@
+# CI: Nx checks + Java tests + OpenGrep SARIF → GitHub Code Scanning.
+# Codacy stays on the Codacy cloud app (not in CI).
 name: CI
 
 on:
@@ -11,6 +13,43 @@ permissions:
   contents: read
 
 jobs:
+  opengrep:
+    name: OpenGrep
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Install OpenGrep and scan
+        run: |
+          # Pin release binary (install.sh can fail when GitHub version API is unavailable).
+          curl -fsSL -o opengrep \
+            https://github.com/opengrep/opengrep/releases/download/v1.22.0/opengrep_manylinux_x86
+          chmod +x opengrep
+          set +e
+          ./opengrep scan --config .semgrep.yaml --sarif-output=opengrep.sarif .
+          ec=$?
+          set -e
+          if [ ! -f opengrep.sarif ]; then
+            echo "::error::OpenGrep did not produce opengrep.sarif (exit ${ec})"
+            exit 1
+          fi
+          if [ "${ec}" -gt 1 ]; then
+            exit "${ec}"
+          fi
+          # exit 1 = findings only; upload SARIF and do not fail the workflow
+
+      - name: Upload SARIF to GitHub Code Scanning
+        if: always() && hashFiles('opengrep.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: opengrep.sarif
+          category: opengrep
+
   main:
     runs-on: ubuntu-latest
     steps:

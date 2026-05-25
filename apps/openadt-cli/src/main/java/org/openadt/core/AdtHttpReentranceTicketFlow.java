@@ -24,7 +24,38 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
     private static final Duration CALLBACK_GRACE_PERIOD = Duration.ofSeconds(30);
     private static final Duration DEFAULT_BRIDGE_WAIT = Duration.ofSeconds(15);
     private static final String CALLBACK_PATH = "/adt/redirect";
+    private static final String SSO_LAUNCH_PATH = "/adt/open";
     private static final String OPENADT_HTTP_SSO_NON_INTERACTIVE = "OPENADT_HTTP_SSO_NON_INTERACTIVE";
+    private static final String OPENADT_HTTP_SSO_SKIP_BRIDGE = "OPENADT_HTTP_SSO_SKIP_BRIDGE";
+    /** Opt-in: open ADT discovery bridge tab before reentrance (often unnecessary; default is reentrance-only). */
+    private static final String OPENADT_HTTP_SSO_OPEN_BRIDGE = "OPENADT_HTTP_SSO_OPEN_BRIDGE";
+    static final String SSO_LAUNCH_PAGE = """
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+              <meta charset="utf-8">
+              <title>OpenADT SSO</title>
+              <script>
+                (function () {
+                  var target = new URLSearchParams(location.search).get('target');
+                  if (!target || !/^https?:\\/\\//i.test(target)) {
+                    return;
+                  }
+                  var popup = window.open(target, 'openadt_sso');
+                  if (popup) {
+                    try { window.close(); } catch (e) {}
+                    setTimeout(function () { try { window.close(); } catch (e2) {} }, 150);
+                  } else {
+                    location.replace(target);
+                  }
+                })();
+              </script>
+            </head>
+            <body>
+              <p>Opening SAP sign-on...</p>
+            </body>
+            </html>
+            """;
     static final String TICKET_RECEIVED_PAGE = """
             <!DOCTYPE html>
             <html lang="en">
@@ -70,6 +101,9 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
     @Override
     public String acquireTicket(OpenAdtConfig config, SystemProfile system) {
         URI frontend = resolveFrontend(system);
+        String alias = system != null && system.getAlias() != null ? system.getAlias() : "unknown";
+        CliLog.error("Browser SSO for " + alias + " — complete sign-in in the browser; keep this terminal open.");
+        CliLog.diagnostic("Browser SSO using destinations." + alias + " discovery_url: " + frontend);
         int requestedPort = resolveCallbackPort(config);
         SsoStepPlan ssoSteps = openPreReentranceBrowserSteps(frontend, system);
 
@@ -84,17 +118,20 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
             callbackUrl = buildCallbackUrl(callbackHost, actualPort, csrfState);
             SsoCallbackRegistry.markActive(callbackUrl, actualPort);
             URI reentranceUrl = buildReentranceTicketUrl(frontend, system, callbackUrl);
-            CliLog.error("Local callback listening on " + callbackUrl + " (keep this terminal open until redirect completes)");
-            waitBeforeReentranceStep();
             CliLog.error(
+                "Waiting for SSO callback on " + AdtHttpPaths.SCHEME_HTTP_PREFIX + callbackHost + ":" + actualPort + CALLBACK_PATH
+            );
+            CliLog.diagnostic("Local callback URL: " + callbackUrl);
+            waitBeforeReentranceStep();
+            CliLog.diagnostic(
                 "Step "
                     + ssoSteps.reentranceStep()
                     + "/"
                     + ssoSteps.totalSteps()
-                    + ": open reentrance-ticket (expect redirect to the callback URL above): "
+                    + ": reentrance-ticket: "
                     + reentranceUrl
             );
-            browserOpener.accept(reentranceUrl);
+            browserOpener.accept(buildSsoLaunchUrl(callbackHost, actualPort, reentranceUrl));
             return ticketFuture.get(resolveCallbackTimeout().toMillis(), TimeUnit.MILLISECONDS);
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
@@ -129,7 +166,13 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
     }
 
     static URI buildCallbackUrl(String host, int port, String csrfState) {
-        return URI.create("http://" + host + ":" + port + CALLBACK_PATH + "?state=" + csrfState);
+        return URI.create(AdtHttpPaths.SCHEME_HTTP_PREFIX + host + ":" + port + CALLBACK_PATH + "?state=" + csrfState);
+    }
+
+    static URI buildSsoLaunchUrl(String host, int port, URI reentranceUrl) {
+        return URI.create(
+            AdtHttpPaths.SCHEME_HTTP_PREFIX + host + ":" + port + SSO_LAUNCH_PATH + "?target=" + urlEncode(reentranceUrl.toString())
+        );
     }
 
     static URI buildReentranceTicketUrl(URI frontend, SystemProfile system, URI callbackUrl) {
@@ -174,14 +217,19 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
             configured = system != null && system.getAdt() != null ? system.getAdt().getSsoLandingUrl() : null;
         }
         if (configured != null && !configured.isBlank()) {
-            return URI.create(configured.trim());
+            URI landing = URI.create(configured.trim());
+            assertLiveBrowserUrl(landing, system, "sso_landing_url");
+            return landing;
         }
-        // Do not default to site root: an existing portal SSO session often opens Fiori
-        // (/fiori#Shell-home) without establishing the ADT ICF browser session we need.
+        // Never default to frontend / — warm portal sessions open Fiori (/fiori#Shell-home)
+        // without ADT ICF cookies. Set sso_landing_url to your IdP/Okta app URL when needed.
         return null;
     }
 
-    /** ADT discovery entry (often {@code /sap/bc/adt}) after Okta on the site root. */
+    /**
+     * Optional browser URL for {@code OPENADT_HTTP_SSO_OPEN_BRIDGE} only — never {@code /sap/bc/adt/discovery}
+     * (Atom feed / ICF HTTP Basic). Use bare {@code /sap/bc/adt} or {@code sso_landing_url} instead.
+     */
     static URI resolveSsoBridgeUrl(URI frontend) {
         if (frontend == null) {
             return null;
@@ -190,7 +238,27 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
         if (path == null || path.isBlank() || "/".equals(path)) {
             return null;
         }
+        if (isBareAdtCollectionPath(path) || isAdtDiscoveryPath(path)) {
+            return originUri(frontend).resolve(AdtHttpPaths.ADT_ICF_ROOT);
+        }
         return frontend;
+    }
+
+    static boolean isAdtDiscoveryPath(String path) {
+        if (path == null || path.isBlank()) {
+            return false;
+        }
+        String normalized = path.endsWith("/") ? path.substring(0, path.length() - 1) : path;
+        return AdtHttpPaths.ADT_DISCOVERY.equalsIgnoreCase(normalized)
+            || normalized.endsWith("/core/discovery");
+    }
+
+    private static boolean isBareAdtCollectionPath(String path) {
+        if (path == null || path.isBlank()) {
+            return false;
+        }
+        String normalized = path.endsWith("/") ? path.substring(0, path.length() - 1) : path;
+        return AdtHttpPaths.ADT_ICF_ROOT.equalsIgnoreCase(normalized);
     }
 
     private record SsoStepPlan(int reentranceStep, int totalSteps) {
@@ -202,11 +270,13 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
         Console console = System.console();
         boolean interactive = console != null && !isTruthy(envProvider.apply(OPENADT_HTTP_SSO_NON_INTERACTIVE));
         int step = 1;
-        int totalSteps = (landingUrl != null ? 1 : 0) + (bridgeUrl != null ? 1 : 0) + 1;
+        boolean openBridge = bridgeUrl != null && shouldOpenBridgeInBrowser(interactive);
+        int totalSteps = (landingUrl != null ? 1 : 0) + (openBridge ? 1 : 0) + 1;
 
         if (landingUrl != null) {
-            CliLog.error(
-                "Step " + step + "/" + totalSteps + ": optional Okta/corporate landing (only when configured): "
+            CliLog.diagnostic(
+                "Step " + step + "/" + totalSteps
+                    + ": optional sso_landing_url (your IdP/Okta entry — not site /): "
                     + landingUrl
             );
             browserOpener.accept(landingUrl);
@@ -218,20 +288,32 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
             step++;
         }
 
-        if (bridgeUrl != null) {
-            CliLog.error(
+        if (openBridge) {
+            CliLog.diagnostic(
                 "Step " + step + "/" + totalSteps
-                    + ": open ADT entry (expect SAML/redirect here, not Fiori shell home): "
+                    + ": optional ADT bridge (OPENADT_HTTP_SSO_OPEN_BRIDGE): "
                     + bridgeUrl
             );
             browserOpener.accept(bridgeUrl);
             waitForSsoStep(
                 console,
                 interactive,
-                "When ADT is ready (or after any SAML redirect completes), press Enter to continue..."
+                "When ADT ICF session is ready, press Enter to continue..."
             );
             waitForBridgeInNonInteractiveMode();
-        } else if (landingUrl == null) {
+            step++;
+        } else if (bridgeUrl != null) {
+            CliLog.diagnostic(
+                "Optional ADT bridge tab skipped (default). SSO launch opens reentrance-ticket only; "
+                    + "never /sap/bc/adt/discovery in the browser. Set "
+                    + OPENADT_HTTP_SSO_OPEN_BRIDGE
+                    + "=1 to open "
+                    + bridgeUrl
+                    + " before reentrance."
+            );
+        }
+
+        if (bridgeUrl == null && landingUrl == null) {
             throw new IllegalStateException(
                 "HTTP browser SSO requires destinations.<alias>.adt.discovery_url with an ADT path such as /sap/bc/adt."
             );
@@ -249,7 +331,7 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
         if (wait.isZero() || wait.isNegative()) {
             return;
         }
-        CliLog.error(
+        CliLog.diagnostic(
             "Non-interactive terminal: waiting "
                 + wait.toSeconds()
                 + "s for browser SAML on ADT entry before opening reentrance-ticket..."
@@ -262,7 +344,34 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
         }
     }
 
+    private boolean shouldOpenBridgeInBrowser(boolean interactive) {
+        return shouldOpenBridgeInBrowser(envProvider, interactive);
+    }
+
+    /**
+     * Opens an extra bridge tab before the localhost launch page (opt-in via {@code OPENADT_HTTP_SSO_OPEN_BRIDGE}).
+     */
+    static boolean shouldOpenBridgeInBrowser(UnaryOperator<String> envProvider, boolean interactive) {
+        if (isTruthy(envProvider.apply(OPENADT_HTTP_SSO_SKIP_BRIDGE))) {
+            return false;
+        }
+        if (!isTruthy(envProvider.apply(OPENADT_HTTP_SSO_OPEN_BRIDGE))) {
+            return false;
+        }
+        if (!interactive) {
+            Duration wait = resolveBridgeWait(envProvider);
+            if (wait.isZero() || wait.isNegative()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private Duration resolveBridgeWait() {
+        return resolveBridgeWait(envProvider);
+    }
+
+    private static Duration resolveBridgeWait(UnaryOperator<String> envProvider) {
         String rawSeconds = envProvider.apply("OPENADT_HTTP_SSO_BRIDGE_WAIT_SECONDS");
         if (rawSeconds != null && !rawSeconds.isBlank()) {
             try {
@@ -325,6 +434,7 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
             resolveLoopbackAddress(host);
             int bindPort = sanitizeCallbackBindPort(requestedPort);
             HttpServer server = LoopbackSsoCallbackServerFactory.create(bindPort);
+            server.createContext(SSO_LAUNCH_PATH, exchange -> handleSsoLaunchExchange(exchange));
             server.createContext(
                 CALLBACK_PATH,
                 exchange -> handleCallbackExchange(exchange, ticketFuture, expectedState)
@@ -332,6 +442,18 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
             return server;
         } catch (IOException error) {
             throw new IllegalStateException("Failed to start local callback endpoint on /adt/redirect: " + error.getMessage(), error);
+        }
+    }
+
+    private static void handleSsoLaunchExchange(com.sun.net.httpserver.HttpExchange exchange) {
+        try {
+            writeHtmlResponse(exchange, 200, SSO_LAUNCH_PAGE);
+        } catch (IOException error) {
+            try {
+                writeResponse(exchange, 500, "OpenADT failed to start browser SSO.");
+            } catch (IOException ignored) {
+                // Best-effort error page.
+            }
         }
     }
 
@@ -493,10 +615,40 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
             throw new IllegalStateException("HTTP ADT transport requires destinations.<alias>.adt.discovery_url for browser SSO.");
         }
         String value = system.getAdt().getDiscoveryUrl();
-        if (!value.startsWith("http://") && !value.startsWith("https://")) {
-            value = "https://" + value;
+        value = AdtHttpPaths.withHttpsSchemeIfMissing(value);
+        URI frontend = URI.create(value);
+        assertLiveBrowserUrl(frontend, system, "discovery_url");
+        return frontend;
+    }
+
+    /**
+     * Docs/tests use {@code *.example.com} and {@code *.example.invalid}; reject them before opening a browser.
+     */
+    static boolean isFictionalExampleHost(String host) {
+        if (host == null || host.isBlank()) {
+            return false;
         }
-        return URI.create(value);
+        String normalized = host.trim().toLowerCase();
+        return normalized.endsWith(".example.com")
+            || normalized.endsWith(".example.invalid")
+            || normalized.equals("example.com")
+            || normalized.equals("example.invalid");
+    }
+
+    private static void assertLiveBrowserUrl(URI url, SystemProfile system, String fieldName) {
+        if (url == null || !isFictionalExampleHost(url.getHost())) {
+            return;
+        }
+        String alias = system != null && system.getAlias() != null ? system.getAlias() : "<alias>";
+        throw new IllegalStateException(
+            "Browser SSO "
+                + fieldName
+                + " uses fictional fixture host '"
+                + url.getHost()
+                + "'. Configure destinations."
+                + alias
+                + " with your logical ADT frontend (from saprules.xml), not docs/test placeholders."
+        );
     }
 
     private static URI originUri(URI uri) {

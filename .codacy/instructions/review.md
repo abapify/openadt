@@ -46,6 +46,12 @@ Use and expect fictional values in docs/tests: SID `DEV`, client `100`, user `DE
 - Java: `./mvnw.cmd -q test` under `apps/openadt-cli`.
 - SAP/JCo integration tests are `@Tag("integration")` and skipped by default.
 
+## Hard-coded password (disabled)
+
+Codacy Opengrep uses the repository Semgrep config at the root: **`.semgrep.yaml`** (not `.codacy/guardrails.yaml`). That file intentionally omits `codacy.*.security.hard-coded-password`. The same rules are removed from [`.codacy/tools-configs/semgrep.yaml`](../tools-configs/semgrep.yaml) for the local Codacy CLI bundle.
+
+OpenADT uses TOML field names such as `http_truststore_password` and Java constants like `KEY_HTTP_TRUSTSTORE_PASSWORD` — configuration keys, not credentials. Do not flag them as hard-coded secrets.
+
 ## PR expectations
 
 - No real SAP landscape data in commits.

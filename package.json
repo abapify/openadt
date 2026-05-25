@@ -7,6 +7,9 @@
     "package:release": "bun tools/package-release/src/main.ts",
     "release:version": "bun tools/release-version/src/main.ts",
     "format:write": "nx format:write",
+    "openadt": "nx run openadt-cli:run --output-style=stream --",
+    "openadt:build": "nx run openadt-cli:build --output-style=stream",
+    "openadt:test": "nx run openadt-cli:test --output-style=stream",
     "prepare": "husky",
     "precommit:format": "nx format:write --uncommitted && git update-index --again",
     "nx": "nx"

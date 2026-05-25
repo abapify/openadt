@@ -42,10 +42,6 @@ public final class AdtCommunicationBootstrap {
     }
 
     private static void log(String message) {
-        if (!Boolean.parseBoolean(System.getenv().getOrDefault("OPENADT_VERBOSE", "true"))) {
-            return;
-        }
-        CliLog.error("[openadt sdk] " + message);
-        CliLog.stderr().flush();
+        CliLog.sdk(message);
     }
 }

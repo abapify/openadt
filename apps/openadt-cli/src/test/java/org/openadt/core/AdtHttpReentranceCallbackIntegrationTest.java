@@ -10,6 +10,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AdtHttpReentranceCallbackIntegrationTest {
@@ -18,6 +19,16 @@ class AdtHttpReentranceCallbackIntegrationTest {
         String page = AdtHttpReentranceTicketFlow.TICKET_RECEIVED_PAGE;
         assertTrue(page.contains("window.close()"));
         assertTrue(page.contains("OpenADT ticket received"));
+    }
+
+    @Test
+    void ssoLaunchPageOpensNamedPopupFromTargetQuery() {
+        String page = AdtHttpReentranceTicketFlow.SSO_LAUNCH_PAGE;
+        assertTrue(page.contains("openadt_sso"));
+        assertTrue(page.contains("URLSearchParams"));
+        assertTrue(page.contains("window.open"));
+        assertFalse(page.contains("bridgeWaitSec"));
+        assertFalse(page.contains("/sap/bc/adt/discovery"));
     }
 
     @Test

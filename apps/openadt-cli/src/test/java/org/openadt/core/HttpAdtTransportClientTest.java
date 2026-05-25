@@ -1,8 +1,10 @@
 package org.openadt.core;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.net.http.HttpClient;
+import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -29,11 +31,11 @@ class HttpAdtTransportClientTest {
     }
 
     @Test
-    void resolvesCookieOnlyOnceDuringDiscoveryLookups() {
+    void resolvesCookieOnlyOnceDuringDiscoveryLookups(@TempDir Path openadtHome) {
         OpenAdtConfig config = new OpenAdtConfig();
         AtomicInteger resolveCount = new AtomicInteger();
-        AdtHttpCookieProvider cookieProvider = new AdtHttpCookieProvider(
-            key -> null,
+        AdtHttpCookieProvider cookieProvider = isolatedCookieProvider(
+            openadtHome,
             (cfg, profile) -> {
                 resolveCount.incrementAndGet();
                 return "ticket-once";
@@ -65,12 +67,9 @@ class HttpAdtTransportClientTest {
     }
 
     @Test
-    void failsWhenCookieIsMissing() {
+    void failsWhenCookieIsMissing(@TempDir Path openadtHome) {
         OpenAdtConfig config = new OpenAdtConfig();
-        AdtHttpCookieProvider cookieProvider = new AdtHttpCookieProvider(
-            key -> null,
-            (cfg, profile) -> null
-        );
+        AdtHttpCookieProvider cookieProvider = isolatedCookieProvider(openadtHome, (cfg, profile) -> null);
         HttpAdtTransportClient client = new HttpAdtTransportClient(
             config,
             HttpClient.newHttpClient(),
@@ -82,6 +81,21 @@ class HttpAdtTransportClientTest {
         IllegalStateException error = assertThrows(IllegalStateException.class, () -> client.buildCookieHeader(system));
 
         assertEquals(true, error.getMessage().contains("MYSAPSSO2"));
+    }
+
+    private static AdtHttpCookieProvider isolatedCookieProvider(Path openadtHome, AdtHttpTicketProvider ticketProvider) {
+        HttpSsoTicketCache cache = new HttpSsoTicketCache(openadtHome, HttpAdtTransportClientTest::cacheDisabledEnv);
+        return new AdtHttpCookieProvider(key -> null, ticketProvider, cache);
+    }
+
+    private static String cacheDisabledEnv(String key) {
+        if ("OPENADT_MYSAPSSO2".equals(key) || "OPENADT_COOKIE_FILE".equals(key)) {
+            return null;
+        }
+        if (HttpSsoTicketCache.DISABLE_ENV.equals(key)) {
+            return "1";
+        }
+        return null;
     }
 
     private static HttpAdtTransportClient client(OpenAdtConfig config, String ticket) {

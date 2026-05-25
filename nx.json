@@ -1,9 +1,31 @@
 {
   "$schema": "./node_modules/nx/schemas/nx-schema.json",
   "defaultBase": "main",
+  "tui": {
+    "enabled": false
+  },
   "namedInputs": {
     "sharedGlobals": ["{workspaceRoot}/.github/workflows/ci.yml"],
-    "default": ["sharedGlobals"]
+    "default": ["sharedGlobals"],
+    "javaSources": [
+      "{projectRoot}/pom.xml",
+      "{projectRoot}/src/**/*",
+      "{projectRoot}/mvnw",
+      "{projectRoot}/mvnw.cmd",
+      "{projectRoot}/.mvn/**/*"
+    ]
+  },
+  "targetDefaults": {
+    "build": {
+      "cache": true,
+      "inputs": ["javaSources"],
+      "outputs": ["{projectRoot}/target"]
+    },
+    "test": {
+      "cache": true,
+      "inputs": ["javaSources"],
+      "outputs": ["{projectRoot}/target"]
+    }
   },
   "analytics": true
 }

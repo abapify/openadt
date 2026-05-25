@@ -1,0 +1,64 @@
+# OpenADT — Codacy Opengrep / Semgrep configuration (canonical).
+#
+# Codacy detects `.semgrep.yaml` at the repository root when "Configuration file"
+# is enabled for Opengrep (see Codacy docs). Keep `.semgrep.yml` in sync for local CI.
+#
+# Intentionally omitted: codacy.*.security.hard-coded-password (false positives on TOML
+# key names such as http_truststore_password and KEY_HTTP_* constants — not credentials).
+#
+# Security review context: .codacy/instructions/review.md
+#
+# Intentional patterns (do NOT exclude whole files):
+#   1. AdtHttpReentranceTicketFlow — loopback SSO callback
+#   2. LoopbackHubTlsProbe — loopback TLS probe for Secure Login hub pinning
+#   3. SecureLoginHubClient — hub TLS pinning
+#   4. Tests — HttpServer on 127.0.0.1 / ephemeral ports
+#
+# Line-specific suppressions: // nosemgrep: <rule-id>
+
+rules:
+  - id: openadt.java.security.trust-all-outside-loopback-probe
+    languages: [java]
+    severity: ERROR
+    message: >-
+      Unsafe X509TrustManager outside LoopbackHubTlsProbe. Trust-all TLS capture for
+      Secure Login hub cert pinning must stay isolated to org.openadt.core.LoopbackHubTlsProbe.
+    metadata:
+      category: security
+      confidence: HIGH
+      cwe: "CWE-295: Improper Certificate Validation"
+      owasp: "A07:2021 - Identification and Authentication Failures"
+      technology: [java]
+      openadt: guard-rule
+    patterns:
+      - pattern-either:
+          - pattern: |
+              new X509TrustManager() {
+                ...
+              }
+          - pattern: |
+              new TrustManager[] { ..., new X509TrustManager() { ... }, ... }
+      - pattern-not-inside: |
+          class LoopbackHubTlsProbe {
+            ...
+          }
+      - pattern-not: |
+          new X509TrustManager() {
+            ...
+            public void checkServerTrusted(...) {
+              ...
+              throw new CertificateException(...);
+              ...
+            }
+            ...
+          }
+      - pattern-not: |
+          new X509TrustManager() {
+            ...
+            public void checkServerTrusted(...) {
+              ...
+              throw new IllegalArgumentException(...);
+              ...
+            }
+            ...
+          }

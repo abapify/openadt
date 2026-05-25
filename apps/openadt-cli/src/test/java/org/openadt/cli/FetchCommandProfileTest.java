@@ -29,4 +29,11 @@ class FetchCommandProfileTest {
         int exitCode = cmd.execute("/sap/bc/adt/core/discovery");
         assertEquals(1, exitCode);
     }
+
+    @Test
+    void parsesNoCacheFlag() {
+        FetchCommand command = new FetchCommand();
+        new CommandLine(command).parseArgs("DEV", "/sap/bc/adt/core/discovery", "--no-cache", "--profile", "sso");
+        assertTrue(command.noCache);
+    }
 }

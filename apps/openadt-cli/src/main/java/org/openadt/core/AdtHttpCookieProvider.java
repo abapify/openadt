@@ -4,6 +4,9 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.UnaryOperator;
 
 /**
@@ -14,34 +17,52 @@ import java.util.function.UnaryOperator;
  * {@code MYSAPSSO2} for direct HTTP calls unless you supply the ticket explicitly.
  */
 public class AdtHttpCookieProvider {
+    public record Mysapsso2Resolution(String ticket, boolean usedDiskCache) {
+    }
+
     private final UnaryOperator<String> envProvider;
     private final AdtHttpTicketProvider ticketProvider;
+    private final HttpSsoTicketCache ticketCache;
+    private volatile Map<String, String> lastSessionCookies = new ConcurrentHashMap<>();
 
     public AdtHttpCookieProvider() {
-        this(System::getenv, null);
+        this(System::getenv, null, new HttpSsoTicketCache());
     }
 
     AdtHttpCookieProvider(UnaryOperator<String> envProvider) {
-        this(envProvider, null);
+        this(envProvider, null, new HttpSsoTicketCache());
     }
 
     AdtHttpCookieProvider(UnaryOperator<String> envProvider, AdtHttpTicketProvider ticketProvider) {
+        this(envProvider, ticketProvider, new HttpSsoTicketCache());
+    }
+
+    AdtHttpCookieProvider(
+        UnaryOperator<String> envProvider,
+        AdtHttpTicketProvider ticketProvider,
+        HttpSsoTicketCache ticketCache
+    ) {
         this.envProvider = envProvider;
         this.ticketProvider = ticketProvider != null
             ? ticketProvider
             : new AdtHttpReentranceTicketFlow(envProvider, AdtHttpReentranceTicketFlow::openInDesktopBrowser);
+        this.ticketCache = ticketCache;
     }
 
-    public String resolveMysapsso2(OpenAdtConfig config, SystemProfile system) {
+    public Mysapsso2Resolution resolveMysapsso2(OpenAdtConfig config, SystemProfile system) {
+        lastSessionCookies = new ConcurrentHashMap<>();
+        String alias = system != null && system.getAlias() != null ? system.getAlias() : "?";
         String fromEnv = blankToNull(envProvider.apply("OPENADT_MYSAPSSO2"));
         if (fromEnv != null) {
-            return fromEnv;
+            CliLog.httpSso("ticket source: OPENADT_MYSAPSSO2 env");
+            return new Mysapsso2Resolution(fromEnv, false);
         }
 
         if (config != null && config.getSecureLogin() != null) {
             String fromConfig = blankToNull(config.getSecureLogin().getMysapsso2());
             if (fromConfig != null) {
-                return fromConfig;
+                CliLog.httpSso("ticket source: secure_login.mysapsso2 in config");
+                return new Mysapsso2Resolution(fromConfig, false);
             }
         }
 
@@ -49,14 +70,32 @@ public class AdtHttpCookieProvider {
         if (cookieFile != null) {
             String fromFile = readCookieFile(Path.of(cookieFile));
             if (fromFile != null) {
-                return fromFile;
+                CliLog.httpSso("ticket source: OPENADT_COOKIE_FILE");
+                return new Mysapsso2Resolution(fromFile, false);
             }
+            CliLog.httpSso("OPENADT_COOKIE_FILE set but empty or unreadable");
         }
 
+        Optional<HttpSsoTicketCache.CachedSession> cached = ticketCache.readSession(system);
+        if (cached.isPresent()) {
+            lastSessionCookies = new ConcurrentHashMap<>(HttpSapCookieStore.copyOf(cached.get().cookiesOrEmpty()));
+            HttpSsoTicketCache.CachedSession session = cached.get();
+            CliLog.httpSso(
+                "ticket source: disk cache for " + alias
+                    + (session.hasApiBase() ? " (api base cached)" : "")
+                    + "; cookies: " + HttpSapCookieStore.describeNames(session.cookiesOrEmpty())
+            );
+            return new Mysapsso2Resolution(session.ticket(), true);
+        }
+
+        CliLog.httpSso("ticket source: browser callback (disk cache miss)");
         ensureWebAdapterReady(config);
         String fromReentranceFlow = ticketProvider.acquireTicket(config, system);
         if (fromReentranceFlow != null && !fromReentranceFlow.isBlank()) {
-            return fromReentranceFlow;
+            Map<String, String> cookies = HttpSapSessionWarmup.probe(config, system, fromReentranceFlow);
+            lastSessionCookies = new ConcurrentHashMap<>(HttpSapCookieStore.copyOf(cookies));
+            ticketCache.writeSession(system, new HttpSsoTicketCache.CachedSession(fromReentranceFlow, null, cookies));
+            return new Mysapsso2Resolution(fromReentranceFlow, false);
         }
 
         throw new IllegalStateException(buildMissingTicketMessage(system));
@@ -127,6 +166,27 @@ public class AdtHttpCookieProvider {
             message.append("Configure destinations.<alias>.adt.discovery_url and sign in through that frontend in a browser.");
         }
         return message.toString();
+    }
+
+    public void invalidateCachedTicket(SystemProfile system) {
+        lastSessionCookies = new ConcurrentHashMap<>();
+        ticketCache.invalidate(system);
+    }
+
+    public Map<String, String> lastSessionCookies() {
+        return HttpSapCookieStore.copyOf(lastSessionCookies);
+    }
+
+    public void recordResponseCookies(SystemProfile system, Map<String, String> fromResponse) {
+        if (fromResponse == null || fromResponse.isEmpty()) {
+            return;
+        }
+        HttpSapCookieStore.merge(lastSessionCookies, fromResponse);
+        ticketCache.mergeCookies(system, fromResponse);
+    }
+
+    HttpSsoTicketCache ticketCacheForTransport() {
+        return ticketCache;
     }
 
     private static String blankToNull(String value) {

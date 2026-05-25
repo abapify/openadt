@@ -7,7 +7,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AdtHttpCookieProviderTest {
     @Test
@@ -19,7 +21,7 @@ class AdtHttpCookieProviderTest {
             return null;
         });
 
-        assertEquals("from-env", provider.resolveMysapsso2(new OpenAdtConfig(), null));
+        assertEquals("from-env", provider.resolveMysapsso2(new OpenAdtConfig(), null).ticket());
     }
 
     @Test
@@ -34,7 +36,7 @@ class AdtHttpCookieProviderTest {
             return null;
         });
 
-        assertEquals("file-ticket", provider.resolveMysapsso2(new OpenAdtConfig(), null));
+        assertEquals("file-ticket", provider.resolveMysapsso2(new OpenAdtConfig(), null).ticket());
     }
 
     @Test
@@ -46,7 +48,7 @@ class AdtHttpCookieProviderTest {
 
         AdtHttpCookieProvider provider = new AdtHttpCookieProvider(key -> null);
 
-        assertEquals("from-config", provider.resolveMysapsso2(config, null));
+        assertEquals("from-config", provider.resolveMysapsso2(config, null).ticket());
     }
 
     @Test
@@ -71,6 +73,51 @@ class AdtHttpCookieProviderTest {
     }
 
     @Test
+    void prefersDiskCacheBeforeBrowserFlow(@TempDir Path openadtHome) throws Exception {
+        SystemProfile system = new SystemProfile();
+        system.setAlias("DEV");
+        system.setClient("100");
+        SystemProfile.AdtConfig adt = new SystemProfile.AdtConfig();
+        adt.setDiscoveryUrl("https://dev-adt.example.com/sap/bc/adt");
+        system.setAdt(adt);
+
+        HttpSsoTicketCache cache = new HttpSsoTicketCache(openadtHome, key -> null);
+        cache.write(system, "cached-ticket");
+
+        AdtHttpTicketProvider neverCalled = (config, profile) -> {
+            throw new AssertionError("browser SSO should not run when cache is valid");
+        };
+        AdtHttpCookieProvider provider = new AdtHttpCookieProvider(key -> null, neverCalled, cache);
+
+        AdtHttpCookieProvider.Mysapsso2Resolution resolution =
+            provider.resolveMysapsso2(new OpenAdtConfig(), system);
+        assertEquals("cached-ticket", resolution.ticket());
+        assertEquals(true, resolution.usedDiskCache());
+    }
+
+    @Test
+    void skipsDiskCacheWhenRequestNoCache(@TempDir Path openadtHome) throws Exception {
+        SystemProfile system = new SystemProfile();
+        system.setAlias("DEV");
+        system.setClient("100");
+        SystemProfile.AdtConfig adt = new SystemProfile.AdtConfig();
+        adt.setDiscoveryUrl("https://dev-adt.example.com/sap/bc/adt");
+        system.setAdt(adt);
+
+        HttpSsoTicketCache cache = new HttpSsoTicketCache(openadtHome, key -> null, true);
+        cache.write(system, "cached-ticket");
+
+        AdtHttpTicketProvider browser = (config, profile) -> "fresh-ticket";
+        AdtHttpCookieProvider provider = new AdtHttpCookieProvider(key -> null, browser, cache);
+
+        AdtHttpCookieProvider.Mysapsso2Resolution resolution =
+            provider.resolveMysapsso2(new OpenAdtConfig(), system);
+        assertEquals("fresh-ticket", resolution.ticket());
+        assertFalse(resolution.usedDiskCache());
+        assertTrue(cache.read(system).isEmpty());
+    }
+
+    @Test
     void fallsBackToReentranceTicketFlowWhenNoCookieInputsExist() {
         SystemProfile system = new SystemProfile();
         system.setClient("100");
@@ -87,6 +134,6 @@ class AdtHttpCookieProviderTest {
         assertEquals("ticket-from-callback", provider.resolveMysapsso2(
             new OpenAdtConfig(),
             system
-        ));
+        ).ticket());
     }
 }

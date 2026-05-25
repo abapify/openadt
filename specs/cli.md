@@ -188,7 +188,7 @@ Options:
 - `--local-auth <type>` — Local auth type (`basic`)
 - `--local-username <name>` — Local proxy username (default: `openadt`)
 - `--local-password <password>` — Local proxy password (falls back to `OPENADT_PROXY_PASSWORD` env var)
-- `--profile <name>` — Authentication profile (e.g. `snc`, `sso`; defaults to destination `default_profile` or legacy destination settings)
+- `--profile <name>` — Authentication profile (e.g. `snc`, `sso`; defaults to destination `default_profile` or legacy destination settings). When omitted, `OPENADT_PROFILE` is used if set.
 - `--config, -c <path>` — Config file path
 
 Behavior:
@@ -243,6 +243,7 @@ Options:
 - `--truststore-password <secret>` — Truststore password for explicit HTTPS trust in HTTP transport mode
 - `--callback-port <port>` — Callback bind port for browser SSO flow (`0` picks a random local port)
 - `--profile <name>` — Authentication profile (e.g. `snc`, `sso`; cannot be combined with `--base-url`)
+- `--no-cache` — For HTTP SSO on this fetch only: do not read or write `~/.openadt/cache/http-sso/` (forces browser ticket flow when no `OPENADT_MYSAPSSO2`). Ignored for SDK/JCo transport. Does not apply when fetch reuses a running `openadt proxy` (use `--direct` to bypass the proxy)
 
 Behavior:
 
@@ -255,6 +256,7 @@ Behavior:
 - `--pretty` auto-formats JSON and XML for human reading
 - `--raw` writes only the response body to stdout with no proxy/tip messages on stderr
 - `--pretty --raw` is the usual scripting combo (formatted body, clean stdout)
+- Successful fetch prints only the response body on stdout by default; SDK/JCo/SNC, HTTP SSO, proxy, and destination diagnostics go to stderr only when `OPENADT_VERBOSE=true` (or use `--raw` to suppress proxy/tip stderr from fetch itself)
 - Output is binary-safe
 - `OPENADT_CONFIG` overrides default config lookup
 
@@ -265,15 +267,45 @@ SDK transport (default when `adt_plugins_dir` is configured; `adt.transport = "s
 - Resolves destination in order: Eclipse workspace `.destination.properties` for the system SID, else `[destinations.<alias>]` from config
 - `fetch` and `proxy` share `AdtSdkTransportClient` — identical logon and request path
 - Some ADT resources need specific `Accept` headers; use `--accept` or `-H "Accept: ..."` (discovery paths get `application/atomsvc+xml` by default)
-- Set `OPENADT_VERBOSE=true` for stderr diagnostics (no secrets)
+- Set `OPENADT_VERBOSE=true` for HTTP SSO, SDK/JCo/SNC, and destination diagnostics on stderr (off by default; fetch body stays on stdout)
 
 HTTP transport (`adt.transport = "http"`):
 
 - Does not use JCo or the ADT SDK
 - Requires `destinations.<alias>.adt.discovery_url` (logical frontend from `saprules.xml`)
 - Accepts SAP logon tickets from `OPENADT_MYSAPSSO2`, `secure_login.mysapsso2`, or `OPENADT_COOKIE_FILE`
-- If no ticket is available, OpenADT starts a localhost callback (`/adt/redirect`), opens the browser against `/sap/bc/adt/core/http/reentranceticket`, and captures the returned `reentrance-ticket` in memory
-- Reentrance tickets are kept in memory for the active request flow only; no ticket file is written by default
+- If no ticket is available, OpenADT runs browser reentrance-ticket SSO (see below)
+- After browser SSO, OpenADT warms the SAP session (`GET …/sap/bc/adt/discovery`) and caches **`Set-Cookie` values** (e.g. `SAP_SESSIONID_*`) together with the reentrance ticket under `~/.openadt/cache/http-sso/` (user home only), plus resolved ADT API base. A second `fetch` should reuse ticket + session cookies without another callback. For many requests in one session, `openadt proxy <SYSTEM> --profile=sso` remains the fastest path. Use `fetch --no-cache` or `OPENADT_HTTP_SSO_NO_CACHE=1` to skip disk cache for one fetch or all processes
+- `openadt fetch` reuses a running `openadt proxy` for the same alias/profile when present, so HTTP SSO (and extra browser tabs) run once per proxy process, not on every fetch
+
+#### Browser reentrance-ticket SSO
+
+OpenADT cannot read cookies from the user's browser. The CLI only obtains a logon ticket when SAP redirects the browser to the localhost callback with `reentrance-ticket=...` in the query string. That redirect requires an **ADT ICF browser session** (SAP session cookies in the browser profile) on the frontend host before `/sap/bc/adt/core/http/reentranceticket` will issue a ticket.
+
+Typical flow:
+
+0. **Optional landing** — only when `sso_landing_url` / `OPENADT_HTTP_SSO_LANDING_URL` is set to your **IdP/Okta app URL**. Do **not** use bare frontend `/` (often opens Fiori `/fiori#Shell-home` without ADT ICF cookies). Skip with `OPENADT_HTTP_SSO_SKIP_LANDING`.
+1. **Reentrance-ticket (default SSO)** — localhost `/adt/open` opens a popup to `/sap/bc/adt/core/http/reentranceticket?redirect-url=http://localhost:…/adt/redirect`. **Do not** open `/sap/bc/adt/discovery` in the browser (Atom/ICF HTTP Basic). **IdP/SAML redirects** happen on the reentrance-ticket chain (or via optional `sso_landing_url`), then SAP redirects back with `reentrance-ticket=…`.
+2. **Optional ADT bridge tab** — only when `OPENADT_HTTP_SSO_OPEN_BRIDGE=1`: may open bare `/sap/bc/adt` (never `/sap/bc/adt/discovery`) before reentrance. Off by default.
+3. **Server-side warmup** — after the ticket is received, the CLI may `GET /sap/bc/adt/discovery` with `MYSAPSSO2` via Java HTTP client only (not a browser tab) to cache session cookies.
+
+Environment (optional):
+
+| Variable                                                    | Purpose                                                                                                                                    |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `OPENADT_HTTP_SSO_NON_INTERACTIVE`                          | Skip Enter prompts (`true`/`1`/`yes`)                                                                                                      |
+| `OPENADT_HTTP_SSO_BRIDGE_WAIT_SECONDS`                      | Seconds to wait after bridge before reentrance when non-interactive (default `15`; `0` = warm session — also skips opening the bridge tab) |
+| `OPENADT_HTTP_SSO_OPEN_BRIDGE`                              | Open optional bare `/sap/bc/adt` bridge tab before reentrance (never `/sap/bc/adt/discovery`)                                              |
+| `OPENADT_HTTP_SSO_SKIP_BRIDGE`                              | Force bridge tab off even when `OPENADT_HTTP_SSO_OPEN_BRIDGE=1`                                                                            |
+| `OPENADT_HTTP_SSO_SKIP_LANDING`                             | Skip optional `sso_landing_url`                                                                                                            |
+| `OPENADT_HTTP_SSO_LANDING_URL`                              | Override landing URL (else `destinations.*.adt.sso_landing_url`)                                                                           |
+| `OPENADT_HTTP_CALLBACK_HOST` / `OPENADT_HTTP_CALLBACK_PORT` | Loopback callback bind (`localhost` required for SAP redirect validation)                                                                  |
+| `OPENADT_HTTP_CALLBACK_TIMEOUT_MINUTES`                     | Max wait for redirect (default `5`)                                                                                                        |
+| `OPENADT_HTTP_SSO_NO_CACHE`                                 | Disable HTTP SSO disk cache read/write for the whole process (`1`/`true`; same effect as `fetch --no-cache` per fetch)                     |
+| `OPENADT_VERBOSE`                                           | `true` — SDK/JCo/SNC bootstrap, HTTP SSO cache/cookie, proxy tip, SSO step URLs (default off)                                              |
+
+To avoid browser SSO entirely: set `OPENADT_MYSAPSSO2` or `OPENADT_COOKIE_FILE`, or keep `openadt proxy` running after the first successful SSO so subsequent `fetch` calls reuse the proxy's in-memory ticket.
+
 - Uses the Secure Login hub only to verify Web Adapter login when `secure_login.origin` and `secure_login.web_adapter_profile_id` are configured
 - Resolves the ADT API base via `/.well-known/sap-adt-info` or `/sap/public/bc/icf/virtualhost`
 - Supports explicit TLS trust override via runtime config (`runtime.http_ca_cert`, `runtime.http_truststore`, `runtime.http_truststore_password`) or env (`OPENADT_HTTP_CA_CERT`, `OPENADT_HTTP_TRUSTSTORE`, `OPENADT_HTTP_TRUSTSTORE_PASSWORD`)

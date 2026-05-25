@@ -30,6 +30,7 @@ public final class DestinationProfileResolver {
             );
         }
         applyProfile(effective, destination.getProfiles().get(effectiveProfile));
+        effective.setActiveProfile(effectiveProfile);
         return effective;
     }
 
@@ -114,6 +115,15 @@ public final class DestinationProfileResolver {
         if (profile.getSsoLandingUrl() != null) {
             adt.setSsoLandingUrl(profile.getSsoLandingUrl());
         }
+        if (profile.getHttpCaCert() != null) {
+            adt.setHttpCaCert(profile.getHttpCaCert());
+        }
+        if (profile.getHttpTruststore() != null) {
+            adt.setHttpTruststore(profile.getHttpTruststore());
+        }
+        if (profile.getHttpTruststorePassword() != null) {
+            adt.setHttpTruststorePassword(profile.getHttpTruststorePassword());
+        }
     }
 
     private static void applyProfileNestedAdtFields(SystemProfile.AdtConfig adt, SystemProfile.AdtConfig profileAdt) {
@@ -131,6 +141,15 @@ public final class DestinationProfileResolver {
         }
         if (profileAdt.getSsoLandingUrl() != null) {
             adt.setSsoLandingUrl(profileAdt.getSsoLandingUrl());
+        }
+        if (profileAdt.getHttpCaCert() != null) {
+            adt.setHttpCaCert(profileAdt.getHttpCaCert());
+        }
+        if (profileAdt.getHttpTruststore() != null) {
+            adt.setHttpTruststore(profileAdt.getHttpTruststore());
+        }
+        if (profileAdt.getHttpTruststorePassword() != null) {
+            adt.setHttpTruststorePassword(profileAdt.getHttpTruststorePassword());
         }
     }
 
@@ -202,6 +221,9 @@ public final class DestinationProfileResolver {
         copy.setDiscoveryUrl(source.getDiscoveryUrl());
         copy.setAuthenticationKind(source.getAuthenticationKind());
         copy.setSsoLandingUrl(source.getSsoLandingUrl());
+        copy.setHttpCaCert(source.getHttpCaCert());
+        copy.setHttpTruststore(source.getHttpTruststore());
+        copy.setHttpTruststorePassword(source.getHttpTruststorePassword());
         return copy;
     }
 }
