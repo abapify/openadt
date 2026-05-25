@@ -284,8 +284,8 @@ OpenADT cannot read cookies from the user's browser. The CLI only obtains a logo
 Typical flow:
 
 0. **Optional landing** — only when `sso_landing_url` / `OPENADT_HTTP_SSO_LANDING_URL` is set to your **IdP/Okta app URL**. Do **not** use bare frontend `/` (often opens Fiori `/fiori#Shell-home` without ADT ICF cookies). Skip with `OPENADT_HTTP_SSO_SKIP_LANDING`.
-1. **Reentrance-ticket (default SSO)** — localhost `/adt/open` launches a popup to `/sap/bc/adt/core/http/reentranceticket?redirect-url=http://localhost:…/adt/redirect`. On a cold login this is where **IdP/SAML redirects** should happen, then SAP redirects back with `reentrance-ticket=…`.
-2. **Optional ADT bridge** — only when `OPENADT_HTTP_SSO_OPEN_BRIDGE=1`: opens `/sap/bc/adt/discovery` (when `discovery_url` ends at bare `/sap/bc/adt`) before reentrance. Off by default.
+1. **Reentrance-ticket (default SSO)** — localhost `/adt/open` opens a popup that first loads the ADT bridge URL (`/sap/bc/adt/discovery` when `discovery_url` ends at `/sap/bc/adt`) for `OPENADT_HTTP_SSO_BRIDGE_WAIT_SECONDS` (default `15`), then navigates to `/sap/bc/adt/core/http/reentranceticket?redirect-url=http://localhost:…/adt/redirect`. Priming avoids SAP **HTTP Basic** on a cold browser session; **IdP/SAML redirects** run on the bridge step, then SAP redirects back with `reentrance-ticket=…`.
+2. **Optional extra bridge tab** — when `OPENADT_HTTP_SSO_OPEN_BRIDGE=1`: opens the bridge URL in a separate tab before the launch page (in addition to popup priming).
 
 Environment (optional):
 
@@ -293,8 +293,8 @@ Environment (optional):
 | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | `OPENADT_HTTP_SSO_NON_INTERACTIVE`                          | Skip Enter prompts (`true`/`1`/`yes`)                                                                                                      |
 | `OPENADT_HTTP_SSO_BRIDGE_WAIT_SECONDS`                      | Seconds to wait after bridge before reentrance when non-interactive (default `15`; `0` = warm session — also skips opening the bridge tab) |
-| `OPENADT_HTTP_SSO_OPEN_BRIDGE`                              | Open optional ADT discovery bridge tab before reentrance (default off)                                                                     |
-| `OPENADT_HTTP_SSO_SKIP_BRIDGE`                              | Force bridge off even when `OPENADT_HTTP_SSO_OPEN_BRIDGE=1`                                                                                |
+| `OPENADT_HTTP_SSO_OPEN_BRIDGE`                              | Open an extra ADT bridge tab before the launch popup (default off; popup priming is on by default)                                         |
+| `OPENADT_HTTP_SSO_SKIP_BRIDGE`                              | Disable ADT bridge priming in the launch popup and extra bridge tab                                                                        |
 | `OPENADT_HTTP_SSO_SKIP_LANDING`                             | Skip optional `sso_landing_url`                                                                                                            |
 | `OPENADT_HTTP_SSO_LANDING_URL`                              | Override landing URL (else `destinations.*.adt.sso_landing_url`)                                                                           |
 | `OPENADT_HTTP_CALLBACK_HOST` / `OPENADT_HTTP_CALLBACK_PORT` | Loopback callback bind (`localhost` required for SAP redirect validation)                                                                  |

@@ -26,6 +26,8 @@ class AdtHttpReentranceCallbackIntegrationTest {
         assertTrue(page.contains("openadt_sso"));
         assertTrue(page.contains("URLSearchParams"));
         assertTrue(page.contains("window.open"));
+        assertTrue(page.contains("bridgeWaitSec"));
+        assertTrue(page.contains("popup.location.href = target"));
     }
 
     @Test

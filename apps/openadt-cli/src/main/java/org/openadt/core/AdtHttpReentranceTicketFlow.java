@@ -42,17 +42,39 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
               <title>OpenADT SSO</title>
               <script>
                 (function () {
-                  var target = new URLSearchParams(location.search).get('target');
+                  var params = new URLSearchParams(location.search);
+                  var target = params.get('target');
                   if (!target || !/^https?:\\/\\//i.test(target)) {
                     return;
                   }
-                  var popup = window.open(target, 'openadt_sso');
-                  if (popup) {
-                    try { window.close(); } catch (e) {}
-                    setTimeout(function () { try { window.close(); } catch (e2) {} }, 150);
-                  } else {
-                    location.replace(target);
+                  var openTarget = function () {
+                    var popup = window.open(target, 'openadt_sso');
+                    if (popup) {
+                      try { window.close(); } catch (e) {}
+                      setTimeout(function () { try { window.close(); } catch (e2) {} }, 150);
+                    } else {
+                      location.replace(target);
+                    }
+                  };
+                  var bridge = params.get('bridge');
+                  var bridgeWaitSec = parseInt(params.get('bridgeWaitSec') || '0', 10);
+                  if (!Number.isFinite(bridgeWaitSec) || bridgeWaitSec < 0) {
+                    bridgeWaitSec = 0;
                   }
+                  if (bridge && /^https?:\\/\\//i.test(bridge) && bridgeWaitSec > 0) {
+                    var popup = window.open(bridge, 'openadt_sso');
+                    if (!popup) {
+                      location.replace(bridge);
+                      setTimeout(openTarget, bridgeWaitSec * 1000);
+                      return;
+                    }
+                    setTimeout(function () {
+                      try { popup.location.href = target; } catch (e) { openTarget(); }
+                      try { window.close(); } catch (e2) {}
+                    }, bridgeWaitSec * 1000);
+                    return;
+                  }
+                  openTarget();
                 })();
               </script>
             </head>
@@ -136,7 +158,23 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
                     + ": reentrance-ticket: "
                     + reentranceUrl
             );
-            browserOpener.accept(buildSsoLaunchUrl(callbackHost, actualPort, reentranceUrl));
+            URI bridgeUrl = resolveSsoBridgeUrl(frontend);
+            boolean interactive =
+                System.console() != null && !isTruthy(envProvider.apply(OPENADT_HTTP_SSO_NON_INTERACTIVE));
+            boolean primeBridge = shouldPrimeBrowserSession(envProvider, interactive);
+            int bridgeWaitSeconds = primeBridge ? (int) resolveBridgeWait(envProvider).toSeconds() : 0;
+            if (primeBridge && bridgeUrl != null) {
+                CliLog.diagnostic(
+                    "Priming ADT browser session via "
+                        + bridgeUrl
+                        + " ("
+                        + bridgeWaitSeconds
+                        + "s) before reentrance-ticket to avoid HTTP Basic on cold login"
+                );
+            }
+            browserOpener.accept(
+                buildSsoLaunchUrl(callbackHost, actualPort, reentranceUrl, primeBridge ? bridgeUrl : null, bridgeWaitSeconds)
+            );
             return ticketFuture.get(resolveCallbackTimeout().toMillis(), TimeUnit.MILLISECONDS);
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
@@ -175,8 +213,17 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
     }
 
     static URI buildSsoLaunchUrl(String host, int port, URI reentranceUrl) {
+        return buildSsoLaunchUrl(host, port, reentranceUrl, null, 0);
+    }
+
+    static URI buildSsoLaunchUrl(String host, int port, URI reentranceUrl, URI bridgeUrl, int bridgeWaitSeconds) {
+        StringBuilder query = new StringBuilder("target=").append(urlEncode(reentranceUrl.toString()));
+        if (bridgeUrl != null && bridgeWaitSeconds > 0) {
+            query.append("&bridge=").append(urlEncode(bridgeUrl.toString()));
+            query.append("&bridgeWaitSec=").append(bridgeWaitSeconds);
+        }
         return URI.create(
-            AdtHttpPaths.SCHEME_HTTP_PREFIX + host + ":" + port + SSO_LAUNCH_PATH + "?target=" + urlEncode(reentranceUrl.toString())
+            AdtHttpPaths.SCHEME_HTTP_PREFIX + host + ":" + port + SSO_LAUNCH_PATH + "?" + query
         );
     }
 
@@ -301,8 +348,14 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
             step++;
         } else if (bridgeUrl != null) {
             CliLog.diagnostic(
-                "ADT bridge tab skipped (default). SSO runs via reentrance-ticket redirects. "
-                    + "Set " + OPENADT_HTTP_SSO_OPEN_BRIDGE + "=1 to open " + bridgeUrl + " first."
+                "Separate ADT bridge tab skipped. "
+                    + "Launch popup will open "
+                    + bridgeUrl
+                    + " first (unless "
+                    + OPENADT_HTTP_SSO_SKIP_BRIDGE
+                    + "=1). Set "
+                    + OPENADT_HTTP_SSO_OPEN_BRIDGE
+                    + "=1 for an extra bridge tab before reentrance."
             );
         }
 
@@ -341,6 +394,9 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
         return shouldOpenBridgeInBrowser(envProvider, interactive);
     }
 
+    /**
+     * Opens an extra bridge tab before the localhost launch page (opt-in via {@code OPENADT_HTTP_SSO_OPEN_BRIDGE}).
+     */
     static boolean shouldOpenBridgeInBrowser(UnaryOperator<String> envProvider, boolean interactive) {
         if (isTruthy(envProvider.apply(OPENADT_HTTP_SSO_SKIP_BRIDGE))) {
             return false;
@@ -353,6 +409,21 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
             if (wait.isZero() || wait.isNegative()) {
                 return false;
             }
+        }
+        return true;
+    }
+
+    /**
+     * Loads ADT discovery in the SSO popup before reentrance-ticket so SAML/ICF cookies exist and SAP does not
+     * prompt for HTTP Basic on a cold session.
+     */
+    static boolean shouldPrimeBrowserSession(UnaryOperator<String> envProvider, boolean interactive) {
+        if (isTruthy(envProvider.apply(OPENADT_HTTP_SSO_SKIP_BRIDGE))) {
+            return false;
+        }
+        if (!interactive) {
+            Duration wait = resolveBridgeWait(envProvider);
+            return !wait.isZero() && !wait.isNegative();
         }
         return true;
     }
