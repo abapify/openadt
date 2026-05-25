@@ -27,7 +27,7 @@ jobs:
           curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash
           export PATH="$HOME/.opengrep/cli/latest:$PATH"
           set +e
-          opengrep scan --config .semgrep.yml --sarif-output=opengrep.sarif --metrics=off .
+          opengrep scan --config .semgrep.yml --sarif-output=opengrep.sarif .
           ec=$?
           set -e
           if [ ! -f opengrep.sarif ]; then
