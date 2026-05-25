@@ -29,6 +29,14 @@ import java.time.Duration;
 public class SecureLoginHubClient {
     public static final String DEFAULT_HUB_URL = "https://127.0.0.1:34443";
 
+    private static final int DEFAULT_LOGIN_WAIT_SECONDS_BROWSER = 180;
+    private static final int DEFAULT_LOGIN_WAIT_SECONDS_NO_BROWSER = 30;
+    private static final long DEFAULT_LOGIN_POLL_MS = 500L;
+
+    /** Test-only overrides; cleared by {@link #resetLoginTimingOverridesForTests()}. */
+    static volatile Integer testLoginWaitSecondsOverride;
+    static volatile Long testLoginPollMsOverride;
+
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
     private final String hubBaseUrl;
@@ -134,21 +142,80 @@ public class SecureLoginHubClient {
             return;
         }
         loginWebAdapter(profileId, browserMonitor);
-        status = webAdapterStatus(profileId);
-        if (!"LOGGED_IN".equalsIgnoreCase(status)) {
-            throw new IllegalStateException(
-                "Secure Login Web Adapter profile is not LOGGED_IN (status=" + status + "). "
-                    + webAdapterLoginHint(browserMonitor)
-            );
-        }
+        waitForWebAdapterLoggedIn(profileId, browserMonitor);
     }
 
-    private static String webAdapterLoginHint(boolean browserMonitor) {
-        if (browserMonitor) {
-            return "Complete MFA in the browser window that Secure Login opened, then retry.";
+    private void waitForWebAdapterLoggedIn(String profileId, boolean browserMonitor)
+        throws IOException, InterruptedException {
+        long deadlineNanos = System.nanoTime() + loginWaitNanos(browserMonitor);
+        long pollMs = loginPollIntervalMs();
+        String lastStatus = "UNKNOWN";
+        while (System.nanoTime() < deadlineNanos) {
+            lastStatus = webAdapterStatus(profileId);
+            if ("LOGGED_IN".equalsIgnoreCase(lastStatus)) {
+                return;
+            }
+            Thread.sleep(pollMs);
         }
-        return "Open SAP Secure Login Client and sign in to the Web Adapter profile first, "
-            + "or retry with hub browser login enabled.";
+        lastStatus = webAdapterStatus(profileId);
+        if ("LOGGED_IN".equalsIgnoreCase(lastStatus)) {
+            return;
+        }
+        throw new IllegalStateException(
+            "Secure Login Web Adapter profile is not LOGGED_IN (status=" + lastStatus + "). "
+                + webAdapterLoginHint(browserMonitor, loginWaitSeconds(browserMonitor))
+        );
+    }
+
+    static long loginWaitNanos(boolean browserMonitor) {
+        return loginWaitSeconds(browserMonitor) * 1_000_000_000L;
+    }
+
+    static void resetLoginTimingOverridesForTests() {
+        testLoginWaitSecondsOverride = null;
+        testLoginPollMsOverride = null;
+    }
+
+    static int loginWaitSeconds(boolean browserMonitor) {
+        if (testLoginWaitSecondsOverride != null) {
+            return Math.max(0, testLoginWaitSecondsOverride);
+        }
+        String fromEnv = System.getenv("OPENADT_HUB_LOGIN_WAIT_SECONDS");
+        if (fromEnv != null && !fromEnv.isBlank()) {
+            try {
+                int seconds = Integer.parseInt(fromEnv.trim());
+                return Math.max(0, seconds);
+            } catch (NumberFormatException ignored) {
+                // fall through to defaults
+            }
+        }
+        return browserMonitor ? DEFAULT_LOGIN_WAIT_SECONDS_BROWSER : DEFAULT_LOGIN_WAIT_SECONDS_NO_BROWSER;
+    }
+
+    static long loginPollIntervalMs() {
+        if (testLoginPollMsOverride != null) {
+            return Math.max(100L, testLoginPollMsOverride);
+        }
+        String fromEnv = System.getenv("OPENADT_HUB_LOGIN_POLL_MS");
+        if (fromEnv != null && !fromEnv.isBlank()) {
+            try {
+                long ms = Long.parseLong(fromEnv.trim());
+                return Math.max(100L, ms);
+            } catch (NumberFormatException ignored) {
+                // fall through
+            }
+        }
+        return DEFAULT_LOGIN_POLL_MS;
+    }
+
+    private static String webAdapterLoginHint(boolean browserMonitor, int waitSeconds) {
+        if (browserMonitor) {
+            return "Complete MFA in the browser window that Secure Login opened "
+                + "(hub waited " + waitSeconds + "s). "
+                + "If you already signed in, retry the command or increase OPENADT_HUB_LOGIN_WAIT_SECONDS.";
+        }
+        return "Open SAP Secure Login Client and sign in to the Web Adapter profile first "
+            + "(hub waited " + waitSeconds + "s), or set OPENADT_HUB_BROWSER=1 to use hub browser login.";
     }
 
     private HttpRequest.Builder hubRequest(URI uri) {

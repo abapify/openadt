@@ -59,7 +59,15 @@ Supported fragment areas:
 | `origin`                 | string | CORS Origin header for hub requests (must match the Secure Login Server JavaScript Web Client profile, e.g. `https://sls.example.com:50001`) |
 | `referer`                | string | Referer header for hub requests                                                                                                              |
 | `web_adapter_profile_id` | string | Secure Login Web Adapter profile UUID from the hub                                                                                           |
-| `mysapsso2`              | string | Optional SAP logon ticket value for `transport = "http"` (prefer `OPENADT_MYSAPSSO2` env var in shells)                                      |
+
+Environment (hub login polling after MFA browser):
+
+| Variable                         | Purpose                                                                                                          |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `OPENADT_HUB_LOGIN_WAIT_SECONDS` | Max seconds to poll hub status after `/slc3/api/login` (default `180` when hub browser monitor is on, else `30`) |
+| `OPENADT_HUB_LOGIN_POLL_MS`      | Poll interval in ms (default `500`, minimum `100`)                                                               |
+| `OPENADT_HUB_BROWSER`            | `0`/`false` disables hub `browserMonitor` on login (default: enabled)                                            |
+| `mysapsso2`                      | string                                                                                                           | Optional SAP logon ticket value for `transport = "http"` (prefer `OPENADT_MYSAPSSO2` env var in shells) |
 
 ## [proxy] section
 

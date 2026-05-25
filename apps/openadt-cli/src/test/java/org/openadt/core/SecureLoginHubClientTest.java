@@ -24,16 +24,20 @@ class SecureLoginHubClientTest {
     private volatile String lastPath;
     private volatile String lastQuery;
     private volatile String lastOrigin;
+    private volatile int statusPollCount;
 
     @BeforeEach
     void startServer() throws Exception {
+        statusPollCount = 0;
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/", exchange -> {
             lastPath = exchange.getRequestURI().getPath();
             lastQuery = exchange.getRequestURI().getRawQuery();
             lastOrigin = exchange.getRequestHeaders().getFirst("Origin");
             if (lastPath.endsWith("/status")) {
-                writeJson(exchange, 200, "{\"profileid\":\"p1\",\"status\":\"LOGGED_OUT\"}");
+                int poll = ++statusPollCount;
+                String status = poll >= 3 ? "LOGGED_IN" : "LOGGED_OUT";
+                writeJson(exchange, 200, "{\"profileid\":\"p1\",\"status\":\"" + status + "\"}");
                 return;
             }
             if (lastPath.endsWith("/login")) {
@@ -51,6 +55,7 @@ class SecureLoginHubClientTest {
 
     @AfterEach
     void stopServer() {
+        SecureLoginHubClient.resetLoginTimingOverridesForTests();
         if (server != null) {
             server.stop(0);
         }
@@ -97,6 +102,22 @@ class SecureLoginHubClientTest {
 
     @Test
     void ensureLoggedInFailsWhenStatusStaysLoggedOut() {
+        statusPollCount = 0;
+        server.removeContext("/");
+        server.createContext("/", exchange -> {
+            lastPath = exchange.getRequestURI().getPath();
+            if (lastPath.endsWith("/status")) {
+                writeJson(exchange, 200, "{\"profileid\":\"p1\",\"status\":\"LOGGED_OUT\"}");
+                return;
+            }
+            if (lastPath.endsWith("/login")) {
+                writeJson(exchange, 200, "{}");
+                return;
+            }
+            exchange.sendResponseHeaders(403, 0);
+            exchange.close();
+        });
+
         OpenAdtConfig.SecureLoginConfig secureLogin = new OpenAdtConfig.SecureLoginConfig();
         secureLogin.setLocalSecurityHub(baseUrl);
         secureLogin.setOrigin("https://sls.example.com:50001");
@@ -110,7 +131,33 @@ class SecureLoginHubClientTest {
             new com.fasterxml.jackson.databind.ObjectMapper()
         );
 
-        assertThrows(IllegalStateException.class, () -> client.ensureWebAdapterLoggedIn("p1"));
+        SecureLoginHubClient.testLoginWaitSecondsOverride = 0;
+        SecureLoginHubClient.testLoginPollMsOverride = 50L;
+        IllegalStateException error =
+            assertThrows(IllegalStateException.class, () -> client.ensureWebAdapterLoggedIn("p1"));
+        assertTrue(error.getMessage().contains("LOGGED_OUT"));
+        assertTrue(error.getMessage().contains("hub waited 0s"));
+    }
+
+    @Test
+    void ensureLoggedInPollsUntilHubReportsLoggedIn() throws Exception {
+        OpenAdtConfig.SecureLoginConfig secureLogin = new OpenAdtConfig.SecureLoginConfig();
+        secureLogin.setLocalSecurityHub(baseUrl);
+        secureLogin.setOrigin("https://sls.example.com:50001");
+        secureLogin.setReferer("https://sls.example.com:50001/");
+
+        SecureLoginHubClient client = new SecureLoginHubClient(
+            secureLogin.getLocalSecurityHub(),
+            secureLogin.getOrigin(),
+            secureLogin.getReferer(),
+            plainHttpClient(),
+            new com.fasterxml.jackson.databind.ObjectMapper()
+        );
+
+        SecureLoginHubClient.testLoginWaitSecondsOverride = 5;
+        SecureLoginHubClient.testLoginPollMsOverride = 50L;
+        client.ensureWebAdapterLoggedIn("p1");
+        assertTrue(statusPollCount >= 3, "expected hub status polling after login");
     }
 
     @Test
