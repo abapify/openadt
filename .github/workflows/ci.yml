@@ -22,13 +22,10 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install OpenGrep
+      - name: Install OpenGrep and scan
         run: |
           curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash
-          echo "$HOME/.opengrep/cli/latest" >> "$GITHUB_PATH"
-
-      - name: Scan with repository rules
-        run: |
+          export PATH="$HOME/.opengrep/cli/latest:$PATH"
           set +e
           opengrep scan --config .semgrep.yml --sarif-output=opengrep.sarif --metrics=off .
           ec=$?
