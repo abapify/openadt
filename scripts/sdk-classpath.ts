@@ -53,7 +53,7 @@ export function hasMinimalSdkBundles(entries: string[]): boolean {
   );
   const hasCoreNet = names.some(
     (name) =>
-      name.includes("core.net") || name.startsWith("org.eclipse.core.net_"),
+      name.startsWith("org.eclipse.core.net_") || name.startsWith("core-net-"),
   );
   return hasDestinationsModel && hasJco && hasCommunication && hasCoreNet;
 }

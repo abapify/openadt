@@ -7,7 +7,9 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
@@ -123,13 +125,26 @@ public final class HttpSsoTicketCache {
         }
         Path file = cacheFile(system);
         try {
-            Files.createDirectories(file.getParent());
-            Files.writeString(file, serializeSession(session), StandardCharsets.UTF_8);
-            restrictToOwner(file);
+            ensureCacheDirectory();
+            Path temp = createOwnerOnlyTempFile(file.getParent(), file.getFileName().toString());
+            try {
+                Files.writeString(temp, serializeSession(session), StandardCharsets.UTF_8);
+                restrictToOwner(temp);
+                Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } finally {
+                Files.deleteIfExists(temp);
+            }
             logCacheKeyMaterial(system);
         } catch (IOException error) {
             CliLog.httpSso("cache write failed for " + file + ": " + error.getMessage());
         }
+    }
+
+    private void ensureCacheDirectory() throws IOException {
+        if (!Files.isDirectory(cacheRoot)) {
+            Files.createDirectories(cacheRoot);
+        }
+        restrictToOwner(cacheRoot);
     }
 
     public void invalidate(SystemProfile system) {
@@ -166,7 +181,7 @@ public final class HttpSsoTicketCache {
         if (system != null && system.getAdt() != null && system.getAdt().getDiscoveryUrl() != null) {
             discovery = normalizeDiscoveryUrl(system.getAdt().getDiscoveryUrl());
         }
-        return alias + "|" + profile + "|" + client + "|" + discovery;
+        return alias + "\0" + profile + "\0" + client + "\0" + discovery;
     }
 
     static String normalizeDiscoveryUrl(String raw) {
@@ -177,11 +192,18 @@ public final class HttpSsoTicketCache {
         if (!value.startsWith("http://") && !value.startsWith("https://")) {
             value = "https://" + value;
         }
-        URI uri = URI.create(value);
+        URI uri;
+        try {
+            uri = URI.create(value);
+        } catch (IllegalArgumentException error) {
+            return value;
+        }
         String scheme = uri.getScheme() != null ? uri.getScheme().toLowerCase() : "https";
         String host = uri.getHost() != null ? uri.getHost().toLowerCase() : "";
         int port = uri.getPort();
-        String authority = port > 0 && port != 443 && port != 80 ? host + ":" + port : host;
+        boolean defaultPort = ("http".equals(scheme) && port == 80)
+            || ("https".equals(scheme) && port == 443);
+        String authority = port > 0 && !defaultPort ? host + ":" + port : host;
         String path = uri.getPath() != null ? uri.getPath() : "";
         while (path.endsWith("/") && path.length() > 1) {
             path = path.substring(0, path.length() - 1);
@@ -256,6 +278,22 @@ public final class HttpSsoTicketCache {
         }
     }
 
+    private static Path createOwnerOnlyTempFile(Path dir, String prefix) throws IOException {
+        try {
+            return Files.createTempFile(
+                dir,
+                prefix + ".",
+                ".tmp",
+                PosixFilePermissions.asFileAttribute(Set.of(
+                    PosixFilePermission.OWNER_READ,
+                    PosixFilePermission.OWNER_WRITE
+                ))
+            );
+        } catch (UnsupportedOperationException ignored) {
+            return Files.createTempFile(dir, prefix + ".", ".tmp");
+        }
+    }
+
     private static void restrictToOwner(Path file) {
         try {
             Set<PosixFilePermission> ownerOnly = Set.of(
@@ -264,7 +302,9 @@ public final class HttpSsoTicketCache {
             );
             Files.setPosixFilePermissions(file, ownerOnly);
         } catch (UnsupportedOperationException | IOException ignored) {
-            // Windows or restricted FS — best effort only.
+            if (file.getFileSystem().supportedFileAttributeViews().contains("posix")) {
+                CliLog.httpSso("could not restrict cache permissions on " + file);
+            }
         }
     }
 

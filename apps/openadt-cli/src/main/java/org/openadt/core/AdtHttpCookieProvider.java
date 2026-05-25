@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.UnaryOperator;
 
 /**
@@ -20,7 +21,7 @@ public class AdtHttpCookieProvider {
     private final AdtHttpTicketProvider ticketProvider;
     private final HttpSsoTicketCache ticketCache;
     private volatile boolean lastResolveUsedDiskCache;
-    private volatile Map<String, String> lastSessionCookies = HttpSapCookieStore.empty();
+    private volatile Map<String, String> lastSessionCookies = new ConcurrentHashMap<>();
 
     public AdtHttpCookieProvider() {
         this(System::getenv, null, new HttpSsoTicketCache());
@@ -48,7 +49,7 @@ public class AdtHttpCookieProvider {
 
     public String resolveMysapsso2(OpenAdtConfig config, SystemProfile system) {
         lastResolveUsedDiskCache = false;
-        lastSessionCookies = HttpSapCookieStore.empty();
+        lastSessionCookies = new ConcurrentHashMap<>();
         String alias = system != null && system.getAlias() != null ? system.getAlias() : "?";
         String fromEnv = blankToNull(envProvider.apply("OPENADT_MYSAPSSO2"));
         if (fromEnv != null) {
@@ -77,7 +78,7 @@ public class AdtHttpCookieProvider {
         Optional<HttpSsoTicketCache.CachedSession> cached = ticketCache.readSession(system);
         if (cached.isPresent()) {
             lastResolveUsedDiskCache = true;
-            lastSessionCookies = HttpSapCookieStore.copyOf(cached.get().cookiesOrEmpty());
+            lastSessionCookies = new ConcurrentHashMap<>(HttpSapCookieStore.copyOf(cached.get().cookiesOrEmpty()));
             HttpSsoTicketCache.CachedSession session = cached.get();
             CliLog.httpSso(
                 "ticket source: disk cache for " + alias
@@ -92,7 +93,7 @@ public class AdtHttpCookieProvider {
         String fromReentranceFlow = ticketProvider.acquireTicket(config, system);
         if (fromReentranceFlow != null && !fromReentranceFlow.isBlank()) {
             Map<String, String> cookies = HttpSapSessionWarmup.probe(config, system, fromReentranceFlow);
-            lastSessionCookies = HttpSapCookieStore.copyOf(cookies);
+            lastSessionCookies = new ConcurrentHashMap<>(HttpSapCookieStore.copyOf(cookies));
             ticketCache.writeSession(system, new HttpSsoTicketCache.CachedSession(fromReentranceFlow, null, cookies));
             return fromReentranceFlow;
         }
@@ -169,7 +170,7 @@ public class AdtHttpCookieProvider {
 
     public void invalidateCachedTicket(SystemProfile system) {
         lastResolveUsedDiskCache = false;
-        lastSessionCookies = HttpSapCookieStore.empty();
+        lastSessionCookies = new ConcurrentHashMap<>();
         ticketCache.invalidate(system);
     }
 

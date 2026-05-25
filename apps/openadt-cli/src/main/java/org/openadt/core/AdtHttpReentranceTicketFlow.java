@@ -44,10 +44,9 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
               <script>
                 (function () {
                   var target = new URLSearchParams(location.search).get('target');
-                  if (!target) {
+                  if (!target || !/^https?:\\/\\//i.test(target)) {
                     return;
                   }
-                  target = decodeURIComponent(target);
                   var popup = window.open(target, 'openadt_sso');
                   if (popup) {
                     try { window.close(); } catch (e) {}
@@ -257,7 +256,7 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
             return false;
         }
         String normalized = path.endsWith("/") ? path.substring(0, path.length() - 1) : path;
-        return "/sap/bc/adt".equals(normalized);
+        return "/sap/bc/adt".equalsIgnoreCase(normalized);
     }
 
     private record SsoStepPlan(int reentranceStep, int totalSteps) {

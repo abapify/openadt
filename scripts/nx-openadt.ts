@@ -47,14 +47,19 @@ function findDevJar(): string {
   return jars[0]!;
 }
 
+function normalizeProfile(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed.toLowerCase() : undefined;
+}
+
 function parseProfile(args: string[]): string | undefined {
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === "--profile" && i + 1 < args.length) {
-      return args[i + 1]?.trim();
+      return normalizeProfile(args[i + 1]);
     }
     if (arg.startsWith("--profile=")) {
-      return arg.slice("--profile=".length).trim();
+      return normalizeProfile(arg.slice("--profile=".length));
     }
   }
   return undefined;
@@ -108,7 +113,8 @@ function buildSdkClasspath(jar: string): string {
 
 const jar = findDevJar();
 const args = process.argv.slice(2);
-const profile = parseProfile(args);
+const profile =
+  parseProfile(args) ?? normalizeProfile(process.env.OPENADT_PROFILE);
 
 const javaArgs = useFatJar(profile)
   ? ["-jar", jar, ...args]

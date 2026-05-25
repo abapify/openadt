@@ -105,7 +105,9 @@ public class FetchCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws Exception {
-        profile = ProfileFetchHints.resolveEffectiveProfile(profile);
+        if (!isDirectHttpMode()) {
+            profile = ProfileFetchHints.resolveEffectiveProfile(profile);
+        }
         if (isDirectHttpMode() && profile != null && !profile.isBlank()) {
             CliLog.error("--profile cannot be used with --base-url direct HTTP mode.");
             return 1;
@@ -324,17 +326,18 @@ public class FetchCommand implements Callable<Integer> {
     }
 
     private void applyProfileCallbackPort(OpenAdtConfig config, String alias) {
+        OpenAdtConfig.RuntimeConfig runtime = config.getRuntime();
+        if (runtime == null) {
+            runtime = new OpenAdtConfig.RuntimeConfig();
+            config.setRuntime(runtime);
+        }
         if (callbackPort != 0) {
+            runtime.setHttpCallbackPort(Integer.toString(callbackPort));
             return;
         }
         String profileCallbackPort = DestinationProfileResolver.resolveProfileCallbackPort(config, alias, profile);
         if (profileCallbackPort == null || profileCallbackPort.isBlank()) {
             return;
-        }
-        OpenAdtConfig.RuntimeConfig runtime = config.getRuntime();
-        if (runtime == null) {
-            runtime = new OpenAdtConfig.RuntimeConfig();
-            config.setRuntime(runtime);
         }
         runtime.setHttpCallbackPort(profileCallbackPort);
     }

@@ -21,7 +21,6 @@ public class HttpAdtTransportClient implements AdtTransportClient {
     private static final String HEADER_COOKIE = "Cookie";
     private static final String WELL_KNOWN_INFO_CONTENT_TYPE = "application/vnd.com.sap.adt.wellknowninfo.v1+json";
     private final HttpClient fixedHttpClient;
-    private final HttpTlsConfigurer tlsConfigurer;
     private final ConcurrentHashMap<String, HttpClient> httpClientsByTrust = new ConcurrentHashMap<>();
     private final AdtHttpCookieProvider cookieProvider;
     private final OpenAdtConfig config;
@@ -35,7 +34,6 @@ public class HttpAdtTransportClient implements AdtTransportClient {
     HttpAdtTransportClient(OpenAdtConfig config, HttpClient httpClient, AdtHttpCookieProvider cookieProvider, ObjectMapper objectMapper) {
         this.config = config;
         this.fixedHttpClient = httpClient;
-        this.tlsConfigurer = new HttpTlsConfigurer();
         this.cookieProvider = cookieProvider;
         this.objectMapper = objectMapper;
     }
@@ -69,8 +67,9 @@ public class HttpAdtTransportClient implements AdtTransportClient {
         try {
             ProxyResponse response = sendOnce(system, request);
             if (response.statusCode() == 401) {
+                boolean usedDiskCache = cookieProvider.lastResolveUsedDiskCache();
                 invalidateTicket(system);
-                if (cookieProvider.lastResolveUsedDiskCache()) {
+                if (usedDiskCache) {
                     throw new OpenAdtException(
                         "Cached HTTP SSO ticket was rejected (401). "
                             + "Reentrance tickets from browser SSO are not reusable across separate "

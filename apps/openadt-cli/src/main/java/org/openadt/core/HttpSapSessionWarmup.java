@@ -57,9 +57,18 @@ public final class HttpSapSessionWarmup {
         if (!value.startsWith("http://") && !value.startsWith("https://")) {
             value = "https://" + value;
         }
-        URI base = URI.create(value);
+        URI base;
+        try {
+            base = URI.create(value);
+        } catch (IllegalArgumentException error) {
+            return null;
+        }
         String path = base.getPath() != null ? base.getPath() : "";
-        if (path.contains("/sap/bc/adt")) {
+        if (path.isBlank() || "/".equals(path)) {
+            return base.resolve("/sap/bc/adt/discovery");
+        }
+        String normalized = path.endsWith("/") ? path.substring(0, path.length() - 1) : path;
+        if ("/sap/bc/adt".equalsIgnoreCase(normalized) || normalized.startsWith("/sap/bc/adt/")) {
             return base.resolve("/sap/bc/adt/discovery");
         }
         return base;

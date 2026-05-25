@@ -208,7 +208,7 @@ Requires JDK 17 or 21, Maven 3.x.
 ```bash
 cd apps/openadt-cli
 mvn package
-java -jar target/openadt-1.1.1.jar setup
+java -jar target/openadt-*.jar setup
 ```
 
 From the repo root after `package`, use the dev launchers (same config as `~/.openadt`, not Scoop):

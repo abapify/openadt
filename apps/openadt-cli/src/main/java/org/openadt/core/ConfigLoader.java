@@ -105,7 +105,7 @@ public class ConfigLoader {
         try {
             Path canonical = JCoJarCanonicalizer.canonicalize(Path.of(configured));
             config.getRuntime().setJcoJar(canonical.toString());
-        } catch (IOException ignored) {
+        } catch (IOException | java.nio.file.InvalidPathException ignored) {
             // Keep configured path when the file is missing or unreadable.
         }
     }
