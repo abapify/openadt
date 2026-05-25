@@ -25,11 +25,22 @@ jobs:
       - name: Install OpenGrep
         run: |
           curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.opengrep/cli/latest" >> "$GITHUB_PATH"
 
       - name: Scan with repository rules
-        run: opengrep scan --config .semgrep.yml --sarif-output=opengrep.sarif --metrics=off .
-        continue-on-error: true
+        run: |
+          set +e
+          opengrep scan --config .semgrep.yml --sarif-output=opengrep.sarif --metrics=off .
+          ec=$?
+          set -e
+          if [ ! -f opengrep.sarif ]; then
+            echo "::error::OpenGrep did not produce opengrep.sarif (exit ${ec})"
+            exit 1
+          fi
+          if [ "${ec}" -gt 1 ]; then
+            exit "${ec}"
+          fi
+          # exit 1 = findings only; upload SARIF and do not fail the workflow
 
       - name: Upload SARIF to GitHub Code Scanning
         if: always() && hashFiles('opengrep.sarif') != ''
