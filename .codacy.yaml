@@ -1,6 +1,7 @@
 ---
 # Repository Codacy configuration (see https://docs.codacy.com/repositories-configure/codacy-configuration-file/)
 #
-# Guardrails (IDE/MCP): .codacy/guardrails.yaml — hardcoded-password OFF (TOML key names, not secrets).
-# Opengrep/Semgrep: use root .semgrep.yml — do not exclude production Java files here.
+# Opengrep/Semgrep (Codacy cloud): root .semgrep.yaml — no codacy hard-coded-password rules.
+# Local Codacy CLI bundle: .codacy/tools-configs/semgrep.yaml (same rules removed there).
+# Guardrails IDE: .codacy/guardrails.yaml — hardcoded-password OFF.
 # Loopback SSRF false-positive context for AI review: .codacy/instructions/review.md

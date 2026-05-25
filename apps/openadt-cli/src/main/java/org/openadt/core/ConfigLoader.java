@@ -30,8 +30,11 @@ public class ConfigLoader {
     private static final String KEY_ASHOST = "ashost";
     private static final String KEY_TRANSPORT = "transport";
     private static final String KEY_DISCOVERY_URL = "discovery_url";
+    // nosemgrep: codacy.java.security.hard-coded-password
     private static final String KEY_HTTP_CA_CERT = "http_ca_cert";
+    // nosemgrep: codacy.java.security.hard-coded-password
     private static final String KEY_HTTP_TRUSTSTORE = "http_truststore";
+    // nosemgrep: codacy.java.security.hard-coded-password
     private static final String KEY_HTTP_TRUSTSTORE_PASSWORD = "http_truststore_password";
     // nosemgrep: codacy.java.security.hard-coded-password
     private static final String KEY_AUTHENTICATION_KIND = "authentication_kind";

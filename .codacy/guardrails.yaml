@@ -1,5 +1,5 @@
-# Codacy Guardrails — disable noisy rules (see docs.codacy.com/codacy-guardrails/.../configure-rules).
-# TOML config keys such as http_truststore_password are not secrets; hard-coded-password is a false positive.
+# Codacy Guardrails IDE/MCP only. Cloud Opengrep uses root .semgrep.yaml (not this file).
+# TOML config keys such as http_truststore_password are not secrets.
 rules:
   - id: hardcoded-password
     severity: OFF
