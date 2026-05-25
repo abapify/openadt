@@ -26,10 +26,12 @@ jobs:
 
       - name: Install OpenGrep and scan
         run: |
-          curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/v1.22.0/install.sh | bash
-          export PATH="$HOME/.opengrep/cli/latest:$PATH"
+          # Pin release binary (install.sh can fail when GitHub version API is unavailable).
+          curl -fsSL -o opengrep \
+            https://github.com/opengrep/opengrep/releases/download/v1.22.0/opengrep_manylinux_x86
+          chmod +x opengrep
           set +e
-          opengrep scan --config .semgrep.yaml --sarif-output=opengrep.sarif .
+          ./opengrep scan --config .semgrep.yaml --sarif-output=opengrep.sarif .
           ec=$?
           set -e
           if [ ! -f opengrep.sarif ]; then

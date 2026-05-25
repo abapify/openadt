@@ -16,8 +16,16 @@ import json
 import os
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
+
+
+def strip_dotenv_value(value: str) -> str:
+    value = value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+        return value[1:-1]
+    return value
 
 
 def load_dotenv(path: Path) -> None:
@@ -28,12 +36,20 @@ def load_dotenv(path: Path) -> None:
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, _, value = line.partition("=")
-        os.environ.setdefault(key.strip(), value.strip())
+        os.environ.setdefault(key.strip(), strip_dotenv_value(value))
+
+
+def validate_api_base(base: str) -> str:
+    parsed = urllib.parse.urlparse(base.strip())
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise ValueError(f"CODACY_API_URL must be http(s) with a host: {base!r}")
+    return base.strip()
 
 
 def api_get(base: str, token: str, path: str) -> tuple[int, object]:
+    safe_base = validate_api_base(base)
     request = urllib.request.Request(
-        f"{base.rstrip('/')}{path}",
+        f"{safe_base.rstrip('/')}{path}",
         headers={"api-token": token, "Accept": "application/json"},
     )
     try:
@@ -72,7 +88,13 @@ def main() -> int:
         )
         return 1
 
-    base = os.environ.get("CODACY_API_URL", "https://api.codacy.com/api/v3").strip()
+    try:
+        base = validate_api_base(
+            os.environ.get("CODACY_API_URL", "https://api.codacy.com/api/v3")
+        )
+    except ValueError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
     path = (
         f"/analysis/organizations/gh/{args.owner}/repositories/{args.repo}"
         f"/pull-requests/{args.pr}/issues?status={args.status}&limit=100"

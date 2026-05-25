@@ -26,7 +26,11 @@ public class HttpAdtTransportClient implements AdtTransportClient {
     private final OpenAdtConfig config;
     private final ObjectMapper objectMapper;
     private volatile String cachedMysapsso2;
-    private final ThreadLocal<Boolean> resolveUsedDiskCache = new ThreadLocal<>();
+    private volatile boolean cachedMysapsso2FromDiskCache;
+
+    private static final class SendContext {
+        boolean usedDiskCache;
+    }
 
     public HttpAdtTransportClient(OpenAdtConfig config) {
         this(config, null, new AdtHttpCookieProvider(), new ObjectMapper());
@@ -66,9 +70,10 @@ public class HttpAdtTransportClient implements AdtTransportClient {
     @Override
     public ProxyResponse execute(SystemProfile system, ProxyRequest request) {
         try {
-            ProxyResponse response = sendOnce(system, request);
+            SendContext context = new SendContext();
+            ProxyResponse response = sendOnce(system, request, context);
             if (response.statusCode() == 401) {
-                boolean usedDiskCache = Boolean.TRUE.equals(resolveUsedDiskCache.get());
+                boolean usedDiskCache = context.usedDiskCache;
                 invalidateTicket(system);
                 if (usedDiskCache) {
                     throw new OpenAdtException(
@@ -82,7 +87,8 @@ public class HttpAdtTransportClient implements AdtTransportClient {
                     );
                 }
                 CliLog.diagnostic("HTTP 401 — retrying once via browser callback");
-                response = sendOnce(system, request);
+                context = new SendContext();
+                response = sendOnce(system, request, context);
             }
             return response;
         } catch (IOException e) {
@@ -93,9 +99,10 @@ public class HttpAdtTransportClient implements AdtTransportClient {
         }
     }
 
-    private ProxyResponse sendOnce(SystemProfile system, ProxyRequest request) throws IOException, InterruptedException {
+    private ProxyResponse sendOnce(SystemProfile system, ProxyRequest request, SendContext context)
+        throws IOException, InterruptedException {
         URI targetUri = buildTargetUri(system, request.uri());
-        HttpRequest httpRequest = buildHttpRequest(system, request, targetUri);
+        HttpRequest httpRequest = buildHttpRequest(system, request, targetUri, context);
         HttpResponse<byte[]> response = httpClientFor(system).send(httpRequest, HttpResponse.BodyHandlers.ofByteArray());
 
         if (response.statusCode() >= 200 && response.statusCode() < 300) {
@@ -117,16 +124,16 @@ public class HttpAdtTransportClient implements AdtTransportClient {
 
     private void invalidateTicket(SystemProfile system) {
         cachedMysapsso2 = null;
-        resolveUsedDiskCache.remove();
+        cachedMysapsso2FromDiskCache = false;
         cookieProvider.invalidateCachedTicket(system);
     }
 
-    HttpRequest buildHttpRequest(SystemProfile system, ProxyRequest request, URI targetUri) {
+    HttpRequest buildHttpRequest(SystemProfile system, ProxyRequest request, URI targetUri, SendContext context) {
         HttpRequest.Builder builder = HttpRequest.newBuilder(targetUri)
             .timeout(Duration.ofSeconds(60));
 
         request.headers().forEach(builder::header);
-        builder.header(HEADER_COOKIE, buildCookieHeader(system));
+        builder.header(HEADER_COOKIE, buildCookieHeader(system, context));
 
         byte[] body = request.body() != null ? request.body() : new byte[0];
         if (body.length == 0) {
@@ -144,15 +151,22 @@ public class HttpAdtTransportClient implements AdtTransportClient {
     }
 
     String buildCookieHeader(SystemProfile system) {
+        return buildCookieHeader(system, null);
+    }
+
+    String buildCookieHeader(SystemProfile system, SendContext context) {
         if (cachedMysapsso2 == null) {
             synchronized (this) {
                 if (cachedMysapsso2 == null) {
                     AdtHttpCookieProvider.Mysapsso2Resolution resolution =
                         cookieProvider.resolveMysapsso2(config, system);
-                    resolveUsedDiskCache.set(resolution.usedDiskCache());
+                    cachedMysapsso2FromDiskCache = resolution.usedDiskCache();
                     cachedMysapsso2 = resolution.ticket();
                 }
             }
+        }
+        if (context != null) {
+            context.usedDiskCache = cachedMysapsso2FromDiskCache;
         }
         if (cachedMysapsso2 == null || cachedMysapsso2.isBlank()) {
             throw new IllegalStateException(
@@ -183,7 +197,8 @@ public class HttpAdtTransportClient implements AdtTransportClient {
             return normalizeBaseUri(cachedSession.get().apiBase());
         }
 
-        if (Boolean.TRUE.equals(resolveUsedDiskCache.get())
+        if (cachedSession.isPresent()
+            && cachedSession.get().hasTicket()
             && configuredUri.getPath() != null
             && AdtHttpPaths.pathContainsAdtRoot(configuredUri.getPath())) {
             CliLog.httpSso("using discovery_url as ADT API base (cached ticket, skip well-known probes)");
