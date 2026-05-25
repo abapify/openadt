@@ -30,7 +30,6 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
      * corporate landing. {@code /sap/bc/adt/core/discovery} often returns {@code 200} Atom that the
      * browser downloads instead of SAML redirects on a cold login.
      */
-    private static final String SSO_BRIDGE_DISCOVERY_PATH = "/sap/bc/adt/discovery";
     private static final String OPENADT_HTTP_SSO_NON_INTERACTIVE = "OPENADT_HTTP_SSO_NON_INTERACTIVE";
     private static final String OPENADT_HTTP_SSO_SKIP_BRIDGE = "OPENADT_HTTP_SSO_SKIP_BRIDGE";
     /** Opt-in: open ADT discovery bridge tab before reentrance (often unnecessary; default is reentrance-only). */
@@ -125,7 +124,7 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
             SsoCallbackRegistry.markActive(callbackUrl, actualPort);
             URI reentranceUrl = buildReentranceTicketUrl(frontend, system, callbackUrl);
             CliLog.error(
-                "Waiting for SSO callback on http://" + callbackHost + ":" + actualPort + CALLBACK_PATH
+                "Waiting for SSO callback on " + AdtHttpPaths.SCHEME_HTTP_PREFIX + callbackHost + ":" + actualPort + CALLBACK_PATH
             );
             CliLog.diagnostic("Local callback URL: " + callbackUrl);
             waitBeforeReentranceStep();
@@ -172,12 +171,12 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
     }
 
     static URI buildCallbackUrl(String host, int port, String csrfState) {
-        return URI.create("http://" + host + ":" + port + CALLBACK_PATH + "?state=" + csrfState);
+        return URI.create(AdtHttpPaths.SCHEME_HTTP_PREFIX + host + ":" + port + CALLBACK_PATH + "?state=" + csrfState);
     }
 
     static URI buildSsoLaunchUrl(String host, int port, URI reentranceUrl) {
         return URI.create(
-            "http://" + host + ":" + port + SSO_LAUNCH_PATH + "?target=" + urlEncode(reentranceUrl.toString())
+            AdtHttpPaths.SCHEME_HTTP_PREFIX + host + ":" + port + SSO_LAUNCH_PATH + "?target=" + urlEncode(reentranceUrl.toString())
         );
     }
 
@@ -246,7 +245,7 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
             return null;
         }
         if (isBareAdtCollectionPath(path)) {
-            return originUri(frontend).resolve(SSO_BRIDGE_DISCOVERY_PATH);
+            return originUri(frontend).resolve(AdtHttpPaths.ADT_DISCOVERY);
         }
         return frontend;
     }
@@ -256,7 +255,7 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
             return false;
         }
         String normalized = path.endsWith("/") ? path.substring(0, path.length() - 1) : path;
-        return "/sap/bc/adt".equalsIgnoreCase(normalized);
+        return AdtHttpPaths.ADT_ICF_ROOT.equalsIgnoreCase(normalized);
     }
 
     private record SsoStepPlan(int reentranceStep, int totalSteps) {
@@ -606,9 +605,7 @@ final class AdtHttpReentranceTicketFlow implements AdtHttpTicketProvider {
             throw new IllegalStateException("HTTP ADT transport requires destinations.<alias>.adt.discovery_url for browser SSO.");
         }
         String value = system.getAdt().getDiscoveryUrl();
-        if (!value.startsWith("http://") && !value.startsWith("https://")) {
-            value = "https://" + value;
-        }
+        value = AdtHttpPaths.withHttpsSchemeIfMissing(value);
         URI frontend = URI.create(value);
         assertLiveBrowserUrl(frontend, system, "discovery_url");
         return frontend;

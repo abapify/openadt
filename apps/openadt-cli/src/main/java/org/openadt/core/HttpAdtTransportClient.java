@@ -180,7 +180,7 @@ public class HttpAdtTransportClient implements AdtTransportClient {
 
         if (cookieProvider.lastResolveUsedDiskCache()
             && configuredUri.getPath() != null
-            && configuredUri.getPath().contains("/sap/bc/adt")) {
+            && AdtHttpPaths.pathContainsAdtRoot(configuredUri.getPath())) {
             CliLog.httpSso("using discovery_url as ADT API base (cached ticket, skip well-known probes)");
             return configuredUri;
         }
@@ -199,7 +199,7 @@ public class HttpAdtTransportClient implements AdtTransportClient {
             return normalizeBaseUri(virtualHostApi);
         }
 
-        if (configuredUri.getPath() != null && configuredUri.getPath().contains("/sap/bc/adt")) {
+        if (AdtHttpPaths.pathContainsAdtRoot(configuredUri.getPath())) {
             return configuredUri;
         }
 
@@ -210,9 +210,7 @@ public class HttpAdtTransportClient implements AdtTransportClient {
 
     private URI normalizeBaseUri(String rawBase) {
         String value = rawBase;
-        if (!value.startsWith("http://") && !value.startsWith("https://")) {
-            value = "https://" + value;
-        }
+        value = AdtHttpPaths.withHttpsSchemeIfMissing(value);
         URI uri = URI.create(value);
         String path = uri.getPath() == null || uri.getPath().isBlank() ? "/" : uri.getPath();
         return URI.create(uri.getScheme() + "://" + uri.getAuthority() + path);
@@ -273,11 +271,11 @@ public class HttpAdtTransportClient implements AdtTransportClient {
 
     private void persistResolvedApiBase(SystemProfile system, URI targetUri) {
         String path = targetUri.getPath() != null ? targetUri.getPath() : "";
-        int adtIndex = path.indexOf("/sap/bc/adt");
+        int adtIndex = path.indexOf(AdtHttpPaths.ADT_ICF_ROOT);
         if (adtIndex < 0) {
             return;
         }
-        String basePath = path.substring(0, adtIndex + "/sap/bc/adt".length());
+        String basePath = path.substring(0, adtIndex + AdtHttpPaths.ADT_ICF_ROOT.length());
         String apiBase = targetUri.getScheme() + "://" + targetUri.getAuthority() + basePath;
         ticketCache().writeApiBase(system, apiBase);
     }

@@ -116,13 +116,6 @@ final class HttpTlsConfigurer {
         return KeyStore.getDefaultType();
     }
 
-    private static String runtime(OpenAdtConfig config, java.util.function.Function<OpenAdtConfig.RuntimeConfig, String> getter) {
-        if (config == null || config.getRuntime() == null) {
-            return null;
-        }
-        return blankToNull(getter.apply(config.getRuntime()));
-    }
-
     private static String blankToNull(String value) {
         if (value == null || value.isBlank()) {
             return null;

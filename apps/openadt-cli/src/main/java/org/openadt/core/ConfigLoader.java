@@ -30,6 +30,9 @@ public class ConfigLoader {
     private static final String KEY_ASHOST = "ashost";
     private static final String KEY_TRANSPORT = "transport";
     private static final String KEY_DISCOVERY_URL = "discovery_url";
+    private static final String KEY_HTTP_CA_CERT = "http_ca_cert";
+    private static final String KEY_HTTP_TRUSTSTORE = "http_truststore";
+    private static final String KEY_HTTP_TRUSTSTORE_PASSWORD = "http_truststore_password";
     // nosemgrep: codacy.java.security.hard-coded-password
     private static final String KEY_AUTHENTICATION_KIND = "authentication_kind";
 
@@ -803,9 +806,9 @@ public class ConfigLoader {
             writeString(lines, "jco_native_dir", config.getRuntime().getJcoNativeDir());
             writeString(lines, "sapcrypto", config.getRuntime().getSapcrypto());
             writeString(lines, "adt_plugins_dir", config.getRuntime().getAdtPluginsDir());
-            writeString(lines, "http_ca_cert", config.getRuntime().getHttpCaCert());
-            writeString(lines, "http_truststore", config.getRuntime().getHttpTruststore());
-            writeString(lines, "http_truststore_password", config.getRuntime().getHttpTruststorePassword());
+            writeString(lines, KEY_HTTP_CA_CERT, config.getRuntime().getHttpCaCert());
+            writeString(lines, KEY_HTTP_TRUSTSTORE, config.getRuntime().getHttpTruststore());
+            writeString(lines, KEY_HTTP_TRUSTSTORE_PASSWORD, config.getRuntime().getHttpTruststorePassword());
             writeString(lines, "http_callback_port", config.getRuntime().getHttpCallbackPort());
             writeString(lines, "http_callback_host", config.getRuntime().getHttpCallbackHost());
         }
@@ -903,9 +906,9 @@ public class ConfigLoader {
         writeString(lines, KEY_DISCOVERY_URL, profile.getDiscoveryUrl());
         writeString(lines, "callback_port", profile.getCallbackPort());
         writeString(lines, KEY_SSO_LANDING_URL, profile.getSsoLandingUrl());
-        writeString(lines, "http_ca_cert", profile.getHttpCaCert());
-        writeString(lines, "http_truststore", profile.getHttpTruststore());
-        writeString(lines, "http_truststore_password", profile.getHttpTruststorePassword());
+        writeString(lines, KEY_HTTP_CA_CERT, profile.getHttpCaCert());
+        writeString(lines, KEY_HTTP_TRUSTSTORE, profile.getHttpTruststore());
+        writeString(lines, KEY_HTTP_TRUSTSTORE_PASSWORD, profile.getHttpTruststorePassword());
 
         if (profile.getJco() != null) {
             lines.add("");
@@ -940,9 +943,9 @@ public class ConfigLoader {
         writeString(lines, KEY_DISCOVERY_URL, adt.getDiscoveryUrl());
         writeString(lines, KEY_AUTHENTICATION_KIND, adt.getAuthenticationKind());
         writeString(lines, KEY_SSO_LANDING_URL, adt.getSsoLandingUrl());
-        writeString(lines, "http_ca_cert", adt.getHttpCaCert());
-        writeString(lines, "http_truststore", adt.getHttpTruststore());
-        writeString(lines, "http_truststore_password", adt.getHttpTruststorePassword());
+        writeString(lines, KEY_HTTP_CA_CERT, adt.getHttpCaCert());
+        writeString(lines, KEY_HTTP_TRUSTSTORE, adt.getHttpTruststore());
+        writeString(lines, KEY_HTTP_TRUSTSTORE_PASSWORD, adt.getHttpTruststorePassword());
     }
 
     private void writeLocalFragment(Path path, OpenAdtConfig config) throws IOException {
@@ -956,9 +959,9 @@ public class ConfigLoader {
             writeString(lines, "jco_native_dir", config.getRuntime().getJcoNativeDir());
             writeString(lines, "sapcrypto", config.getRuntime().getSapcrypto());
             writeString(lines, "adt_plugins_dir", config.getRuntime().getAdtPluginsDir());
-            writeString(lines, "http_ca_cert", config.getRuntime().getHttpCaCert());
-            writeString(lines, "http_truststore", config.getRuntime().getHttpTruststore());
-            writeString(lines, "http_truststore_password", config.getRuntime().getHttpTruststorePassword());
+            writeString(lines, KEY_HTTP_CA_CERT, config.getRuntime().getHttpCaCert());
+            writeString(lines, KEY_HTTP_TRUSTSTORE, config.getRuntime().getHttpTruststore());
+            writeString(lines, KEY_HTTP_TRUSTSTORE_PASSWORD, config.getRuntime().getHttpTruststorePassword());
             writeString(lines, "http_callback_port", config.getRuntime().getHttpCallbackPort());
             writeString(lines, "http_callback_host", config.getRuntime().getHttpCallbackHost());
         }

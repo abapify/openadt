@@ -54,9 +54,7 @@ public final class HttpSapSessionWarmup {
 
     static URI warmupUri(String discoveryUrl) {
         String value = discoveryUrl.trim();
-        if (!value.startsWith("http://") && !value.startsWith("https://")) {
-            value = "https://" + value;
-        }
+        value = AdtHttpPaths.withHttpsSchemeIfMissing(value);
         URI base;
         try {
             base = URI.create(value);
@@ -65,11 +63,11 @@ public final class HttpSapSessionWarmup {
         }
         String path = base.getPath() != null ? base.getPath() : "";
         if (path.isBlank() || "/".equals(path)) {
-            return base.resolve("/sap/bc/adt/discovery");
+            return base.resolve(AdtHttpPaths.ADT_DISCOVERY);
         }
         String normalized = path.endsWith("/") ? path.substring(0, path.length() - 1) : path;
-        if ("/sap/bc/adt".equalsIgnoreCase(normalized) || normalized.startsWith("/sap/bc/adt/")) {
-            return base.resolve("/sap/bc/adt/discovery");
+        if (AdtHttpPaths.ADT_ICF_ROOT.equalsIgnoreCase(normalized) || normalized.startsWith(AdtHttpPaths.ADT_ICF_ROOT + "/")) {
+            return base.resolve(AdtHttpPaths.ADT_DISCOVERY);
         }
         return base;
     }

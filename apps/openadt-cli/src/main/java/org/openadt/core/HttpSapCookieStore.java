@@ -70,13 +70,13 @@ public final class HttpSapCookieStore {
         }
         StringBuilder header = new StringBuilder();
         merged.forEach((name, value) -> {
-            if (header.length() > 0) {
+            if (!header.isEmpty()) {
                 header.append("; ");
             }
             header.append(name).append('=').append(value);
         });
         if (client != null && !client.isBlank()) {
-            if (header.length() > 0) {
+            if (!header.isEmpty()) {
                 header.append("; ");
             }
             header.append("sap-usercontext=sap-client=").append(client.trim());

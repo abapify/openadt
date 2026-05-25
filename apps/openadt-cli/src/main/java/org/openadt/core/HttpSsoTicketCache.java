@@ -1,5 +1,6 @@
 package org.openadt.core;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
@@ -188,30 +189,43 @@ public final class HttpSsoTicketCache {
         if (raw == null || raw.isBlank()) {
             return "";
         }
-        String value = raw.trim();
-        if (!value.startsWith("http://") && !value.startsWith("https://")) {
-            value = "https://" + value;
-        }
-        URI uri;
-        try {
-            uri = URI.create(value);
-        } catch (IllegalArgumentException error) {
+        String value = AdtHttpPaths.withHttpsSchemeIfMissing(raw.trim());
+        URI uri = parseDiscoveryUri(value);
+        if (uri == null) {
             return value;
         }
+        return formatNormalizedDiscoveryUri(uri);
+    }
+
+    private static URI parseDiscoveryUri(String value) {
+        try {
+            return URI.create(value);
+        } catch (IllegalArgumentException error) {
+            return null;
+        }
+    }
+
+    private static String formatNormalizedDiscoveryUri(URI uri) {
         String scheme = uri.getScheme() != null ? uri.getScheme().toLowerCase() : "https";
+        String authority = normalizedAuthority(uri, scheme);
+        String path = normalizedDiscoveryPath(uri.getPath());
+        return scheme + "://" + authority + path;
+    }
+
+    private static String normalizedAuthority(URI uri, String scheme) {
         String host = uri.getHost() != null ? uri.getHost().toLowerCase() : "";
         int port = uri.getPort();
         boolean defaultPort = ("http".equals(scheme) && port == 80)
             || ("https".equals(scheme) && port == 443);
-        String authority = port > 0 && !defaultPort ? host + ":" + port : host;
-        String path = uri.getPath() != null ? uri.getPath() : "";
+        return port > 0 && !defaultPort ? host + ":" + port : host;
+    }
+
+    private static String normalizedDiscoveryPath(String rawPath) {
+        String path = rawPath != null ? rawPath : "";
         while (path.endsWith("/") && path.length() > 1) {
             path = path.substring(0, path.length() - 1);
         }
-        if (path.isBlank()) {
-            path = "/";
-        }
-        return scheme + "://" + authority + path;
+        return path.isBlank() ? "/" : path;
     }
 
     private static CachedSession parseSession(String raw) throws IOException {
@@ -309,8 +323,11 @@ public final class HttpSsoTicketCache {
     }
 
     private static final class SessionFileDto {
-        public String ticket;
-        public String apiBase;
-        public Map<String, String> cookies;
+        @JsonProperty("ticket")
+        private String ticket;
+        @JsonProperty("apiBase")
+        private String apiBase;
+        @JsonProperty("cookies")
+        private Map<String, String> cookies;
     }
 }

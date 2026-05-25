@@ -194,13 +194,6 @@ public class AdtHttpCookieProvider {
         return ticketCache;
     }
 
-    private static String profileSuffix(SystemProfile system) {
-        if (system == null || system.getActiveProfile() == null || system.getActiveProfile().isBlank()) {
-            return "";
-        }
-        return " profile=" + system.getActiveProfile();
-    }
-
     private static String blankToNull(String value) {
         if (value == null || value.isBlank()) {
             return null;
