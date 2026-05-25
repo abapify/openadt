@@ -125,30 +125,39 @@ class AdtHttpReentranceTicketFlowTest {
     }
 
     @Test
-    void resolvesSsoBridgeUrlToFullDiscoveryWhenDiscoveryEndsAtAdtCollection() {
+    void resolvesSsoBridgeUrlToBareAdtCollectionNotDiscovery() {
         URI bridge = AdtHttpReentranceTicketFlow.resolveSsoBridgeUrl(
             URI.create("https://abap.example.invalid/sap/bc/adt")
         );
 
-        assertEquals("https://abap.example.invalid/sap/bc/adt/discovery", bridge.toString());
+        assertEquals("https://abap.example.invalid/sap/bc/adt", bridge.toString());
     }
 
     @Test
-    void resolvesSsoBridgeUrlToFullDiscoveryWhenDiscoveryHasTrailingSlash() {
+    void resolvesSsoBridgeUrlToBareAdtWhenDiscoveryUrlHasTrailingSlash() {
         URI bridge = AdtHttpReentranceTicketFlow.resolveSsoBridgeUrl(
             URI.create("https://abap.example.invalid/sap/bc/adt/")
         );
 
-        assertEquals("https://abap.example.invalid/sap/bc/adt/discovery", bridge.toString());
+        assertEquals("https://abap.example.invalid/sap/bc/adt", bridge.toString());
     }
 
     @Test
-    void leavesSsoBridgeUrlUnchangedWhenDiscoveryAlreadyHasSubpath() {
+    void mapsDiscoveryPathToBareAdtForOptionalBridge() {
         URI bridge = AdtHttpReentranceTicketFlow.resolveSsoBridgeUrl(
             URI.create("https://abap.example.invalid/sap/bc/adt/core/discovery")
         );
 
-        assertEquals("https://abap.example.invalid/sap/bc/adt/core/discovery", bridge.toString());
+        assertEquals("https://abap.example.invalid/sap/bc/adt", bridge.toString());
+    }
+
+    @Test
+    void mapsAtomDiscoveryPathToBareAdtForOptionalBridge() {
+        URI bridge = AdtHttpReentranceTicketFlow.resolveSsoBridgeUrl(
+            URI.create("https://dev-ms.example.com/sap/bc/adt/discovery")
+        );
+
+        assertEquals("https://dev-ms.example.com/sap/bc/adt", bridge.toString());
     }
 
     @Test
@@ -163,45 +172,15 @@ class AdtHttpReentranceTicketFlowTest {
     }
 
     @Test
-    void buildsSsoLaunchUrlWithBridgePrimingParams() {
+    void ssoLaunchUrlOnlyContainsReentranceTarget() {
         URI reentrance = URI.create(
             "https://dev-ms.example.com/sap/bc/adt/core/http/reentranceticket?redirect-url=http%3A%2F%2Flocalhost%3A65246%2Fadt%2Fredirect"
         );
-        URI bridge = URI.create("https://dev-ms.example.com/sap/bc/adt/discovery");
-        URI launch = AdtHttpReentranceTicketFlow.buildSsoLaunchUrl("localhost", 65246, reentrance, bridge, 15);
+        URI launch = AdtHttpReentranceTicketFlow.buildSsoLaunchUrl("localhost", 65246, reentrance);
 
-        assertTrue(launch.toString().contains("bridge="));
-        assertTrue(launch.toString().contains("bridgeWaitSec=15"));
-        assertTrue(launch.toString().contains("dev-ms.example.com"));
-    }
-
-    @Test
-    void primesBrowserSessionByDefaultInInteractiveMode() {
-        assertTrue(AdtHttpReentranceTicketFlow.shouldPrimeBrowserSession(key -> null, true));
-    }
-
-    @Test
-    void skipsBrowserSessionPrimingWhenSkipBridgeEnvSet() {
-        assertFalse(AdtHttpReentranceTicketFlow.shouldPrimeBrowserSession(
-            key -> "OPENADT_HTTP_SSO_SKIP_BRIDGE".equals(key) ? "1" : null,
-            true
-        ));
-    }
-
-    @Test
-    void skipsBrowserSessionPrimingInNonInteractiveModeWhenBridgeWaitIsZero() {
-        assertFalse(AdtHttpReentranceTicketFlow.shouldPrimeBrowserSession(
-            key -> "OPENADT_HTTP_SSO_BRIDGE_WAIT_SECONDS".equals(key) ? "0" : null,
-            false
-        ));
-    }
-
-    @Test
-    void primesBrowserSessionInNonInteractiveModeWhenBridgeWaitIsPositive() {
-        assertTrue(AdtHttpReentranceTicketFlow.shouldPrimeBrowserSession(
-            key -> "OPENADT_HTTP_SSO_BRIDGE_WAIT_SECONDS".equals(key) ? "15" : null,
-            false
-        ));
+        assertFalse(launch.toString().contains("bridge="));
+        assertFalse(launch.toString().contains("/sap/bc/adt/discovery"));
+        assertTrue(launch.toString().contains("reentranceticket"));
     }
 
     @Test

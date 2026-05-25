@@ -9,7 +9,8 @@ import java.time.Duration;
 import java.util.Map;
 
 /**
- * Probes the SAP ADT frontend after browser SSO to capture {@code Set-Cookie} headers the CLI never sees in the browser.
+ * Server-side probe after browser SSO to capture {@code Set-Cookie} headers the CLI never sees in the browser.
+ * May request {@code /sap/bc/adt/discovery} over HTTP with the reentrance ticket only — never opened in a browser tab.
  */
 public final class HttpSapSessionWarmup {
     private HttpSapSessionWarmup() {
