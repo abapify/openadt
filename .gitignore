@@ -47,6 +47,7 @@ yarn.lock
 .devcontainer/openadt-config.toml
 .devcontainer/*.openadt.toml
 tmp/
+opengrep.sarif
 packaging/dist/
 packaging/windows/launcher/bin/
 packaging/windows/launcher/obj/
