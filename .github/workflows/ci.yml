@@ -21,10 +21,12 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Install OpenGrep and scan
         run: |
-          curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash
+          curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/v1.22.0/install.sh | bash
           export PATH="$HOME/.opengrep/cli/latest:$PATH"
           set +e
           opengrep scan --config .semgrep.yml --sarif-output=opengrep.sarif .

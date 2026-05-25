@@ -1,5 +1,7 @@
 package org.openadt.core;
 
+import java.util.Locale;
+
 /**
  * Well-known SAP ADT ICF paths and HTTP scheme prefixes (fixed by ADT protocol, not per-landscape).
  */
@@ -13,13 +15,14 @@ public final class AdtHttpPaths {
     }
 
     static String withHttpsSchemeIfMissing(String value) {
-        if (value.startsWith(SCHEME_HTTP_PREFIX) || value.startsWith(SCHEME_HTTPS_PREFIX)) {
+        String normalized = value.toLowerCase(Locale.ROOT);
+        if (normalized.startsWith(SCHEME_HTTP_PREFIX) || normalized.startsWith(SCHEME_HTTPS_PREFIX)) {
             return value;
         }
         return SCHEME_HTTPS_PREFIX + value;
     }
 
     static boolean pathContainsAdtRoot(String path) {
-        return path != null && path.contains(ADT_ICF_ROOT);
+        return path != null && path.toLowerCase(Locale.ROOT).contains(ADT_ICF_ROOT);
     }
 }

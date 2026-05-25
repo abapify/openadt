@@ -61,6 +61,12 @@ public final class HttpSapSessionWarmup {
         } catch (IllegalArgumentException error) {
             return null;
         }
+        if (base.getScheme() == null
+            || (!"http".equalsIgnoreCase(base.getScheme()) && !"https".equalsIgnoreCase(base.getScheme()))
+            || base.getHost() == null
+            || base.getHost().isBlank()) {
+            return null;
+        }
         String path = base.getPath() != null ? base.getPath() : "";
         if (path.isBlank() || "/".equals(path)) {
             return base.resolve(AdtHttpPaths.ADT_DISCOVERY);

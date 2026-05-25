@@ -145,7 +145,7 @@ public final class HttpSsoTicketCache {
         if (!Files.isDirectory(cacheRoot)) {
             Files.createDirectories(cacheRoot);
         }
-        restrictToOwner(cacheRoot);
+        restrictCacheDirectory(cacheRoot);
     }
 
     public void invalidate(SystemProfile system) {
@@ -305,6 +305,23 @@ public final class HttpSsoTicketCache {
             );
         } catch (UnsupportedOperationException ignored) {
             return Files.createTempFile(dir, prefix + ".", ".tmp");
+        }
+    }
+
+    private static void restrictCacheDirectory(Path directory) {
+        try {
+            Files.setPosixFilePermissions(
+                directory,
+                Set.of(
+                    PosixFilePermission.OWNER_READ,
+                    PosixFilePermission.OWNER_WRITE,
+                    PosixFilePermission.OWNER_EXECUTE
+                )
+            );
+        } catch (UnsupportedOperationException | IOException ignored) {
+            if (directory.getFileSystem().supportedFileAttributeViews().contains("posix")) {
+                CliLog.httpSso("could not restrict cache directory permissions on " + directory);
+            }
         }
     }
 

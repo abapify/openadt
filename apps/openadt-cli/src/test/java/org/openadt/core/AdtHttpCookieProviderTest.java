@@ -19,7 +19,7 @@ class AdtHttpCookieProviderTest {
             return null;
         });
 
-        assertEquals("from-env", provider.resolveMysapsso2(new OpenAdtConfig(), null));
+        assertEquals("from-env", provider.resolveMysapsso2(new OpenAdtConfig(), null).ticket());
     }
 
     @Test
@@ -34,7 +34,7 @@ class AdtHttpCookieProviderTest {
             return null;
         });
 
-        assertEquals("file-ticket", provider.resolveMysapsso2(new OpenAdtConfig(), null));
+        assertEquals("file-ticket", provider.resolveMysapsso2(new OpenAdtConfig(), null).ticket());
     }
 
     @Test
@@ -46,7 +46,7 @@ class AdtHttpCookieProviderTest {
 
         AdtHttpCookieProvider provider = new AdtHttpCookieProvider(key -> null);
 
-        assertEquals("from-config", provider.resolveMysapsso2(config, null));
+        assertEquals("from-config", provider.resolveMysapsso2(config, null).ticket());
     }
 
     @Test
@@ -87,7 +87,10 @@ class AdtHttpCookieProviderTest {
         };
         AdtHttpCookieProvider provider = new AdtHttpCookieProvider(key -> null, neverCalled, cache);
 
-        assertEquals("cached-ticket", provider.resolveMysapsso2(new OpenAdtConfig(), system));
+        AdtHttpCookieProvider.Mysapsso2Resolution resolution =
+            provider.resolveMysapsso2(new OpenAdtConfig(), system);
+        assertEquals("cached-ticket", resolution.ticket());
+        assertEquals(true, resolution.usedDiskCache());
     }
 
     @Test
@@ -107,6 +110,6 @@ class AdtHttpCookieProviderTest {
         assertEquals("ticket-from-callback", provider.resolveMysapsso2(
             new OpenAdtConfig(),
             system
-        ));
+        ).ticket());
     }
 }

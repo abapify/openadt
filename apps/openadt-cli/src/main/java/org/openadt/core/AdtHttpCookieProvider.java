@@ -17,10 +17,12 @@ import java.util.function.UnaryOperator;
  * {@code MYSAPSSO2} for direct HTTP calls unless you supply the ticket explicitly.
  */
 public class AdtHttpCookieProvider {
+    public record Mysapsso2Resolution(String ticket, boolean usedDiskCache) {
+    }
+
     private final UnaryOperator<String> envProvider;
     private final AdtHttpTicketProvider ticketProvider;
     private final HttpSsoTicketCache ticketCache;
-    private volatile boolean lastResolveUsedDiskCache;
     private volatile Map<String, String> lastSessionCookies = new ConcurrentHashMap<>();
 
     public AdtHttpCookieProvider() {
@@ -47,21 +49,20 @@ public class AdtHttpCookieProvider {
         this.ticketCache = ticketCache;
     }
 
-    public String resolveMysapsso2(OpenAdtConfig config, SystemProfile system) {
-        lastResolveUsedDiskCache = false;
+    public Mysapsso2Resolution resolveMysapsso2(OpenAdtConfig config, SystemProfile system) {
         lastSessionCookies = new ConcurrentHashMap<>();
         String alias = system != null && system.getAlias() != null ? system.getAlias() : "?";
         String fromEnv = blankToNull(envProvider.apply("OPENADT_MYSAPSSO2"));
         if (fromEnv != null) {
             CliLog.httpSso("ticket source: OPENADT_MYSAPSSO2 env");
-            return fromEnv;
+            return new Mysapsso2Resolution(fromEnv, false);
         }
 
         if (config != null && config.getSecureLogin() != null) {
             String fromConfig = blankToNull(config.getSecureLogin().getMysapsso2());
             if (fromConfig != null) {
                 CliLog.httpSso("ticket source: secure_login.mysapsso2 in config");
-                return fromConfig;
+                return new Mysapsso2Resolution(fromConfig, false);
             }
         }
 
@@ -70,14 +71,13 @@ public class AdtHttpCookieProvider {
             String fromFile = readCookieFile(Path.of(cookieFile));
             if (fromFile != null) {
                 CliLog.httpSso("ticket source: OPENADT_COOKIE_FILE");
-                return fromFile;
+                return new Mysapsso2Resolution(fromFile, false);
             }
             CliLog.httpSso("OPENADT_COOKIE_FILE set but empty or unreadable");
         }
 
         Optional<HttpSsoTicketCache.CachedSession> cached = ticketCache.readSession(system);
         if (cached.isPresent()) {
-            lastResolveUsedDiskCache = true;
             lastSessionCookies = new ConcurrentHashMap<>(HttpSapCookieStore.copyOf(cached.get().cookiesOrEmpty()));
             HttpSsoTicketCache.CachedSession session = cached.get();
             CliLog.httpSso(
@@ -85,7 +85,7 @@ public class AdtHttpCookieProvider {
                     + (session.hasApiBase() ? " (api base cached)" : "")
                     + "; cookies: " + HttpSapCookieStore.describeNames(session.cookiesOrEmpty())
             );
-            return session.ticket();
+            return new Mysapsso2Resolution(session.ticket(), true);
         }
 
         CliLog.httpSso("ticket source: browser callback (disk cache miss)");
@@ -95,7 +95,7 @@ public class AdtHttpCookieProvider {
             Map<String, String> cookies = HttpSapSessionWarmup.probe(config, system, fromReentranceFlow);
             lastSessionCookies = new ConcurrentHashMap<>(HttpSapCookieStore.copyOf(cookies));
             ticketCache.writeSession(system, new HttpSsoTicketCache.CachedSession(fromReentranceFlow, null, cookies));
-            return fromReentranceFlow;
+            return new Mysapsso2Resolution(fromReentranceFlow, false);
         }
 
         throw new IllegalStateException(buildMissingTicketMessage(system));
@@ -169,13 +169,8 @@ public class AdtHttpCookieProvider {
     }
 
     public void invalidateCachedTicket(SystemProfile system) {
-        lastResolveUsedDiskCache = false;
         lastSessionCookies = new ConcurrentHashMap<>();
         ticketCache.invalidate(system);
-    }
-
-    public boolean lastResolveUsedDiskCache() {
-        return lastResolveUsedDiskCache;
     }
 
     public Map<String, String> lastSessionCookies() {

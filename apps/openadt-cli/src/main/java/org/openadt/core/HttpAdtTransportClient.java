@@ -26,6 +26,7 @@ public class HttpAdtTransportClient implements AdtTransportClient {
     private final OpenAdtConfig config;
     private final ObjectMapper objectMapper;
     private volatile String cachedMysapsso2;
+    private final ThreadLocal<Boolean> resolveUsedDiskCache = new ThreadLocal<>();
 
     public HttpAdtTransportClient(OpenAdtConfig config) {
         this(config, null, new AdtHttpCookieProvider(), new ObjectMapper());
@@ -67,7 +68,7 @@ public class HttpAdtTransportClient implements AdtTransportClient {
         try {
             ProxyResponse response = sendOnce(system, request);
             if (response.statusCode() == 401) {
-                boolean usedDiskCache = cookieProvider.lastResolveUsedDiskCache();
+                boolean usedDiskCache = Boolean.TRUE.equals(resolveUsedDiskCache.get());
                 invalidateTicket(system);
                 if (usedDiskCache) {
                     throw new OpenAdtException(
@@ -116,6 +117,7 @@ public class HttpAdtTransportClient implements AdtTransportClient {
 
     private void invalidateTicket(SystemProfile system) {
         cachedMysapsso2 = null;
+        resolveUsedDiskCache.remove();
         cookieProvider.invalidateCachedTicket(system);
     }
 
@@ -145,7 +147,10 @@ public class HttpAdtTransportClient implements AdtTransportClient {
         if (cachedMysapsso2 == null) {
             synchronized (this) {
                 if (cachedMysapsso2 == null) {
-                    cachedMysapsso2 = cookieProvider.resolveMysapsso2(config, system);
+                    AdtHttpCookieProvider.Mysapsso2Resolution resolution =
+                        cookieProvider.resolveMysapsso2(config, system);
+                    resolveUsedDiskCache.set(resolution.usedDiskCache());
+                    cachedMysapsso2 = resolution.ticket();
                 }
             }
         }
@@ -178,7 +183,7 @@ public class HttpAdtTransportClient implements AdtTransportClient {
             return normalizeBaseUri(cachedSession.get().apiBase());
         }
 
-        if (cookieProvider.lastResolveUsedDiskCache()
+        if (Boolean.TRUE.equals(resolveUsedDiskCache.get())
             && configuredUri.getPath() != null
             && AdtHttpPaths.pathContainsAdtRoot(configuredUri.getPath())) {
             CliLog.httpSso("using discovery_url as ADT API base (cached ticket, skip well-known probes)");
