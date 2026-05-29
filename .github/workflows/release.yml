@@ -95,8 +95,8 @@ jobs:
       - name: Build distribution jar
         shell: bash
         run: |
-          cd apps/openadt-cli
-          ./mvnw -q -Pdistribution -Dopenadt.distribution=true package -Dmaven.test.skip=true
+          chmod +x ./mvnw
+          ./mvnw -q -f pom.xml -pl apps/openadt-cli -am -Pdistribution -Dopenadt.distribution=true package -Dmaven.test.skip=true
 
       - name: Package zip and refresh winget or homebrew checksums
         env:
