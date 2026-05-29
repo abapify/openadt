@@ -1,0 +1,245 @@
+package org.openadt.bootstrap;
+
+import org.openadt.config.OpenAdtConfig;
+import org.openadt.config.SystemProfile;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+
+import org.openadt.sap.adt.bootstrap.SecureLoginBootstrap;
+public class SetupAnalyzer {
+    public record SetupResult(
+        List<SystemProfile> systems,
+        List<String> warnings,
+        OpenAdtConfig.RuntimeConfig runtime,
+        OpenAdtConfig.SecureLoginConfig secureLogin
+    ) {}
+
+    private final List<SystemDetector> systemDetectors;
+    private final SecureLoginDetector secureLoginDetector;
+    private final RuntimeDetector runtimeDetector;
+
+    public SetupAnalyzer() {
+        this(
+            List.of(
+                new SapGuiLandscapeDetector(),
+                new NwbcSystemDetector(),
+                new SapBusinessClientDetector(),
+                new EclipseAdtDetector(),
+                new SapRulesDetector()
+            ),
+            new SecureLoginDetector(),
+            new RuntimeDetector()
+        );
+    }
+
+    SetupAnalyzer(List<SystemDetector> systemDetectors, SecureLoginDetector secureLoginDetector, RuntimeDetector runtimeDetector) {
+        this.systemDetectors = List.copyOf(systemDetectors);
+        this.secureLoginDetector = secureLoginDetector;
+        this.runtimeDetector = runtimeDetector;
+    }
+
+    public SetupResult analyze() {
+        Map<String, SystemProfile> systemsByKey = new LinkedHashMap<>();
+        List<String> warnings = new ArrayList<>();
+
+        for (SystemDetector detector : systemDetectors) {
+            detector.detect().forEach(system -> mergeSystem(systemsByKey, system));
+        }
+
+        OpenAdtConfig.RuntimeConfig runtime = runtimeDetector.detect();
+        SecureLoginDetector.DetectionResult slcResult = secureLoginDetector.detectSecureLogin();
+        systemsByKey.values().forEach(system -> applyDefaults(system, runtime));
+        OpenAdtConfig.SecureLoginConfig secureLogin = null;
+        if (slcResult.available()) {
+            OpenAdtConfig.SecureLoginConfig detected = new OpenAdtConfig.SecureLoginConfig();
+            detected.setLocalSecurityHub(slcResult.url());
+            OpenAdtConfig wrapper = new OpenAdtConfig();
+            wrapper.setSecureLogin(detected);
+            secureLogin = org.openadt.sap.adt.bootstrap.SecureLoginBootstrap.resolveSecureLogin(wrapper);
+            if (secureLogin == null) {
+                secureLogin = detected;
+            }
+        }
+
+        return new SetupResult(new ArrayList<>(systemsByKey.values()), warnings, runtime, secureLogin);
+    }
+
+    List<SystemDetector> systemDetectors() {
+        return systemDetectors;
+    }
+
+    private void mergeSystem(Map<String, SystemProfile> systemsByKey, SystemProfile incoming) {
+        if (incoming == null) {
+            return;
+        }
+        normalizeAlias(incoming);
+        String key = systemKey(incoming);
+        if (key == null) {
+            return;
+        }
+        SystemProfile existing = systemsByKey.get(key);
+        if (existing == null) {
+            systemsByKey.put(key, incoming);
+            return;
+        }
+        mergeInto(existing, incoming);
+    }
+
+    private void normalizeAlias(SystemProfile system) {
+        if (blank(system.getAlias()) && !blank(system.getSystemId())) {
+            system.setAlias(system.getSystemId());
+        }
+    }
+
+    private String systemKey(SystemProfile system) {
+        if (!blank(system.getSystemId())) {
+            return "sid:" + system.getSystemId();
+        }
+        if (!blank(system.getAlias())) {
+            return "alias:" + system.getAlias();
+        }
+        return null;
+    }
+
+    private void mergeInto(SystemProfile target, SystemProfile source) {
+        if (blank(target.getAlias())) target.setAlias(source.getAlias());
+        if (blank(target.getSource())) target.setSource(source.getSource());
+        if (blank(target.getDescription())) target.setDescription(source.getDescription());
+        if (blank(target.getSystemId())) target.setSystemId(source.getSystemId());
+        if (blank(target.getClient())) target.setClient(source.getClient());
+        if (blank(target.getLanguage())) target.setLanguage(source.getLanguage());
+        if (blank(target.getUser())) target.setUser(source.getUser());
+
+        if (source.getJco() != null) {
+            if (target.getJco() == null) {
+                target.setJco(source.getJco());
+            } else {
+                mergeJco(target.getJco(), source.getJco());
+            }
+        }
+        if (source.getAdt() != null) {
+            if (target.getAdt() == null) {
+                target.setAdt(source.getAdt());
+            } else {
+                mergeAdt(target.getAdt(), source.getAdt());
+            }
+        }
+    }
+
+    private void applyDefaults(SystemProfile system, OpenAdtConfig.RuntimeConfig runtime) {
+        if (blank(system.getAlias()) && !blank(system.getSystemId())) {
+            system.setAlias(system.getSystemId());
+        }
+        if (blank(system.getUser())) {
+            String userName = blankToNull(System.getProperty("user.name"));
+            if (userName != null) {
+                system.setUser(userName.toUpperCase(Locale.ROOT));
+            }
+        }
+        if (blank(system.getLanguage())) {
+            system.setLanguage("EN");
+        }
+        applyJcoSsoDefaults(system);
+        ensureAdtConfig(system);
+        applyHttpBrowserSsoProfile(system);
+        applyAdtTransportDefault(system, runtime);
+        applySsoAuthenticationKind(system);
+    }
+
+    private void applyJcoSsoDefaults(SystemProfile system) {
+        SystemProfile.JcoConfig jco = system.getJco();
+        if (jco == null || !"1".equals(jco.getSncSso())) {
+            return;
+        }
+        if (blank(jco.getSticky())) {
+            jco.setSticky("1");
+        }
+        if (blank(jco.getDenyInitialPassword())) {
+            jco.setDenyInitialPassword("1");
+        }
+    }
+
+    private void ensureAdtConfig(SystemProfile system) {
+        if (system.getAdt() == null) {
+            system.setAdt(new SystemProfile.AdtConfig());
+        }
+    }
+
+    private void applyHttpBrowserSsoProfile(SystemProfile system) {
+        String baseUrl = system.getAdt() != null ? blankToNull(system.getAdt().getBaseUrl()) : null;
+        if (baseUrl == null) {
+            return;
+        }
+        Map<String, SystemProfile.ProfileConfig> profiles = system.getProfiles();
+        if (profiles == null) {
+            profiles = new LinkedHashMap<>();
+            system.setProfiles(profiles);
+        }
+        SystemProfile.ProfileConfig sso = profiles.computeIfAbsent("sso", ignored -> new SystemProfile.ProfileConfig());
+        if (blank(sso.getTransport())) {
+            sso.setTransport("http");
+        }
+        if (blank(sso.getAuthenticationKind())) {
+            sso.setAuthenticationKind("browser-sso");
+        }
+        if (blank(sso.getBaseUrl())) {
+            sso.setBaseUrl(baseUrl);
+        }
+    }
+
+    private void applyAdtTransportDefault(SystemProfile system, OpenAdtConfig.RuntimeConfig runtime) {
+        if (!blank(system.getAdt().getTransport())) {
+            return;
+        }
+        if (runtime != null && !blank(runtime.getAdtPluginsDir())) {
+            system.getAdt().setTransport("sdk");
+        } else if (runtime != null && !blank(runtime.getJcoJar())) {
+            system.getAdt().setTransport("rest-rfc");
+        } else {
+            system.getAdt().setTransport("sdk");
+        }
+    }
+
+    private void applySsoAuthenticationKind(SystemProfile system) {
+        if (!blank(system.getAdt().getAuthenticationKind())) {
+            return;
+        }
+        if (system.getJco() != null && "1".equals(system.getJco().getSncSso())) {
+            system.getAdt().setAuthenticationKind("sso");
+        }
+    }
+
+    private void mergeJco(SystemProfile.JcoConfig target, SystemProfile.JcoConfig source) {
+        if (blank(target.getMshost())) target.setMshost(source.getMshost());
+        if (blank(target.getMsserv())) target.setMsserv(source.getMsserv());
+        if (blank(target.getR3name())) target.setR3name(source.getR3name());
+        if (blank(target.getGroup())) target.setGroup(source.getGroup());
+        if (blank(target.getAshost())) target.setAshost(source.getAshost());
+        if (blank(target.getSysnr())) target.setSysnr(source.getSysnr());
+        if (blank(target.getSncMode())) target.setSncMode(source.getSncMode());
+        if (blank(target.getSncQop())) target.setSncQop(source.getSncQop());
+        if (blank(target.getSncPartnername())) target.setSncPartnername(source.getSncPartnername());
+        if (blank(target.getSncSso())) target.setSncSso(source.getSncSso());
+        if (blank(target.getSticky())) target.setSticky(source.getSticky());
+        if (blank(target.getDenyInitialPassword())) target.setDenyInitialPassword(source.getDenyInitialPassword());
+    }
+
+    private void mergeAdt(SystemProfile.AdtConfig target, SystemProfile.AdtConfig source) {
+        if (blank(target.getTransport())) target.setTransport(source.getTransport());
+        if (blank(target.getAshost())) target.setAshost(source.getAshost());
+        if (blank(target.getBaseUrl())) target.setBaseUrl(source.getBaseUrl());
+        if (blank(target.getAuthenticationKind())) target.setAuthenticationKind(source.getAuthenticationKind());
+    }
+
+    private boolean blank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    private String blankToNull(String value) {
+        return blank(value) ? null : value;
+    }
+}

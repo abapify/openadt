@@ -98,15 +98,16 @@ Legacy destinations without `default_profile` or `profiles.*` keep working: Open
 
 Named authentication profiles overlay destination defaults. Shared target details (client, JCo message-server settings, and so on) live on the destination; each profile selects transport and auth behavior.
 
-| Field                      | Type   | Description                                                                         |
-| -------------------------- | ------ | ----------------------------------------------------------------------------------- |
-| `transport`                | string | ADT transport for this profile (`sdk`, `rest-rfc`, `http`)                          |
-| `authentication_kind`      | string | Authentication kind for this profile (e.g. `browser-sso`, `snc`)                    |
-| `discovery_url`            | string | Logical frontend base URL for HTTP transport in this profile                        |
-| `http_ca_cert`             | string | CA certificate chain (PEM) for this profile's HTTP frontend (overrides `[runtime]`) |
-| `http_truststore`          | string | Truststore for this profile's HTTP frontend                                         |
-| `http_truststore_password` | string | Truststore password                                                                 |
-| `callback_port`            | string | Browser SSO callback port for this profile (`0` = random local port)                |
+| Field                      | Type   | Description                                                                          |
+| -------------------------- | ------ | ------------------------------------------------------------------------------------ |
+| `transport`                | string | ADT transport for this profile (`sdk`, `rest-rfc`, `http`)                           |
+| `authentication_kind`      | string | Authentication kind for this profile (e.g. `browser-sso`, `snc`)                     |
+| `base_url`                 | string | SAP frontend origin for HTTP transport in this profile (browser SSO + ADT host)      |
+| `browser_entry_url`        | string | Optional browser entry URL for manual SSO/session setup before ADT reentrance-ticket |
+| `http_ca_cert`             | string | CA certificate chain (PEM) for this profile's HTTP frontend (overrides `[runtime]`)  |
+| `http_truststore`          | string | Truststore for this profile's HTTP frontend                                          |
+| `http_truststore_password` | string | Truststore password                                                                  |
+| `callback_port`            | string | Browser SSO callback port for this profile (`0` = random local port)                 |
 
 Optional nested subsections:
 
@@ -134,16 +135,16 @@ Manual destinations created with `openadt config destinations create` are writte
 
 ### [destinations.<ALIAS>.adt] subsection
 
-| Field                      | Type   | Description                                                                                                                |
-| -------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------- |
-| `transport`                | string | ADT transport (`sdk`, `rest-rfc`, `http`)                                                                                  |
-| `ashost`                   | string | ADT server hostname (if different from JCo)                                                                                |
-| `discovery_url`            | string | Logical frontend base URL for HTTP transport (e.g. `https://host:8001/sap/bc/adt` from `saprules.xml`)                     |
-| `sso_landing_url`          | string | Optional corporate/IdP entry URL (your Okta app URL — not bare frontend `/`); also on `profiles.<PROFILE>.sso_landing_url` |
-| `http_ca_cert`             | string | CA certificate chain (PEM) for this destination's HTTP frontend TLS (overrides `[runtime] http_ca_cert`)                   |
-| `http_truststore`          | string | Optional truststore (JKS/PKCS12) for this destination's HTTP frontend                                                      |
-| `http_truststore_password` | string | Truststore password                                                                                                        |
-| `authentication_kind`      | string | Authentication kind for ADT                                                                                                |
+| Field                      | Type   | Description                                                                                                                                                                                    |
+| -------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `transport`                | string | ADT transport (`sdk`, `rest-rfc`, `http`)                                                                                                                                                      |
+| `ashost`                   | string | ADT server hostname (if different from JCo)                                                                                                                                                    |
+| `base_url`                 | string | **SAP frontend origin** for HTTP transport and ADT API host (e.g. `https://<frontend>`). OpenADT appends `/sap/bc/adt` for API calls. From `saprules.xml` on setup.                            |
+| `browser_entry_url`        | string | Optional browser entry URL for manual SSO/session setup before ADT reentrance-ticket (for example an Okta/SAML landing URL). `base_url` stays the SAP host used for ADT and reentrance-ticket. |
+| `http_ca_cert`             | string | CA certificate chain (PEM) for this destination's HTTP frontend TLS (overrides `[runtime] http_ca_cert`)                                                                                       |
+| `http_truststore`          | string | Optional truststore (JKS/PKCS12) for this destination's HTTP frontend                                                                                                                          |
+| `http_truststore_password` | string | Truststore password                                                                                                                                                                            |
+| `authentication_kind`      | string | Authentication kind for ADT                                                                                                                                                                    |
 
 ## Example fragments
 
@@ -165,7 +166,7 @@ r3name = "DEV"
 group = "PUBLIC"
 
 [destinations.DEV.adt]
-discovery_url = "https://dev-adt.example.com/sap/bc/adt"
+base_url = "https://dev-adt.example.com"
 
 [destinations.DEV.profiles.snc]
 transport = "sdk"
@@ -180,7 +181,8 @@ snc_sso = "1"
 [destinations.DEV.profiles.sso]
 transport = "http"
 authentication_kind = "browser-sso"
-discovery_url = "https://dev-adt.example.com/sap/bc/adt"
+base_url = "https://dev-adt.example.com"
+browser_entry_url = "https://idp.example.corp/app/sap/sso/saml"
 callback_port = "0"
 ```
 

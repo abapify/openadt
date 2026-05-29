@@ -6,8 +6,10 @@ OpenADT is a CLI and local proxy for SAP ADT development. It can obtain ADT sess
 
 ## Architecture
 
-- `apps/openadt-cli/` — Java CLI (Maven): core SAP/HTTP flows, proxy, setup.
-- `apps/openadt-proxy/` — .NET proxy (separate solution).
+- `apps/openadt-cli/` — Picocli + shaded fat jar (`product.proxy`).
+- `apps/openadt-sap-adt/` — `org.openadt.sap.adt.*` (SDK default) + `product.fetch`.
+- `apps/openadt-config/` — TOML config.
+- `apps/openadt-bootstrap/` — setup detectors (`org.openadt.bootstrap`).
 - `specs/` — behavior contracts; change specs when CLI behavior changes.
 
 ## Security review context (read before flagging SSRF / local bind issues)

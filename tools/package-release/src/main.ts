@@ -169,7 +169,7 @@ mkdirSync(stageDir, { recursive: true });
 
 if (!existsSync(jarPath)) {
   throw new Error(
-    `Missing jar. Run: cd apps/openadt-cli && mvnw -Pdistribution package -DskipTests`,
+    `Missing jar. Run: cd apps/openadt-cli && mvnw -Pdistribution -Dopenadt.distribution=true package -DskipTests`,
   );
 }
 

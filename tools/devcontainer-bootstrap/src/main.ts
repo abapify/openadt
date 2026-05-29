@@ -22,6 +22,7 @@ type Args = {
   sapcarPath?: string;
   containerWorkspace?: string;
   nonInteractive: boolean;
+  skipIfMissing: boolean;
 };
 
 type StagedRuntime = {
@@ -42,7 +43,7 @@ type ExtractedCrypto = {
 };
 
 function parseArgs(argv: string[]): Args {
-  const args: Args = { nonInteractive: false };
+  const args: Args = { nonInteractive: false, skipIfMissing: false };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     switch (arg) {
@@ -63,6 +64,9 @@ function parseArgs(argv: string[]): Args {
         break;
       case "--non-interactive":
         args.nonInteractive = true;
+        break;
+      case "--skip-if-missing":
+        args.skipIfMissing = true;
         break;
       default:
         throw new Error(`Unknown argument: ${arg}`);
@@ -489,6 +493,12 @@ async function main(): Promise<void> {
   }
 
   if (!existsSync(sourceRoot)) {
+    if (args.skipIfMissing) {
+      console.log(
+        `SAP archives not found under ${sourceRoot} — skipping bootstrap (no JCo runtime staged).`,
+      );
+      return;
+    }
     if (args.nonInteractive) {
       throw new Error(`Source root not found: ${sourceRoot}`);
     }

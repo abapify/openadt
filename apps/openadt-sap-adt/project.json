@@ -1,0 +1,44 @@
+{
+  "name": "openadt-sap-adt",
+  "root": "apps/openadt-sap-adt",
+  "sourceRoot": "apps/openadt-sap-adt/src/main/java",
+  "projectType": "library",
+  "metadata": {
+    "mavenProject": "org.openadt:openadt-sap-adt"
+  },
+  "targets": {
+    "compile": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["openadt-config:compile"],
+      "options": {
+        "command": "node scripts/mvnw-runner.mjs -q compile -pl apps/openadt-sap-adt -am -f pom.xml",
+        "cwd": "{workspaceRoot}"
+      },
+      "cache": true,
+      "inputs": ["javaMonorepoSources"],
+      "outputs": ["{projectRoot}/target"]
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["compile"],
+      "options": {
+        "command": "node scripts/mvnw-runner.mjs -q test -pl apps/openadt-sap-adt -am -f pom.xml",
+        "cwd": "{workspaceRoot}"
+      },
+      "cache": true,
+      "inputs": ["javaMonorepoSources"],
+      "outputs": ["{projectRoot}/target"]
+    },
+    "package": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["compile", "openadt-config:package"],
+      "options": {
+        "command": "node scripts/mvnw-runner.mjs -q package -pl apps/openadt-sap-adt -am -DskipTests -f pom.xml",
+        "cwd": "{workspaceRoot}"
+      },
+      "cache": true,
+      "inputs": ["javaMonorepoSources"],
+      "outputs": ["{projectRoot}/target"]
+    }
+  }
+}

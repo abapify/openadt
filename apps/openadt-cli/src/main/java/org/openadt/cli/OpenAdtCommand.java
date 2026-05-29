@@ -1,10 +1,9 @@
 package org.openadt.cli;
 
-import org.openadt.core.CliLog;
+import org.openadt.config.CliLog;
 
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
-
 @Command(
     name = "openadt",
     mixinStandardHelpOptions = true,
@@ -20,12 +19,27 @@ import picocli.CommandLine.Command;
 )
 public class OpenAdtCommand implements Runnable {
     public static void main(String[] args) {
-        int exitCode = new CommandLine(new OpenAdtCommand()).execute(args);
+        int exitCode = newCommandLine().execute(args);
         System.exit(exitCode);
+    }
+
+    private static CommandLine newCommandLine() {
+        CommandLine commandLine = new CommandLine(new OpenAdtCommand());
+        registerAdtSubcommand(commandLine);
+        return commandLine;
+    }
+
+    private static void registerAdtSubcommand(CommandLine commandLine) {
+        try {
+            Class<?> adtCommand = Class.forName("org.openadt.cli.AdtCommand");
+            commandLine.addSubcommand("adt", adtCommand);
+        } catch (ClassNotFoundException | NoClassDefFoundError ignored) {
+            // Distribution build omits SDK-native adt commands.
+        }
     }
 
     @Override
     public void run() {
-        new CommandLine(this).usage(CliLog.stdout());
+        newCommandLine().usage(CliLog.stdout());
     }
 }

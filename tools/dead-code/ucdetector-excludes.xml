@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  UCDetector allowlist for OpenADT. Run: mvnw -Pdeadcode -q org.ucdetector:ucdetector-maven-plugin:check
+  Picocli, reflection-loaded SDK classes, and test helpers produce false positives — do not auto-delete.
+-->
+<ucdetector>
+    <ignore classes="true">
+        <class name="org.openadt.cli.OpenAdtCommand" />
+        <class name="org.openadt.cli.OpenAdtVersionProvider" />
+        <class name="org.openadt.cli.ConfigCommand" />
+        <class name="org.openadt.cli.ConfigCommand$BootstrapCommand" />
+        <class name="org.openadt.cli.ConfigCommand$BuildCommand" />
+        <class name="org.openadt.cli.ConfigDestinationsCommand" />
+        <class name="org.openadt.cli.ConfigDestinationsCreateCommand" />
+        <class name="org.openadt.cli.SetupCommand" />
+        <class name="org.openadt.cli.ProxyCommand" />
+        <class name="org.openadt.cli.FetchCommand" />
+        <class name="org.openadt.cli.AdtCommand" />
+        <class name="org.openadt.cli.AdtDiscoverCommand" />
+        <class name="org.openadt.cli.AdtLogonCommand" />
+        <class name="org.openadt.cli.AdtLogonStatusCommand" />
+        <class name="org.openadt.sap.adt.sdk.AdtSdkTransportClient" />
+        <class name="org.openadt.sap.adt.sdk.AdtSdkClassLoaderFactory" />
+        <class name="org.openadt.sap.adt.sdk.AdtSdkServiceGateway" />
+        <class name="org.openadt.sap.adt.services.SapAdtSessionContext" />
+        <class name="org.openadt.sap.adt.services.DiscoveryService" />
+        <class name="org.openadt.sap.adt.services.LogonService" />
+    </ignore>
+    <ignore packages="true">
+        <package name="org.openadt.cli" />
+    </ignore>
+</ucdetector>

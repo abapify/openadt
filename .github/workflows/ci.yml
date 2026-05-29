@@ -66,8 +66,14 @@ jobs:
       - run: bun install --frozen-lockfile
       - uses: nrwl/nx-set-shas@afb73a62d26e41464e9254689e1fd6122ee683c1 # v5
 
-      - run: bunx nx format:check
-      - run: bunx nx affected -t lint typecheck
+      - name: Verify spec sync
+        run: bun scripts/verify-spec-sync.ts
+
+      - name: Verify package docs
+        run: bun scripts/verify-package-docs.ts
+
+      - run: bunx nx format:check --base="${NX_BASE:-origin/main}" --head="${NX_HEAD:-HEAD}"
+      - run: bunx nx affected -t lint typecheck --base="${NX_BASE:-origin/main}" --head="${NX_HEAD:-HEAD}"
 
       - uses: actions/setup-java@v5
         with:
@@ -75,8 +81,8 @@ jobs:
           java-version: "21"
           check-latest: true
 
+      - name: Maven verify (distribution, no SAP plugins required)
+        run: chmod +x ./mvnw && ./mvnw -q verify -f pom.xml -Pdistribution -Dopenadt.distribution=true
+
       - name: Java unit tests (optional SAP runtime)
         run: bash scripts/ci-java-test.sh
-
-      - run: bunx nx fix-ci
-        if: always()

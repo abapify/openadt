@@ -24,7 +24,7 @@ const pathSep = process.platform === "win32" ? ";" : ":";
 function findDevJar(): string {
   if (!existsSync(targetDir)) {
     console.error(
-      "Missing apps/openadt-cli/target. Run: nx run openadt-cli:build",
+      "Missing apps/openadt-cli/target. Run: nx package openadt-cli",
     );
     process.exit(1);
   }
@@ -40,7 +40,7 @@ function findDevJar(): string {
     .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
   if (jars.length === 0) {
     console.error(
-      "No openadt-*.jar in apps/openadt-cli/target. Run: nx run openadt-cli:build",
+      "No openadt-*.jar in apps/openadt-cli/target. Run: nx package openadt-cli",
     );
     process.exit(1);
   }
@@ -101,7 +101,7 @@ function buildSdkClasspath(jar: string): string {
   if (!hasMinimalSdkBundles(entries)) {
     console.error(
       "SDK/SNC profile needs SAP ADT bundles on the classpath.\n" +
-        "  - Run: nx run openadt-cli:build (fills apps/openadt-cli/target/sap-lib)\n" +
+        "  - Run: nx package openadt-cli (fills apps/openadt-cli/target/sap-lib)\n" +
         "  - Or install Eclipse ADT (fills ~/.p2/pool/plugins)\n" +
         "  - Or: .\\scripts\\openadt-sdk.ps1 fetch …\n" +
         "  - For HTTP SSO only: add --profile=sso",

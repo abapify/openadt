@@ -5,7 +5,7 @@ description: Use when working on OpenADT setup, fetch, proxy, or live SAP valida
 
 # OpenADT Local SAP Runtime
 
-Knowledge base for making **fetch** and **proxy** work like Eclipse ADT when the full SAP stack is present, or for lighter setups (HTTP ticket, basic localhost proxy) when it is not.
+Knowledge base for **fetch** and **proxy** via the **SAP ADT SDK** (default). Bootstrap/setup only writes `~/.openadt/config.toml`; runtime commands do not rescan the machine. HTTP ticket and localhost proxy auth are valid when SDK transport is unavailable.
 
 **Platforms:** Windows (`sapjco3.dll`), Linux (`libsapjco3.so`), macOS (`libsapjco3.dylib`). JCo + `sapcrypto` + Secure Login are **optional** unless the destination uses SNC SSO or SDK transport.
 
@@ -114,7 +114,7 @@ See `specs/config.md`. Important runtime keys:
 - `runtime.jco_native_dir`, `runtime.sapcrypto`
 - `secure_login.local_security_hub`, `secure_login.web_adapter_profile_id`, `secure_login.origin`
 
-Transport values: `sdk` (default), `rest-rfc` (legacy RFC bridge), `http` (MYSAPSSO2 + discovery_url only).
+Transport values: `sdk` (default), `rest-rfc` (legacy RFC bridge), `http` (MYSAPSSO2 + `base_url`).
 
 ## Destination profiles (multi-auth per alias)
 
@@ -125,9 +125,8 @@ Config supports **one alias, multiple auth profiles** under `destinations.<ALIAS
 | `default_profile` | Used when `--profile` is omitted |
 | `profiles.<name>.transport` | `sdk` or `http` |
 | `profiles.<name>.authentication_kind` | e.g. `sso` (SNC/JCo) or `browser-sso` (HTTP ticket) |
-| `profiles.<name>.discovery_url` | HTTP ADT frontend for browser SSO |
+| `profiles.<name>.base_url` | SAP frontend origin for browser SSO and ADT (`/sap/bc/adt` appended for API calls) |
 | `profiles.<name>.callback_port` | Local callback port (`0` = random) |
-| `profiles.<name>.sso_landing_url` | Optional corporate SSO landing (site root); omit by default |
 
 CLI: `openadt fetch DEV /sap/bc/adt/... --profile=sso`
 
@@ -138,7 +137,7 @@ Manual profile writes go to `~/.openadt/destinations/manual.openadt.toml` via `o
 **Installed vs dev build:** Scoop/winget releases ship a **released** JAR. Config with `default_profile` / `profiles` requires a build that includes destination profiles (PR branch or post-release). Symptom on old JAR:
 
 ```text
-Unrecognized field "default_profile" (class org.openadt.core.SystemProfile)
+Unrecognized field "default_profile" (class org.openadt.config.SystemProfile)
 ```
 
 Fix: rebuild from repo and replace the installed `openadt.jar`, or wait for the next release and `scoop update openadt`.
@@ -149,32 +148,38 @@ Use when ADT is exposed on an **HTTPS ICF frontend** with corporate SAML/Okta, w
 
 ```text
 fetch / proxy (--profile=sso)
-    → HttpAdtTransportClient
-    → AdtHttpCookieProvider.resolveMysapsso2()
-         OPENADT_MYSAPSSO2 / secure_login.mysapsso2 / OPENADT_COOKIE_FILE
-         else AdtHttpReentranceTicketFlow.acquireTicket()
-              1) optional sso_landing_url only (IdP/Okta URL — never default frontend /; that opens Fiori)
-              2) default: localhost /adt/open → reentranceticket (SAML redirects here on cold login)
-              3) optional bridge when OPENADT_HTTP_SSO_OPEN_BRIDGE=1 → bare /sap/bc/adt only (never /sap/bc/adt/discovery in the browser)
+    → HttpAdtTransportClient.sendOnce (target ADT URL)
+         1) disk cache (~/.openadt/cache/http-sso/) → MYSAPSSO2 + session cookies
+         2) on 401 or cache miss → AdtHttpCookieProvider.resolveMysapsso2()
+              OPENADT_MYSAPSSO2 / secure_login.mysapsso2 / OPENADT_COOKIE_FILE
+              else AdtHttpReentranceTicketFlow.acquireTicket():
+                   start localhost /adt/redirect server
+                   step 1 (no cookies): base_url or OPENADT_HTTP_BASE_URL (Okta) — no redirect-url
+                   step 2: …/reentranceticket?redirect-url=http://localhost:…/adt/redirect?state=…
+                   (SAP/Okta redirects back with reentrance-ticket=…)
+                   cache ticket + server-side discovery warmup cookies
+         3) retry target fetch
     → Cookie: MYSAPSSO2=<ticket>
     → discoverAdtApiBase (well-known / virtualhost) + ADT request
 ```
 
+There is **no** `localhost/adt/open` launch page. **Do not** open `/sap/bc/adt/discovery` in the browser.
+
 Secure Login Web Adapter prepares **JCo/SNC** credentials; it does **not** replace `MYSAPSSO2` for direct HTTP unless you supply the ticket explicitly.
 
-### discovery_url must be the logical frontend
+### base_url must be the SAP frontend origin
 
 For landscapes where Okta/SAML is on the **site root** but deep ICF paths use SAP HTTP auth:
 
-- **Wrong:** app-server host from `setup` detect (e.g. `sap-<sid>-app.example.com/sap/bc/adt`) — reentranceticket may show HTTP Basic.
-- **Right:** corporate **frontend** URL that users hit in the browser (e.g. `https://<frontend>.example.com/sap/bc/adt`).
+- **Wrong:** app-server host from `setup` detect (e.g. `sap-<sid>-app.example.com`) — reentranceticket may show HTTP Basic.
+- **Right:** corporate **frontend** origin users hit in the browser (e.g. `https://<frontend>.example.com`). OpenADT appends `/sap/bc/adt` for ADT API calls.
 
 Write the SSO profile manually when auto-detect picks the app server:
 
 ```bash
 openadt config destinations create --alias DEV --profile sso \
   --transport http --auth browser-sso \
-  --discovery-url https://<frontend>.example.com/sap/bc/adt
+  --base-url https://<frontend>.example.com
 ```
 
 ### Reentrance-ticket redirect URL rules
@@ -190,17 +195,18 @@ Callback server binds to the same host as `redirect-url` (default `localhost`).
 
 Override: `OPENADT_HTTP_CALLBACK_HOST` or `runtime.http_callback_host`.
 
-### SSO browser flow (interactive vs Scoop)
+### SSO browser flow
 
-**Interactive terminal** (`System.console()` present):
+On cache miss or HTTP 401:
 
-1. Optional `sso_landing_url` / Enter prompts when interactive
-2. Press Enter → callback starts → `http://localhost:<port>/adt/open` opens a popup to **reentranceticket only** (never `/sap/bc/adt/discovery` in the browser)
-3. Popup redirects to `http://localhost:<port>/adt/redirect?reentrance-ticket=...` and tries `window.close()`
+1. Start localhost callback (`/adt/redirect`).
+2. **Step 1** (cold browser): `base_url` origin or `OPENADT_HTTP_BASE_URL` (Okta SAML app URL) — sign in only, no `redirect-url`. **Step 2**: `…/reentranceticket?redirect-url=localhost…`. Without step 1, reentrance-ticket often shows HTTP Basic. Press Enter between steps when interactive.
+3. Complete IdP/Okta in the browser; SAP redirects to localhost with `reentrance-ticket=…`.
+4. Cache ticket; server-side `GET /sap/bc/adt/discovery` for session cookies (never in the browser).
 
-**Non-interactive** (Scoop `openadt.exe`, piped stdout, CI): no Enter prompts. Optional `OPENADT_HTTP_SSO_OPEN_BRIDGE=1` may open bare `/sap/bc/adt` before reentrance — never discovery. CLI may still `GET /sap/bc/adt/discovery` server-side after the ticket for cookie warmup.
+**`base_url`** is the SAP frontend **origin** only (not `/sap/bc/adt` in the browser). Override with `OPENADT_HTTP_BASE_URL` when the IdP entry URL differs.
 
-**Do not open site root by default** — an existing portal SSO session often lands on Fiori (`/fiori#Shell-home`) without an ADT ICF session. Root landing is opt-in via `sso_landing_url` or `OPENADT_HTTP_SSO_LANDING_URL`.
+Legacy opt-in `OPENADT_HTTP_SSO_OPEN_BRIDGE=1` may open an extra `/sap/bc/adt` tab — off by default and not part of the normal flow.
 
 ### Callback timing and `ERR_CONNECTION_REFUSED`
 
@@ -214,7 +220,7 @@ The localhost callback exists **only while `fetch`/`proxy` is waiting** for the 
 
 Active callback registry (while waiting): `~/.openadt/runtime/sso-callback.json` (`callbackUrl`, `port`, `pid`).
 
-After ticket received, callback stays up **30s** (grace) so late redirects still get 200. Reentrance-ticket is opened via `/adt/open` (`window.open(..., 'openadt_sso')`) so the success page can usually `window.close()` the popup; tabs opened only by `Desktop.browse` (bridge step, blocked popups) may still need manual close.
+After ticket received, callback stays up **30s** (grace) so late redirects still get 200. The success HTML page tries `window.close()`; if the browser blocked popups or used `Desktop.browse`, close the tab manually.
 
 **Recommendation:** fixed callback port for repeat use: `--callback-port 63363` or `callback_port = "63363"` in profile.
 
@@ -255,8 +261,8 @@ Or env: `OPENADT_HTTP_CA_CERT`. Export server cert from a successful TLS handsha
 | `OPENADT_HTTP_SSO_NON_INTERACTIVE` | Skip Enter prompts |
 | `OPENADT_HTTP_SSO_BRIDGE_WAIT_SECONDS` | Delay before reentranceticket when no console (default 15); `0` also skips opening the bridge tab |
 | `OPENADT_HTTP_SSO_SKIP_BRIDGE` | Do not open bridge tab (warm ADT session in browser) |
-| `OPENADT_HTTP_SSO_SKIP_LANDING` | Skip optional landing URL |
-| `OPENADT_HTTP_SSO_LANDING_URL` | Override landing URL |
+| `OPENADT_HTTP_SSO_SKIP_LANDING` | Skip `base_url` landing on `/sap/bc/` frontends |
+| `OPENADT_HTTP_BASE_URL` | Override `destinations.*.adt.base_url` for browser landing |
 
 ### HTTP transport implementation notes
 
@@ -303,9 +309,12 @@ Use the **host OS Java** that matches installed `sapjco3.dll` / `sapcrypto.dll`.
 | `Invalid redirect URL` (SADT_RESOURCE 034) | `redirect-url` uses `127.0.0.1` | Use `localhost` (default) |
 | `ERR_CONNECTION_REFUSED` on callback | Stale port / fetch exited | Fresh run; `--callback-port`; keep terminal open |
 | `PKIX path building failed` | Corporate CA not in Java trust | `runtime.http_ca_cert` / `OPENADT_HTTP_CA_CERT` |
-| HTTP Basic on `/sap/bc/adt/discovery` in browser | OpenADT or user opened Atom discovery URL | Never open discovery in browser; use reentranceticket popup or `sso_landing_url`; server-side warmup only |
+| HTTP Basic on `/sap/bc/adt/discovery` in browser | OpenADT or user opened Atom discovery URL | Never open discovery in browser; use `base_url` landing then reentranceticket; server-side warmup only |
 | Three browser SSO popups | Old bug: discovery re-acquired ticket | Fixed: `HttpAdtTransportClient` caches cookie |
 | Secure Login `LOGGED_OUT` with default profile | `default_profile=snc` needs hub | Use `--profile=sso` for HTTP or log in Web Adapter |
+| `no sapjco3 in java.library.path` | `runtime.jco_native_dir` points at the wrong OS (e.g. `.devcontainer/dist/jco` with `libsapjco3.so` while Java runs on Windows) | Run `openadt setup --check` on the **host**; confirm the directory contains `sapjco3.dll` (Windows), `libsapjco3.so` (Linux), or `libsapjco3.dylib` (macOS); save with `openadt setup` |
+
+**Agent triage before blaming SAP logon:** on `UnsatisfiedLinkError` / missing `sapjco3`, inspect `jco_native_dir` first — do not loop on fetch retries with a stale devcontainer path.
 
 ## Repository layout (post-monorepo)
 

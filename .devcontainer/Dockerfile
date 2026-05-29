@@ -7,4 +7,8 @@ RUN rm -f /etc/apt/sources.list.d/yarn.list \
         ripgrep \
         unzip \
         zip \
+        curl \
     && rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSL https://bun.sh/install | bash \
+    && ln -s /root/.bun/bin/bun /usr/local/bin/bun

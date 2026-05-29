@@ -31,12 +31,10 @@ Scoop installs OpenADT (`openadt.jar` + `openadt.exe`) and suggests JDK 21. SAP 
 From a repo root with a built jar:
 
 ```powershell
-cd apps\openadt-cli
-..\mvnw.cmd -Pdistribution package -DskipTests
-cd ..\..
+.\mvnw.cmd -q verify -f pom.xml -Pdistribution
 $env:OPENADT_PACKAGE_WIN_EXE = "1"
-bun run package:release -- --version=1.0.0
-winget validate --manifest packaging\winget\manifests\o\OpenADT\OpenADT\1.0.0
+bun run package:release -- --version=1.1.2
+winget validate --manifest packaging\winget\manifests\o\OpenADT\OpenADT\1.1.2
 winget install --manifest packaging\winget\manifests -e --id OpenADT.OpenADT
 ```
 
