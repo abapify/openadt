@@ -47,6 +47,7 @@ public final class SetupRuntimePreparer {
         if (force) {
             builder.command().add("-Force");
         }
+        applyTrustedPath(builder);
         builder.inheritIO();
         builder.environment().putIfAbsent("OPENADT_HOME", home.toString());
         Process process = builder.start();
@@ -118,5 +119,18 @@ public final class SetupRuntimePreparer {
             throw new IOException("Could not resolve OpenADT install directory.");
         }
         return parent;
+    }
+
+    private static void applyTrustedPath(ProcessBuilder builder) {
+        String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+        if (os.contains("win")) {
+            String systemRoot = System.getenv("SystemRoot");
+            if (systemRoot == null || systemRoot.isBlank()) {
+                systemRoot = "C:\\Windows";
+            }
+            builder.environment().put("PATH", systemRoot + "\\System32;" + systemRoot);
+            return;
+        }
+        builder.environment().put("PATH", "/usr/bin:/bin");
     }
 }

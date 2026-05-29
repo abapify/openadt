@@ -56,11 +56,30 @@ public final class MfaBrowserLauncher {
         } else {
             builder = new ProcessBuilder("xdg-open", uri.toString());
         }
+        applyTrustedPath(builder, os);
         builder.start();
     }
 
     private static void openViaWindowsShell(URI uri) throws IOException {
-        new ProcessBuilder("rundll32", "url.dll,FileProtocolHandler", uri.toString()).start();
+        ProcessBuilder builder = new ProcessBuilder("rundll32", "url.dll,FileProtocolHandler", uri.toString());
+        applyTrustedPath(builder, "windows");
+        builder.start();
+    }
+
+    private static void applyTrustedPath(ProcessBuilder builder, String os) {
+        if (os != null && os.contains("win")) {
+            String systemRoot = System.getenv("SystemRoot");
+            if (systemRoot == null || systemRoot.isBlank()) {
+                systemRoot = "C:\\Windows";
+            }
+            builder.environment().put("PATH", systemRoot + "\\System32;" + systemRoot);
+            return;
+        }
+        if (os != null && os.contains("mac")) {
+            builder.environment().put("PATH", "/usr/bin:/bin:/usr/sbin:/sbin");
+            return;
+        }
+        builder.environment().put("PATH", "/usr/bin:/bin");
     }
 
     private static boolean isWsl() {
