@@ -72,8 +72,8 @@ jobs:
       - name: Verify package docs
         run: bun scripts/verify-package-docs.ts
 
-      - run: bunx nx format:check
-      - run: bunx nx affected -t lint typecheck
+      - run: bunx nx format:check --base=origin/main --head=HEAD
+      - run: bunx nx affected -t lint typecheck --base=origin/main --head=HEAD
 
       - uses: actions/setup-java@v5
         with:
