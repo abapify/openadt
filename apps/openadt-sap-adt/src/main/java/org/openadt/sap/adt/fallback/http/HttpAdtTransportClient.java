@@ -26,7 +26,6 @@ import org.openadt.sap.adt.sdk.ProxyRequest;
 import org.openadt.sap.adt.sdk.ProxyResponse;
 public class HttpAdtTransportClient implements AdtTransportClient {
     private static final String DEFAULT_VERSION = "HTTP/1.1";
-    private static final String HEADER_COOKIE = "Cookie";
     private static final String WELL_KNOWN_INFO_CONTENT_TYPE = "application/vnd.com.sap.adt.wellknowninfo.v1+json";
     private final HttpClient fixedHttpClient;
     private final ConcurrentHashMap<String, HttpClient> httpClientsByTrust = new ConcurrentHashMap<>();
@@ -154,7 +153,7 @@ public class HttpAdtTransportClient implements AdtTransportClient {
             .timeout(Duration.ofSeconds(60));
 
         request.headers().forEach(builder::header);
-        builder.header(HEADER_COOKIE, buildCookieHeader(system, context));
+        builder.header(HttpHeaderNames.COOKIE, buildCookieHeader(system, context));
 
         byte[] body = request.body() != null ? request.body() : new byte[0];
         if (body.length == 0) {
@@ -266,8 +265,8 @@ public class HttpAdtTransportClient implements AdtTransportClient {
         try {
             HttpRequest request = HttpRequest.newBuilder(uri)
                 .timeout(Duration.ofSeconds(30))
-                .header("Accept", WELL_KNOWN_INFO_CONTENT_TYPE)
-                .header(HEADER_COOKIE, buildCookieHeader(system))
+                .header(HttpHeaderNames.ACCEPT, WELL_KNOWN_INFO_CONTENT_TYPE)
+                .header(HttpHeaderNames.COOKIE, buildCookieHeader(system))
                 .GET()
                 .build();
             HttpResponse<byte[]> response = httpClientFor(system).send(request, HttpResponse.BodyHandlers.ofByteArray());
@@ -289,7 +288,7 @@ public class HttpAdtTransportClient implements AdtTransportClient {
         try {
             HttpRequest request = HttpRequest.newBuilder(uri)
                 .timeout(Duration.ofSeconds(30))
-                .header(HEADER_COOKIE, buildCookieHeader(system))
+                .header(HttpHeaderNames.COOKIE, buildCookieHeader(system))
                 .GET()
                 .build();
             HttpResponse<byte[]> response = httpClientFor(system).send(request, HttpResponse.BodyHandlers.ofByteArray());

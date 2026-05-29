@@ -16,6 +16,7 @@ import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.Enumeration;
+import java.util.Locale;
 import java.util.function.UnaryOperator;
 
 import org.openadt.config.OpenAdtConfig;
@@ -111,7 +112,7 @@ final class HttpTlsConfigurer {
     }
 
     private String resolveStoreType(Path truststorePath) {
-        String fileName = truststorePath.getFileName().toString().toLowerCase();
+        String fileName = truststorePath.getFileName().toString().toLowerCase(Locale.ROOT);
         if (fileName.endsWith(".p12") || fileName.endsWith(".pfx")) {
             return "PKCS12";
         }

@@ -3,6 +3,7 @@ package org.openadt.sap.adt.fallback.http;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.openadt.config.OpenAdtConfig;
@@ -22,7 +23,7 @@ class MfaUrlResolverTest {
         String url = MfaUrlResolver.resolveSecureLoginPortalUrl(secureLogin);
 
         assertTrue(url.contains(PORTAL_PROFILE));
-        assertTrue(!url.contains(HUB_PROFILE));
+        assertFalse(url.contains(HUB_PROFILE));
     }
 
     @Test
