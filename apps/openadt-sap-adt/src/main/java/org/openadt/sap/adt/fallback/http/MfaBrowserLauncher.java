@@ -52,15 +52,43 @@ public final class MfaBrowserLauncher {
     private static void openViaOsShell(URI uri, String os) throws IOException {
         ProcessBuilder builder;
         if (os.contains("mac")) {
-            builder = new ProcessBuilder("open", uri.toString());
+            builder = new ProcessBuilder("/usr/bin/open", uri.toString());
         } else {
-            builder = new ProcessBuilder("xdg-open", uri.toString());
+            builder = new ProcessBuilder("/usr/bin/xdg-open", uri.toString());
         }
+        applyTrustedPath(builder, os);
         builder.start();
     }
 
     private static void openViaWindowsShell(URI uri) throws IOException {
-        new ProcessBuilder("rundll32", "url.dll,FileProtocolHandler", uri.toString()).start();
+        String rundll32 = isWsl() ? "/mnt/c/Windows/System32/rundll32.exe" : windowsSystemExecutable("rundll32.exe");
+        ProcessBuilder builder = new ProcessBuilder(rundll32, "url.dll,FileProtocolHandler", uri.toString());
+        applyTrustedPath(builder, "windows");
+        builder.start();
+    }
+
+    private static void applyTrustedPath(ProcessBuilder builder, String os) {
+        if (os != null && os.contains("win")) {
+            String systemRoot = System.getenv("SystemRoot");
+            if (systemRoot == null || systemRoot.isBlank()) {
+                systemRoot = "C:\\Windows";
+            }
+            builder.environment().put("PATH", systemRoot + "\\System32;" + systemRoot);
+            return;
+        }
+        if (os != null && os.contains("mac")) {
+            builder.environment().put("PATH", "/usr/bin:/bin:/usr/sbin:/sbin");
+            return;
+        }
+        builder.environment().put("PATH", "/usr/bin:/bin");
+    }
+
+    private static String windowsSystemExecutable(String executable) {
+        String systemRoot = System.getenv("SystemRoot");
+        if (systemRoot == null || systemRoot.isBlank()) {
+            systemRoot = "C:\\Windows";
+        }
+        return Path.of(systemRoot, "System32", executable).toString();
     }
 
     private static boolean isWsl() {
