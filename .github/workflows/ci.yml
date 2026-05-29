@@ -82,7 +82,7 @@ jobs:
           check-latest: true
 
       - name: Maven verify (distribution, no SAP plugins required)
-        run: chmod +x ./mvnw && ./mvnw -q verify -f pom.xml -Pdistribution
+        run: chmod +x ./mvnw && ./mvnw -q verify -f pom.xml -Pdistribution -Dopenadt.distribution=true
 
       - name: Java unit tests (optional SAP runtime)
         run: bash scripts/ci-java-test.sh
