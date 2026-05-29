@@ -10,7 +10,7 @@
     "SECUDIR": "/workspaces/openadt/.devcontainer/sec",
     "LD_LIBRARY_PATH": "/workspaces/openadt/.devcontainer/dist/jco:/workspaces/openadt/.devcontainer/dist/snc"
   },
-  "initializeCommand": "bun install && bun run bootstrap:devcontainer -- --non-interactive --container-workspace /workspaces/openadt",
+  "postCreateCommand": "bun install && bun run bootstrap:devcontainer -- --non-interactive --skip-if-missing --container-workspace /workspaces/openadt",
   "customizations": {
     "vscode": {
       "settings": {
