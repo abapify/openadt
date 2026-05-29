@@ -88,12 +88,16 @@ public final class SapRulesDiscoveryHelper {
         try (InputStream inputStream = Files.newInputStream(path)) {
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
-            factory.setFeature("http://xml.apache.org/features/disallow-doctype-decl", true);
             factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
             factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
             factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
             factory.setXIncludeAware(false);
             factory.setExpandEntityReferences(false);
+            try {
+                factory.setFeature("http://xml.apache.org/features/disallow-doctype-decl", true);
+            } catch (ParserConfigurationException ignored) {
+                // Xerces-specific feature; not supported by all parsers. The features above still prevent XXE.
+            }
 
             Document document = factory.newDocumentBuilder().parse(inputStream);
             NodeList ruleNodes = document.getElementsByTagName("rule");
