@@ -19,24 +19,27 @@ import picocli.CommandLine.Command;
 )
 public class OpenAdtCommand implements Runnable {
     public static void main(String[] args) {
-        OpenAdtCommand root = new OpenAdtCommand();
-        CommandLine commandLine = new CommandLine(root);
-        registerAdtSubcommand(commandLine);
-        int exitCode = commandLine.execute(args);
+        int exitCode = newCommandLine().execute(args);
         System.exit(exitCode);
+    }
+
+    private static CommandLine newCommandLine() {
+        CommandLine commandLine = new CommandLine(new OpenAdtCommand());
+        registerAdtSubcommand(commandLine);
+        return commandLine;
     }
 
     private static void registerAdtSubcommand(CommandLine commandLine) {
         try {
             Class<?> adtCommand = Class.forName("org.openadt.cli.AdtCommand");
             commandLine.addSubcommand("adt", adtCommand);
-        } catch (ClassNotFoundException ignored) {
+        } catch (ClassNotFoundException | NoClassDefFoundError ignored) {
             // Distribution build omits SDK-native adt commands.
         }
     }
 
     @Override
     public void run() {
-        new CommandLine(this).usage(CliLog.stdout());
+        newCommandLine().usage(CliLog.stdout());
     }
 }

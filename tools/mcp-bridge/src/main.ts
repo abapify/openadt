@@ -5,17 +5,16 @@
  */
 import { spawnSync } from "node:child_process";
 
-const encoder = new TextEncoder();
-
 function write(msg: object) {
   const body = JSON.stringify(msg);
-  process.stdout.write(
-    `Content-Length: ${encoder.encode(body).length}\r\n\r\n${body}`,
-  );
+  process.stdout.write(`Content-Length: ${Buffer.byteLength(body, "utf8")}\r\n\r\n${body}`);
 }
 
 function openadtBin(): string {
-  return process.env.OPENADT_BIN ?? "openadt";
+  if (process.env.OPENADT_BIN) {
+    return process.env.OPENADT_BIN;
+  }
+  return process.platform === "win32" ? "openadt.cmd" : "openadt";
 }
 
 function handleFetch(args: { system?: string; path?: string }) {
@@ -23,7 +22,6 @@ function handleFetch(args: { system?: string; path?: string }) {
   const path = args.path ?? "/sap/bc/adt/discovery";
   const result = spawnSync(openadtBin(), ["fetch", system, path, "--pretty"], {
     encoding: "utf8",
-    shell: process.platform === "win32",
   });
   const text = (result.stdout ?? "") + (result.stderr ?? "");
   return {
@@ -40,7 +38,6 @@ function handleDiscover(args: { system?: string; format?: string }) {
     ["adt", "discover", system, "--format", format],
     {
       encoding: "utf8",
-      shell: process.platform === "win32",
     },
   );
   const text = (result.stdout ?? "") + (result.stderr ?? "");
@@ -58,7 +55,6 @@ function handleLogon(args: { system?: string; format?: string }) {
     ["adt", "logon", system, "--format", format],
     {
       encoding: "utf8",
-      shell: process.platform === "win32",
     },
   );
   const text = (result.stdout ?? "") + (result.stderr ?? "");
@@ -124,21 +120,20 @@ const tools = [
   },
 ];
 
-let buffer = "";
-process.stdin.setEncoding("utf8");
+let buffer = Buffer.alloc(0);
 process.stdin.on("data", (chunk) => {
-  buffer += chunk;
+  buffer = Buffer.concat([buffer, chunk as Buffer]);
   while (true) {
     const headerEnd = buffer.indexOf("\r\n\r\n");
     if (headerEnd < 0) break;
-    const headers = buffer.slice(0, headerEnd);
+    const headers = buffer.subarray(0, headerEnd).toString("utf8");
     const match = /Content-Length:\s*(\d+)/i.exec(headers);
     if (!match) break;
     const len = Number(match[1]);
     const bodyStart = headerEnd + 4;
     if (buffer.length < bodyStart + len) break;
-    const body = buffer.slice(bodyStart, bodyStart + len);
-    buffer = buffer.slice(bodyStart + len);
+    const body = buffer.subarray(bodyStart, bodyStart + len).toString("utf8");
+    buffer = buffer.subarray(bodyStart + len);
     const msg = JSON.parse(body) as {
       jsonrpc?: string;
       id?: number | string;

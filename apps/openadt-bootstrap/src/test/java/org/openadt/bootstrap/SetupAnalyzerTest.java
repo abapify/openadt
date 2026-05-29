@@ -13,11 +13,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SetupAnalyzerTest {
     @Test
-    void defaultAnalyzerWiresEclipseAdtDetector() throws Exception {
-        var field = SetupAnalyzer.class.getDeclaredField("systemDetectors");
-        field.setAccessible(true);
-        @SuppressWarnings("unchecked")
-        List<SystemDetector> detectors = (List<SystemDetector>) field.get(new SetupAnalyzer());
+    void defaultAnalyzerWiresEclipseAdtDetector() {
+        List<SystemDetector> detectors = new SetupAnalyzer().systemDetectors();
         assertTrue(detectors.stream().anyMatch(EclipseAdtDetector.class::isInstance));
     }
 

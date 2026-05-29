@@ -10,7 +10,6 @@ import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.openadt.config.JCoJarCanonicalizer;
-import org.openadt.config.JCoJarCanonicalizer;
 import org.openadt.config.OpenAdtConfig;
 import org.openadt.config.SystemProfile;
 

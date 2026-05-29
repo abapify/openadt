@@ -34,6 +34,9 @@ public final class ProfileFetchHints {
         if (explicitProfile != null && !explicitProfile.isBlank()) {
             return base;
         }
+        if (destination == null) {
+            return base;
+        }
         String httpProfile = findHttpProfileName(destination);
         if (httpProfile == null) {
             return base;
@@ -61,7 +64,7 @@ public final class ProfileFetchHints {
     }
 
     static String findHttpProfileName(SystemProfile destination) {
-        if (destination.getProfiles() == null || destination.getProfiles().isEmpty()) {
+        if (destination == null || destination.getProfiles() == null || destination.getProfiles().isEmpty()) {
             return null;
         }
         String fallback = null;

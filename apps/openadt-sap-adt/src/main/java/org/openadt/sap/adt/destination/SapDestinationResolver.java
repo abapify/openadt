@@ -6,9 +6,6 @@ import org.openadt.sap.adt.sdk.AdtSdkTransportClient;
 
 import java.io.IOException;
 import java.util.Optional;
-
-import org.openadt.config.SystemProfile;
-import org.openadt.sap.adt.sdk.AdtSdkTransportClient;
 /**
  * Resolves ADT destination data for fetch/proxy: prefer Eclipse {@code .destination.properties}
  * (same as IDE), else build from config {@link SystemProfile}.

@@ -7,7 +7,6 @@ import java.util.concurrent.Callable;
 import org.openadt.config.CliLog;
 import org.openadt.config.OpenAdtConfig;
 import org.openadt.config.SystemProfile;
-import org.openadt.config.ProfileFetchHints;
 import org.openadt.sap.adt.sdk.AdtDiscoveryReport;
 import org.openadt.sap.adt.sdk.AdtSdkServiceGateway;
 import picocli.CommandLine.Command;
@@ -41,10 +40,12 @@ public class AdtDiscoverCommand extends AdtCommandSupport implements Callable<In
             CliLog.error("--category requires --collection");
             return 1;
         }
+        OpenAdtConfig config = null;
+        SystemProfile system = null;
         try {
-            OpenAdtConfig config = loadConfig();
-            SystemProfile system = resolveSystem(systemAlias);
-            requireSdkTransport(system);
+            config = loadConfig();
+            system = resolveSystem(config, systemAlias);
+            requireSdkTransport(system, "openadt adt discover");
             AdtDiscoveryReport report = AdtSdkServiceGateway.discover(config, system, collection, category);
             if (json || "json".equalsIgnoreCase(format)) {
                 CliLog.stdout().println(toJson(report));
@@ -53,17 +54,8 @@ public class AdtDiscoverCommand extends AdtCommandSupport implements Callable<In
             }
             return report.ok() ? 0 : 1;
         } catch (Exception error) {
-            CliLog.error(ProfileFetchHints.formatTransportError(null, profile, error));
+            CliLog.error("openadt adt discover [" + systemAlias + "]: " + formatTransportError(system, error));
             return 1;
-        }
-    }
-
-    private static void requireSdkTransport(SystemProfile system) {
-        String transport = system.getAdt() != null ? system.getAdt().getTransport() : null;
-        if (transport != null && !transport.isBlank() && !"sdk".equalsIgnoreCase(transport)) {
-            throw new IllegalStateException(
-                "openadt adt discover requires SDK transport (adt.transport = \"sdk\" or unset), got: " + transport
-            );
         }
     }
 

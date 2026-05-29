@@ -34,7 +34,7 @@ bun run openadt:test
 ### Dead code and dependencies
 
 - Profile `-Pdeadcode` runs UCDetector when the Maven plugin resolves (see `tmp/dead-code-report.txt` if unavailable).
-- Optional future: [depclean-maven-plugin](https://github.com/ferstl/depclean) on the parent POM for unused dependency hints — not a merge gate.
+- Optional future: [depclean-maven-plugin](https://github.com/ASSERT-KTH/depclean) on the parent POM for unused dependency hints — not a merge gate.
 - Do not include real landscape data, credentials, or `~/.openadt/` dumps.
 
 ## Spec-driven development

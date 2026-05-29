@@ -17,8 +17,6 @@ import java.nio.file.Path;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.io.IOException;
-
-import org.openadt.config.CliLog;
 @Command(
     name = "proxy",
     mixinStandardHelpOptions = true,

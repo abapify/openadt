@@ -9,8 +9,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
-
-import org.openadt.config.CliLog;
 public final class SetupRuntimePreparer {
     private static final String USER_HOME_PROPERTY = "user.home";
 

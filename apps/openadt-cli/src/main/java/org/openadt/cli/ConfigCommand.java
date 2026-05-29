@@ -15,8 +15,6 @@ import picocli.CommandLine.ParentCommand;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
-
-import org.openadt.config.CliLog;
 @Command(
     name = "config",
     mixinStandardHelpOptions = true,

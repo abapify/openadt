@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.util.Locale;
 
 import org.openadt.config.CliLog;
+
 /**
  * Opens the user's default browser for Secure Login / SAML MFA (headed, not headless).
  */
@@ -59,13 +60,7 @@ public final class MfaBrowserLauncher {
     }
 
     private static void openViaWindowsShell(URI uri) throws IOException {
-        new ProcessBuilder(
-            "powershell.exe",
-            "-NoProfile",
-            "-Command",
-            "& { param($url) Start-Process -FilePath $url }",
-            uri.toString()
-        ).start();
+        new ProcessBuilder("rundll32", "url.dll,FileProtocolHandler", uri.toString()).start();
     }
 
     private static boolean isWsl() {

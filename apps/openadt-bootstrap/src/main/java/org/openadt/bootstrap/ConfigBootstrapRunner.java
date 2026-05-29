@@ -6,8 +6,6 @@ import org.openadt.config.OpenAdtConfig;
 import org.openadt.config.SystemProfile;
 
 import java.nio.file.Path;
-
-import org.openadt.config.CliLog;
 public final class ConfigBootstrapRunner {
     public record Outcome(boolean saved, String adtPluginsDir) {
     }

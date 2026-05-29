@@ -35,11 +35,6 @@
     },
     "package": {
       "executor": "nx:run-commands",
-      "dependsOn": [
-        "openadt-config:package",
-        "openadt-sap-adt:package",
-        "openadt-bootstrap:package"
-      ],
       "options": {
         "command": "node scripts/mvnw-runner.mjs -q package -pl apps/openadt-cli -am -Pdistribution -DskipTests -f pom.xml",
         "cwd": "{workspaceRoot}"

@@ -30,7 +30,7 @@ Package `org.openadt.sap.adt.services`:
 
 ## Spec
 
-[specs/sdk-capabilities.md](../../specs/sdk-capabilities.md)
+[specs/sdk-capabilities.md](../../../specs/sdk-capabilities.md)
 
 ## Research notes
 

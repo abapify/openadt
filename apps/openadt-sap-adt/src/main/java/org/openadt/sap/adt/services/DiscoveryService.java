@@ -27,6 +27,18 @@ public final class DiscoveryService {
         IProgressMonitor monitor = new NullProgressMonitor();
         CliLog.sdk("AdtDiscoveryFactory.createDiscovery(" + destinationId + ", RESOURCE_URI)");
         IAdtDiscovery discovery = AdtDiscoveryFactory.createDiscovery(destinationId, AdtDiscoveryFactory.RESOURCE_URI);
+        if (discovery == null) {
+            return new AdtDiscoveryReport(
+                false,
+                "Failed to create discovery service for destination: " + destinationId,
+                destinationId,
+                context.fromEclipse(),
+                collectionUri,
+                categoryTerm,
+                null,
+                List.of()
+            );
+        }
         IStatus status = discovery.getStatus(monitor);
         if (status != null && !status.isOK()) {
             String message = status.getMessage() != null ? status.getMessage() : status.toString();

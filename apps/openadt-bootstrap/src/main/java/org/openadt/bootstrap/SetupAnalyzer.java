@@ -68,6 +68,10 @@ public class SetupAnalyzer {
         return new SetupResult(new ArrayList<>(systemsByKey.values()), warnings, runtime, secureLogin);
     }
 
+    List<SystemDetector> systemDetectors() {
+        return systemDetectors;
+    }
+
     private void mergeSystem(Map<String, SystemProfile> systemsByKey, SystemProfile incoming) {
         if (incoming == null) {
             return;

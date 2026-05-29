@@ -10,8 +10,6 @@ import picocli.CommandLine.Option;
 
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
-
-import org.openadt.config.CliLog;
 @Command(
     name = "setup",
     mixinStandardHelpOptions = true,
