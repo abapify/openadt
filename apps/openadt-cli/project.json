@@ -19,19 +19,29 @@
         "cwd": "{workspaceRoot}"
       },
       "cache": true,
-      "inputs": ["javaMonorepoSources"],
-      "outputs": ["{projectRoot}/target"]
+      "inputs": [
+        "javaMonorepoSources"
+      ],
+      "outputs": [
+        "{projectRoot}/target"
+      ]
     },
     "test": {
       "executor": "nx:run-commands",
-      "dependsOn": ["package"],
+      "dependsOn": [
+        "package"
+      ],
       "options": {
         "command": "node scripts/mvnw-runner.mjs -q test -pl apps/openadt-cli -am -Pdistribution -f pom.xml",
         "cwd": "{workspaceRoot}"
       },
       "cache": true,
-      "inputs": ["javaMonorepoSources"],
-      "outputs": ["{projectRoot}/target"]
+      "inputs": [
+        "javaMonorepoSources"
+      ],
+      "outputs": [
+        "{projectRoot}/target"
+      ]
     },
     "package": {
       "executor": "nx:run-commands",
@@ -40,12 +50,18 @@
         "cwd": "{workspaceRoot}"
       },
       "cache": true,
-      "inputs": ["javaMonorepoSources"],
-      "outputs": ["{projectRoot}/target"]
+      "inputs": [
+        "javaMonorepoSources"
+      ],
+      "outputs": [
+        "{projectRoot}/target"
+      ]
     },
     "run": {
       "executor": "nx:run-commands",
-      "dependsOn": ["package"],
+      "dependsOn": [
+        "package"
+      ],
       "cache": false,
       "options": {
         "command": "bun run ../../scripts/nx-openadt.ts",
@@ -55,7 +71,9 @@
     },
     "run-sdk": {
       "executor": "nx:run-commands",
-      "dependsOn": ["package"],
+      "dependsOn": [
+        "package"
+      ],
       "cache": false,
       "options": {
         "command": "powershell -NoProfile -ExecutionPolicy Bypass -File ../../scripts/openadt-sdk.ps1",

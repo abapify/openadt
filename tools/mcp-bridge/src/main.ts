@@ -166,9 +166,9 @@ process.stdin.on("data", (chunk) => {
       const result = fn
         ? fn(msg.params?.arguments ?? {})
         : {
-            content: [{ type: "text", text: `Unknown tool: ${name}` }],
-            isError: true,
-          };
+          content: [{ type: "text", text: `Unknown tool: ${name}` }],
+          isError: true,
+        };
       write({ jsonrpc: "2.0", id: msg.id, result });
       continue;
     }
