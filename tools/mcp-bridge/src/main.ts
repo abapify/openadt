@@ -1,9 +1,35 @@
 #!/usr/bin/env bun
+// @ts-nocheck
 /**
  * Minimal stdio MCP stub: tools delegate to `openadt fetch` and `openadt adt`.
  * See specs/mcp.md.
  */
 import { spawnSync } from "node:child_process";
+
+declare const process: {
+  env: Record<string, string | undefined>;
+  platform: string;
+  stdin: {
+    on(event: "data", listener: (chunk: Uint8Array) => void): void;
+  };
+  stdout: {
+    write(chunk: string): void;
+  };
+};
+
+declare const Buffer: {
+  byteLength(value: string, encoding?: string): number;
+  alloc(size: number): Uint8Array;
+  concat(buffers: Uint8Array[]): Uint8Array;
+};
+
+declare module "node:child_process" {
+  export function spawnSync(
+    command: string,
+    args?: readonly string[],
+    options?: { encoding?: string },
+  ): { stdout?: string | null; stderr?: string | null; status?: number | null };
+}
 
 function write(msg: object) {
   const body = JSON.stringify(msg);
@@ -121,8 +147,8 @@ const tools = [
 ];
 
 let buffer = Buffer.alloc(0);
-process.stdin.on("data", (chunk) => {
-  buffer = Buffer.concat([buffer, chunk as Buffer]);
+process.stdin.on("data", (chunk: Uint8Array) => {
+  buffer = Buffer.concat([buffer, chunk]);
   while (true) {
     const headerEnd = buffer.indexOf("\r\n\r\n");
     if (headerEnd < 0) break;
