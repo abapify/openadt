@@ -10,6 +10,7 @@ import java.time.ZoneOffset;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.openadt.config.SystemProfile;
@@ -61,7 +62,7 @@ class HttpSsoTicketCacheTest {
         system.setActiveProfile("sso");
         String withProfile = HttpSsoTicketCache.cacheKey(system);
         system.setActiveProfile("snc");
-        assertTrue(!withProfile.equals(HttpSsoTicketCache.cacheKey(system)));
+        assertNotEquals(withProfile, HttpSsoTicketCache.cacheKey(system));
     }
 
     @Test

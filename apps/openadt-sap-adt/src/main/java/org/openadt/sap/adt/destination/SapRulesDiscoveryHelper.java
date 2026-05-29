@@ -7,6 +7,7 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
+import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.IOException;
@@ -85,13 +86,22 @@ public final class SapRulesDiscoveryHelper {
     private static void parseRulesFile(Path path, Map<String, SystemProfile> systemsById, String adtBcPath)
         throws IOException {
         try (InputStream inputStream = Files.newInputStream(path)) {
-            Document document = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(inputStream);
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+            factory.setFeature("http://xml.apache.org/features/disallow-doctype-decl", true);
+            factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+            factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+            factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+            factory.setXIncludeAware(false);
+            factory.setExpandEntityReferences(false);
+
+            Document document = factory.newDocumentBuilder().parse(inputStream);
             NodeList ruleNodes = document.getElementsByTagName("rule");
             for (int i = 0; i < ruleNodes.getLength(); i++) {
                 Element rule = (Element) ruleNodes.item(i);
                 mergeProfile(systemsById, parseRule(rule, adtBcPath));
             }
-        } catch (ParserConfigurationException | SAXException e) {
+        } catch (ParserConfigurationException | SAXException | IllegalArgumentException e) {
             throw new IOException("Failed to parse saprules file: " + path, e);
         }
     }
