@@ -1,18 +1,19 @@
 package org.openadt.cli;
 
-import org.openadt.core.AdtAcceptHeaders;
-import org.openadt.core.AdtTransportClient;
-import org.openadt.core.CliLog;
-import org.openadt.core.ConfigLoader;
-import org.openadt.core.DestinationProfileResolver;
-import org.openadt.core.FetchTransportResolver;
-import org.openadt.core.LocalProxyRegistry;
-import org.openadt.core.ProfileFetchHints;
-import org.openadt.core.OpenAdtConfig;
-import org.openadt.core.ProxyRequest;
-import org.openadt.core.ProxyResponse;
-import org.openadt.core.ResponseBodyFormatter;
-import org.openadt.core.SystemProfile;
+import org.openadt.sap.adt.sdk.AdtTransportClient;
+import org.openadt.config.AdtHttpFrontendUrls;
+import org.openadt.config.CliLog;
+import org.openadt.sap.adt.fallback.http.AdtAcceptHeaders;
+import org.openadt.config.ConfigLoader;
+import org.openadt.config.DestinationProfileResolver;
+import org.openadt.product.fetch.FetchTransportResolver;
+import org.openadt.product.proxy.LocalProxyRegistry;
+import org.openadt.config.ProfileFetchHints;
+import org.openadt.config.OpenAdtConfig;
+import org.openadt.sap.adt.sdk.ProxyRequest;
+import org.openadt.sap.adt.sdk.ProxyResponse;
+import org.openadt.product.fetch.ResponseBodyFormatter;
+import org.openadt.config.SystemProfile;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
@@ -78,6 +79,12 @@ public class FetchCommand implements Callable<Integer> {
 
     @Option(names = {"--base-url"}, description = "HTTP ADT frontend URL for direct browser SSO mode (e.g. https://example.sap.invalid)")
     private String baseUrl;
+
+    @Option(
+        names = {"--browser-entry-url"},
+        description = "Optional browser entry URL for manual SSO/session setup before reentrance-ticket"
+    )
+    private String browserEntryUrl;
 
     @Option(names = {"--path"}, description = "ADT path for direct browser SSO mode (e.g. /sap/bc/adt/core/http/systeminformation)")
     private String explicitPath;
@@ -366,6 +373,7 @@ public class FetchCommand implements Callable<Integer> {
 
     private void applyHttpTlsCliOverrides(SystemProfile system) {
         if ((httpCaCert == null || httpCaCert.isBlank())
+            && (browserEntryUrl == null || browserEntryUrl.isBlank())
             && (httpTruststore == null || httpTruststore.isBlank())
             && (httpTruststorePassword == null || httpTruststorePassword.isBlank())) {
             return;
@@ -377,6 +385,9 @@ public class FetchCommand implements Callable<Integer> {
         }
         if (httpCaCert != null && !httpCaCert.isBlank()) {
             adt.setHttpCaCert(httpCaCert);
+        }
+        if (browserEntryUrl != null && !browserEntryUrl.isBlank()) {
+            adt.setBrowserEntryUrl(browserEntryUrl.trim());
         }
         if (httpTruststore != null && !httpTruststore.isBlank()) {
             adt.setHttpTruststore(httpTruststore);
@@ -393,7 +404,10 @@ public class FetchCommand implements Callable<Integer> {
         system.setLanguage(explicitLanguage);
         SystemProfile.AdtConfig adt = new SystemProfile.AdtConfig();
         adt.setTransport("http");
-        adt.setDiscoveryUrl(baseUrl);
+        adt.setBaseUrl(AdtHttpFrontendUrls.normalizeToOrigin(baseUrl));
+        if (browserEntryUrl != null && !browserEntryUrl.isBlank()) {
+            adt.setBrowserEntryUrl(browserEntryUrl.trim());
+        }
         system.setAdt(adt);
         return system;
     }

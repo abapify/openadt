@@ -1,14 +1,14 @@
 package org.openadt.cli;
 
-import org.openadt.core.AdtTransportClient;
-import org.openadt.core.AdtTransportFactory;
-import org.openadt.core.CliLog;
-import org.openadt.core.ConfigLoader;
-import org.openadt.core.DestinationProfileResolver;
-import org.openadt.core.LocalProxyRegistry;
-import org.openadt.core.OpenAdtConfig;
-import org.openadt.core.SystemProfile;
-import org.openadt.proxy.LocalAdtProxyServer;
+import org.openadt.sap.adt.sdk.AdtTransportClient;
+import org.openadt.sap.adt.sdk.AdtTransportFactory;
+import org.openadt.config.CliLog;
+import org.openadt.config.ConfigLoader;
+import org.openadt.config.DestinationProfileResolver;
+import org.openadt.product.proxy.LocalProxyRegistry;
+import org.openadt.config.OpenAdtConfig;
+import org.openadt.config.SystemProfile;
+import org.openadt.product.proxy.LocalAdtProxyServer;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
@@ -18,6 +18,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.io.IOException;
 
+import org.openadt.config.CliLog;
 @Command(
     name = "proxy",
     mixinStandardHelpOptions = true,

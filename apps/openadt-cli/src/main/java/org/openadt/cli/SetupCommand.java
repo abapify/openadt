@@ -1,16 +1,17 @@
 package org.openadt.cli;
 
-import org.openadt.core.CliLog;
-import org.openadt.core.ConfigLoader;
-import org.openadt.setup.ConfigBootstrapRunner;
-import org.openadt.setup.ConfigRuntimeBuilder;
-import org.openadt.setup.SetupRuntimePreparer;
+import org.openadt.config.CliLog;
+import org.openadt.config.ConfigLoader;
+import org.openadt.bootstrap.ConfigBootstrapRunner;
+import org.openadt.bootstrap.ConfigRuntimeBuilder;
+import org.openadt.bootstrap.SetupRuntimePreparer;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
 
+import org.openadt.config.CliLog;
 @Command(
     name = "setup",
     mixinStandardHelpOptions = true,
