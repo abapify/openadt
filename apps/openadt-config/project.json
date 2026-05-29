@@ -1,0 +1,43 @@
+{
+  "name": "openadt-config",
+  "root": "apps/openadt-config",
+  "sourceRoot": "apps/openadt-config/src/main/java",
+  "projectType": "library",
+  "metadata": {
+    "mavenProject": "org.openadt:openadt-config"
+  },
+  "targets": {
+    "compile": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node scripts/mvnw-runner.mjs -q compile -pl apps/openadt-config -f pom.xml",
+        "cwd": "{workspaceRoot}"
+      },
+      "cache": true,
+      "inputs": ["javaMonorepoSources"],
+      "outputs": ["{projectRoot}/target"]
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["compile"],
+      "options": {
+        "command": "node scripts/mvnw-runner.mjs -q test -pl apps/openadt-config -f pom.xml",
+        "cwd": "{workspaceRoot}"
+      },
+      "cache": true,
+      "inputs": ["javaMonorepoSources"],
+      "outputs": ["{projectRoot}/target"]
+    },
+    "package": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["compile"],
+      "options": {
+        "command": "node scripts/mvnw-runner.mjs -q package -pl apps/openadt-config -DskipTests -f pom.xml",
+        "cwd": "{workspaceRoot}"
+      },
+      "cache": true,
+      "inputs": ["javaMonorepoSources"],
+      "outputs": ["{projectRoot}/target"]
+    }
+  }
+}

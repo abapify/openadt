@@ -1,8 +1,9 @@
 package org.openadt.cli;
 
-import org.openadt.core.CliLog;
-import org.openadt.core.ConfigLoader;
-import org.openadt.core.SystemProfile;
+import org.openadt.config.AdtHttpFrontendUrls;
+import org.openadt.config.CliLog;
+import org.openadt.config.ConfigLoader;
+import org.openadt.config.SystemProfile;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.ParentCommand;
@@ -13,6 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 
+import org.openadt.config.CliLog;
 @Command(
     name = "create",
     mixinStandardHelpOptions = true,
@@ -34,8 +36,14 @@ public class ConfigDestinationsCreateCommand implements Callable<Integer> {
     @Option(names = {"--auth"}, description = "Authentication kind (e.g. browser-sso, snc)")
     private String auth;
 
-    @Option(names = {"--discovery-url"}, description = "ADT discovery URL for HTTP transport")
-    private String discoveryUrl;
+    @Option(names = {"--base-url"}, description = "SAP frontend origin for HTTP SSO and ADT (e.g. https://host)")
+    private String baseUrl;
+
+    @Option(
+        names = {"--browser-entry-url"},
+        description = "Optional browser entry URL for manual SSO/session setup before reentrance-ticket"
+    )
+    private String browserEntryUrl;
 
     @Option(names = {"--client"}, description = "SAP client")
     private String client;
@@ -54,9 +62,6 @@ public class ConfigDestinationsCreateCommand implements Callable<Integer> {
 
     @Option(names = {"--callback-port"}, description = "Browser SSO callback port (0 = random)")
     private String callbackPort;
-
-    @Option(names = {"--sso-landing-url"}, description = "Browser SSO landing URL (optional pre-authentication step)")
-    private String ssoLandingUrl;
 
     @Option(names = {"--jco-mshost"}, description = "JCo message server host")
     private String jcoMshost;
@@ -110,9 +115,9 @@ public class ConfigDestinationsCreateCommand implements Callable<Integer> {
         SystemProfile.ProfileConfig profileConfig = new SystemProfile.ProfileConfig();
         profileConfig.setTransport(transport);
         profileConfig.setAuthenticationKind(auth);
-        profileConfig.setDiscoveryUrl(discoveryUrl);
+        profileConfig.setBaseUrl(resolveConfiguredBaseUrl());
+        profileConfig.setBrowserEntryUrl(resolveConfiguredBrowserEntryUrl());
         profileConfig.setCallbackPort(callbackPort);
-        profileConfig.setSsoLandingUrl(ssoLandingUrl);
 
         if (sncPartnername != null || sncQop != null) {
             SystemProfile.JcoConfig profileJco = new SystemProfile.JcoConfig();
@@ -151,9 +156,23 @@ public class ConfigDestinationsCreateCommand implements Callable<Integer> {
         if (transport == null && auth == null) {
             transport = console.readLine("Transport (sdk/http): ");
         }
-        if (isHttpProfile() && (discoveryUrl == null || discoveryUrl.isBlank())) {
-            discoveryUrl = console.readLine("Discovery URL: ");
+        if (isHttpProfile() && (baseUrl == null || baseUrl.isBlank())) {
+            baseUrl = console.readLine("SAP frontend base URL (e.g. https://host): ");
         }
+    }
+
+    private String resolveConfiguredBaseUrl() {
+        if (baseUrl == null || baseUrl.isBlank()) {
+            return null;
+        }
+        return AdtHttpFrontendUrls.normalizeToOrigin(baseUrl.trim());
+    }
+
+    private String resolveConfiguredBrowserEntryUrl() {
+        if (browserEntryUrl == null || browserEntryUrl.isBlank()) {
+            return null;
+        }
+        return browserEntryUrl.trim();
     }
 
     private List<String> missingRequiredFlags() {
@@ -170,8 +189,8 @@ public class ConfigDestinationsCreateCommand implements Callable<Integer> {
         if ((transport == null || transport.isBlank()) && (auth == null || auth.isBlank())) {
             missing.add("--transport or --auth");
         }
-        if (isHttpProfile() && (discoveryUrl == null || discoveryUrl.isBlank())) {
-            missing.add("--discovery-url");
+        if (isHttpProfile() && resolveConfiguredBaseUrl() == null) {
+            missing.add("--base-url");
         }
         return missing;
     }

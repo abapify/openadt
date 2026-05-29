@@ -3,31 +3,54 @@
   "root": "apps/openadt-cli",
   "sourceRoot": "apps/openadt-cli/src/main/java",
   "projectType": "application",
+  "metadata": {
+    "mavenProject": "org.openadt:openadt"
+  },
   "targets": {
-    "build": {
+    "compile": {
       "executor": "nx:run-commands",
-      "cache": true,
-      "inputs": ["javaSources"],
-      "outputs": ["{projectRoot}/target"],
+      "dependsOn": [
+        "openadt-config:package",
+        "openadt-sap-adt:package",
+        "openadt-bootstrap:package"
+      ],
       "options": {
-        "command": "mvnw -q -DskipTests package",
-        "cwd": "apps/openadt-cli"
-      }
+        "command": "node scripts/mvnw-runner.mjs -q compile -pl apps/openadt-cli -am -Pdistribution -f pom.xml",
+        "cwd": "{workspaceRoot}"
+      },
+      "cache": true,
+      "inputs": ["javaMonorepoSources"],
+      "outputs": ["{projectRoot}/target"]
     },
     "test": {
       "executor": "nx:run-commands",
-      "dependsOn": ["build"],
-      "cache": true,
-      "inputs": ["javaSources"],
-      "outputs": ["{projectRoot}/target"],
+      "dependsOn": ["package"],
       "options": {
-        "command": "mvnw -q test",
-        "cwd": "apps/openadt-cli"
-      }
+        "command": "node scripts/mvnw-runner.mjs -q test -pl apps/openadt-cli -am -Pdistribution -f pom.xml",
+        "cwd": "{workspaceRoot}"
+      },
+      "cache": true,
+      "inputs": ["javaMonorepoSources"],
+      "outputs": ["{projectRoot}/target"]
+    },
+    "package": {
+      "executor": "nx:run-commands",
+      "dependsOn": [
+        "openadt-config:package",
+        "openadt-sap-adt:package",
+        "openadt-bootstrap:package"
+      ],
+      "options": {
+        "command": "node scripts/mvnw-runner.mjs -q package -pl apps/openadt-cli -am -Pdistribution -DskipTests -f pom.xml",
+        "cwd": "{workspaceRoot}"
+      },
+      "cache": true,
+      "inputs": ["javaMonorepoSources"],
+      "outputs": ["{projectRoot}/target"]
     },
     "run": {
       "executor": "nx:run-commands",
-      "dependsOn": ["build"],
+      "dependsOn": ["package"],
       "cache": false,
       "options": {
         "command": "bun run ../../scripts/nx-openadt.ts",
@@ -37,7 +60,7 @@
     },
     "run-sdk": {
       "executor": "nx:run-commands",
-      "dependsOn": ["build"],
+      "dependsOn": ["package"],
       "cache": false,
       "options": {
         "command": "powershell -NoProfile -ExecutionPolicy Bypass -File ../../scripts/openadt-sdk.ps1",

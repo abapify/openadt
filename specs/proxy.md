@@ -11,7 +11,7 @@ Default transport:
 Fallback transports:
 
 - RFC bridge via `SADT_REST_RFC_ENDPOINT` (`transport = "rest-rfc"`)
-- Direct HTTP against the ICF/SAML frontend (`transport = "http"`) using `MYSAPSSO2` and `adt.discovery_url`
+- Direct HTTP against the ICF/SAML frontend (`transport = "http"`) using `MYSAPSSO2` and `adt.base_url`
 
 ## Security Model
 

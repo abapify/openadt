@@ -1,18 +1,134 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.openadt</groupId>
     <artifactId>openadt-parent</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>1.1.2</version>
     <packaging>pom</packaging>
 
     <name>OpenADT</name>
-    <description>Open-source SAP ADT proxy tool (Maven aggregator)</description>
+    <description>Open-source SAP ADT SDK wrapper (Maven reactor)</description>
 
     <modules>
+        <module>apps/openadt-config</module>
+        <module>apps/openadt-sap-adt</module>
+        <module>apps/openadt-bootstrap</module>
         <module>apps/openadt-cli</module>
     </modules>
+
+    <properties>
+        <java.version>17</java.version>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <adt.plugins.dir>${user.home}/.p2/pool/plugins</adt.plugins.dir>
+        <picocli.version>4.7.7</picocli.version>
+        <jackson.version>2.21.3</jackson.version>
+        <junit.version>6.1.0</junit.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.openadt</groupId>
+                <artifactId>openadt-config</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.openadt</groupId>
+                <artifactId>openadt-sap-adt</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.openadt</groupId>
+                <artifactId>openadt-bootstrap</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>info.picocli</groupId>
+                <artifactId>picocli</artifactId>
+                <version>${picocli.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-core</artifactId>
+                <version>${jackson.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-databind</artifactId>
+                <version>${jackson.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.dataformat</groupId>
+                <artifactId>jackson-dataformat-toml</artifactId>
+                <version>${jackson.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter</artifactId>
+                <version>${junit.version}</version>
+                <scope>test</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>3.13.0</version>
+                    <configuration>
+                        <source>17</source>
+                        <target>17</target>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>3.2.5</version>
+                    <configuration>
+                        <excludedGroups>integration</excludedGroups>
+                        <argLine>-Duser.home=${user.home}</argLine>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>dev.nx.maven</groupId>
+                    <artifactId>nx-maven-plugin</artifactId>
+                    <version>0.0.17</version>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+
+    <profiles>
+        <profile>
+            <id>deadcode</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.ucdetector</groupId>
+                        <artifactId>ucdetector-maven-plugin</artifactId>
+                        <version>2.0.0</version>
+                        <configuration>
+                            <skipEmptyReport>false</skipEmptyReport>
+                            <xmlSkip>true</xmlSkip>
+                            <maxWarningCount>9999</maxWarningCount>
+                            <excludesFile>${maven.multiModuleProjectDirectory}/tools/dead-code/ucdetector-excludes.xml</excludesFile>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>check</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>
