@@ -193,8 +193,9 @@ public final class SecureLoginBootstrap {
         }
 
         private static String queryRegistry() throws IOException, InterruptedException {
+            String regExe = windowsSystemExecutable("reg.exe");
             ProcessBuilder builder = new ProcessBuilder(
-                "reg", "query", "HKCU\\Software\\SAP\\SecureLogin\\groups\\user\\profiles", "/s"
+                regExe, "query", "HKCU\\Software\\SAP\\SecureLogin\\groups\\user\\profiles", "/s"
             );
             builder.redirectErrorStream(true);
             applyTrustedPath(builder);
@@ -213,6 +214,14 @@ public final class SecureLoginBootstrap {
                 systemRoot = "C:\\Windows";
             }
             builder.environment().put("PATH", systemRoot + "\\System32;" + systemRoot);
+        }
+
+        private static String windowsSystemExecutable(String executable) {
+            String systemRoot = System.getenv("SystemRoot");
+            if (systemRoot == null || systemRoot.isBlank()) {
+                systemRoot = "C:\\Windows";
+            }
+            return java.nio.file.Path.of(systemRoot, "System32", executable).toString();
         }
 
         private static java.util.Optional<OpenAdtConfig.SecureLoginConfig> parseRegistryOutput(String output) {

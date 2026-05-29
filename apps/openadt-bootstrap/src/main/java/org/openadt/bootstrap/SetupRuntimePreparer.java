@@ -32,8 +32,9 @@ public final class SetupRuntimePreparer {
             CliLog.error("Reinstall OpenADT or run from a git checkout.");
             return 1;
         }
+        String powershellExe = windowsSystemExecutable("WindowsPowerShell\\v1.0\\powershell.exe");
         ProcessBuilder builder = new ProcessBuilder(
-            "powershell.exe",
+            powershellExe,
             "-NoProfile",
             "-ExecutionPolicy",
             "Bypass",
@@ -132,5 +133,13 @@ public final class SetupRuntimePreparer {
             return;
         }
         builder.environment().put("PATH", "/usr/bin:/bin");
+    }
+
+    private static String windowsSystemExecutable(String relativePath) {
+        String systemRoot = System.getenv("SystemRoot");
+        if (systemRoot == null || systemRoot.isBlank()) {
+            systemRoot = "C:\\Windows";
+        }
+        return Path.of(systemRoot, relativePath.split("\\\\")).toString();
     }
 }
