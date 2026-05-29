@@ -101,7 +101,9 @@ public final class SapRulesDiscoveryHelper {
                 Element rule = (Element) ruleNodes.item(i);
                 mergeProfile(systemsById, parseRule(rule, adtBcPath));
             }
-        } catch (ParserConfigurationException | SAXException | IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
+            throw new IOException("XML parser does not support required security feature: " + e.getMessage(), e);
+        } catch (ParserConfigurationException | SAXException e) {
             throw new IOException("Failed to parse saprules file: " + path, e);
         }
     }
