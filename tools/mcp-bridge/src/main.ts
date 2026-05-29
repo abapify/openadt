@@ -33,7 +33,9 @@ declare module "node:child_process" {
 
 function write(msg: object) {
   const body = JSON.stringify(msg);
-  process.stdout.write(`Content-Length: ${Buffer.byteLength(body, "utf8")}\r\n\r\n${body}`);
+  process.stdout.write(
+    `Content-Length: ${Buffer.byteLength(body, "utf8")}\r\n\r\n${body}`,
+  );
 }
 
 function openadtBin(): string {
@@ -192,9 +194,9 @@ process.stdin.on("data", (chunk: Uint8Array) => {
       const result = fn
         ? fn(msg.params?.arguments ?? {})
         : {
-          content: [{ type: "text", text: `Unknown tool: ${name}` }],
-          isError: true,
-        };
+            content: [{ type: "text", text: `Unknown tool: ${name}` }],
+            isError: true,
+          };
       write({ jsonrpc: "2.0", id: msg.id, result });
       continue;
     }
