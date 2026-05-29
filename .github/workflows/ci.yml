@@ -86,6 +86,3 @@ jobs:
 
       - name: Java unit tests (optional SAP runtime)
         run: bash scripts/ci-java-test.sh
-
-      - run: bunx nx fix-ci
-        if: always()
