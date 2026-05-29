@@ -53,17 +53,8 @@ openadt fetch <SID> /sap/bc/adt/core/http/systeminformation --json
 
 Must use `SapDestinationResolver` + `AdtSdkTransportClient` (not HTTP transport), with Eclipse destination when workspace is on a mounted path detectors can scan.
 
-## Stale `jco_native_dir` on the host (common)
-
-Devcontainer bootstrap may set `runtime.jco_native_dir` to `.devcontainer/dist/jco` (Linux `libsapjco3.so`). If the user later runs `openadt fetch` on **Windows host Java**, JCo fails with `no sapjco3 in java.library.path` even though `openadt setup --check` already detects the correct Windows directory elsewhere.
-
-**Fix on the host OS:** `openadt setup` (or `setup --check` then `setup --skip-build`) so `~/.openadt/local.openadt.toml` lists a directory that contains `sapjco3.dll`, not only `libsapjco3.so`.
-
-Agents: compare configured `jco_native_dir` to the native file for the OS running the command before debugging destinations or SSO.
-
 ## Anti-patterns
 
-- Leaving `.devcontainer/dist/jco` in `local.openadt.toml` while running fetch/proxy on Windows host Java
 - Running `openadt-sdk.ps1` inside Linux container against Windows `.p2` paths without Windows Java
 - Assuming `transport=http` + `MYSAPSSO2` equals Eclipse ADT behavior
 - Committing `.devcontainer/dist` JCo natives as a substitute for host SAP installation

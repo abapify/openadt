@@ -3,14 +3,10 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $cli = Join-Path $repoRoot "apps\openadt-cli"
 $classes = Join-Path $cli "target\classes"
-$jar = @(Get-ChildItem (Join-Path $cli "target") -Filter "openadt-*.jar" -ErrorAction SilentlyContinue |
-    Where-Object { $_.Name -notmatch '(-sources|-javadoc)\.jar$' } |
-    Sort-Object LastWriteTime -Descending |
-    Select-Object -First 1)
-if ($jar) { $jar = $jar.FullName } else { $jar = Join-Path $cli "target\openadt.jar" }
+$jar = Join-Path $cli "target\openadt-1.0.0-SNAPSHOT.jar"
 $sapLib = Join-Path $cli "target\sap-lib"
 if (-not (Test-Path $jar) -and -not (Test-Path $classes)) {
-    Write-Error "Build first: ./mvnw -q verify -f pom.xml -Pdistribution (from repo root)"
+    Write-Error "Build first: cd apps/openadt-cli && mvn package -DskipTests"
 }
 $sapJars = @(Get-ChildItem $sapLib -Filter "*.jar" -ErrorAction SilentlyContinue)
 if ($sapJars.Count -eq 0) {

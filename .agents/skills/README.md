@@ -4,12 +4,6 @@ This directory contains reusable agent skills for common OpenADT development tas
 
 ## Available Skills
 
-- `openadt-product`
-  - SDK-first **fetch** / **proxy** / MCP; transport decision tree (sdk vs http vs rest-rfc).
-- `openadt-sdd`
-  - Spec → test → code; `verify-spec-sync` + `verify-package-docs`.
-- `openadt-sap-sdk-apis`
-  - SAP ADT SDK API decision tree (discover, logon, fetch); see [specs/sdk-capabilities.md](../../specs/sdk-capabilities.md).
 - `openadt-local-sap-runtime`
   - **Knowledge base** for SDK+JCo transport and **HTTP browser SSO** (`--profile=sso`): destination profiles, reentranceticket callback, TLS/CA, Eclipse destinations, JCo jar canonical names, classpath order, Secure Login hub vs portal, failure modes, validation commands.
 - `openadt-devcontainer-host-runtime`

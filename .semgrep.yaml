@@ -22,7 +22,7 @@ rules:
     severity: ERROR
     message: >-
       Unsafe X509TrustManager outside LoopbackHubTlsProbe. Trust-all TLS capture for
-      Secure Login hub cert pinning must stay isolated to org.openadt.sap.adt.fallback.http.LoopbackHubTlsProbe.
+      Secure Login hub cert pinning must stay isolated to org.openadt.core.LoopbackHubTlsProbe.
     metadata:
       category: security
       confidence: HIGH

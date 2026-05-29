@@ -2,6 +2,7 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cli="${root}/apps/openadt-cli"
 
 if [[ -z "${OPENADT_ADT_PLUGINS_DIR:-}" ]]; then
   if [[ -d "${HOME}/.p2/pool/plugins" ]]; then
@@ -15,6 +16,6 @@ if [[ -z "${OPENADT_ADT_PLUGINS_DIR:-}" ]] || [[ ! -d "${OPENADT_ADT_PLUGINS_DIR
 fi
 
 export ADT_PLUGINS_DIR="${OPENADT_ADT_PLUGINS_DIR}"
-cd "${root}"
+cd "${cli}"
 chmod +x ./mvnw
-./mvnw -q verify -Dadt.plugins.dir="${ADT_PLUGINS_DIR}"
+./mvnw -q test -Dadt.plugins.dir="${ADT_PLUGINS_DIR}"

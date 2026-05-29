@@ -30,10 +30,8 @@ class ConfigDestinationsCreateCommandTest {
             "http",
             "--auth",
             "browser-sso",
-            "--base-url",
-            "https://dev-adt.example.com",
-            "--browser-entry-url",
-            "https://idp.example.corp/app/sap/sso/saml",
+            "--discovery-url",
+            "https://dev-adt.example.com/sap/bc/adt",
             "--client",
             "100",
             "--language",
@@ -45,7 +43,6 @@ class ConfigDestinationsCreateCommandTest {
         assertTrue(Files.exists(configFile));
         String contents = Files.readString(tempDir.resolve("destinations/manual.openadt.toml"));
         assertTrue(contents.contains("[destinations.\"DEV\".profiles.\"sso\"]"));
-        assertTrue(contents.contains("browser_entry_url = \"https://idp.example.corp/app/sap/sso/saml\""));
         assertTrue(contents.contains("default_profile"));
     }
 
@@ -87,12 +84,12 @@ class ConfigDestinationsCreateCommandTest {
             "--language", "EN"
         };
 
-        assertEquals(0, cmd.execute(concat(baseArgs, "--base-url", "https://first.example.com")));
-        assertEquals(0, cmd.execute(concat(baseArgs, "--base-url", "https://dev-adt.example.com")));
+        assertEquals(0, cmd.execute(concat(baseArgs, "--discovery-url", "https://first.example.com/sap/bc/adt")));
+        assertEquals(0, cmd.execute(concat(baseArgs, "--discovery-url", "https://dev-adt.example.com/sap/bc/adt")));
 
         String contents = Files.readString(tempDir.resolve("destinations/manual.openadt.toml"));
-        assertTrue(contents.contains("base_url = \"https://dev-adt.example.com/\""));
-        assertFalse(contents.contains("https://first.example.com"));
+        assertTrue(contents.contains("https://dev-adt.example.com/sap/bc/adt"));
+        assertFalse(contents.contains("https://first.example.com/sap/bc/adt"));
     }
 
     private static String[] concat(String[] base, String... extra) {

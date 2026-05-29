@@ -70,7 +70,7 @@ openadt config destinations create \
   --profile sso \
   --transport http \
   --auth browser-sso \
-  --base-url https://dev-adt.example.com \
+  --discovery-url https://dev-adt.example.com/sap/bc/adt \
   --client 100 \
   --language EN \
   --default-profile
@@ -82,7 +82,7 @@ Options:
 - `--profile <name>` — Profile name (required)
 - `--transport <mode>` — ADT transport (`sdk`, `http`, `rest-rfc`)
 - `--auth <kind>` — Authentication kind (e.g. `browser-sso`, `snc`)
-- `--base-url <url>` — SAP frontend origin (required for HTTP/browser SSO profiles; ADT path `/sap/bc/adt` is fixed)
+- `--discovery-url <url>` — ADT discovery URL (required for HTTP/browser SSO profiles)
 - `--client <client>` — SAP client (required)
 - `--language <lang>` — SAP language (default: `EN`)
 - `--description <text>` — Destination description
@@ -159,56 +159,6 @@ Devcontainer note:
   - `.devcontainer/runtime.openadt.toml`
   - `.openadt/destinations/generated-*.openadt.toml`
 - the primary devcontainer bootstrap path is host-side Bun/TypeScript tooling, not platform-specific shell scripts
-
----
-
-### openadt adt discover \<SYSTEM\>
-
-Load the ADT discovery document via the SAP ADT SDK (`IAdtDiscovery`), not raw HTTP body.
-
-```bash
-openadt adt discover DEV
-openadt adt discover DEV --profile snc --format json
-```
-
-Options:
-
-- `--profile <name>` — Authentication profile (same as `fetch`)
-- `--config, -c <path>` — Config file path
-- `--format json` or `--json` — JSON output (`ok`, `destinationId`, `fromEclipse`, …)
-- `--collection`, `--category` — Optional `getCollectionMember` lookup
-
-Exit code: `0` on success, `1` on failure. Requires `transport=sdk` and `runtime.adt_plugins_dir`.
-
----
-
-### openadt adt logon \<SYSTEM\>
-
-Establish SDK logon (`IAdtLogonService.ensureLoggedOn`) for diagnostics.
-
-```bash
-openadt adt logon DEV
-openadt adt logon DEV --profile sso --format json
-```
-
-Options: same as `adt discover`.
-
-Exit code: `0` on success, `1` on failure.
-
----
-
-### openadt adt logon-status \<SYSTEM\>
-
-Report whether the SDK considers the destination logged on (`IAdtLogonService.isLoggedOn`).
-
-```bash
-openadt adt logon-status DEV
-openadt adt logon-status DEV --format json
-```
-
-Exit code: `0` if logged on, `1` if not logged on or on error.
-
-See [sdk-capabilities.md](sdk-capabilities.md).
 
 ---
 
@@ -293,7 +243,6 @@ Options:
 - `--truststore-password <secret>` — Truststore password for explicit HTTPS trust in HTTP transport mode
 - `--callback-port <port>` — Callback bind port for browser SSO flow (`0` picks a random local port)
 - `--profile <name>` — Authentication profile (e.g. `snc`, `sso`; cannot be combined with `--base-url`)
-- `--browser-entry-url <url>` — Optional browser entry URL for manual SSO/session setup before ADT reentrance-ticket in direct HTTP mode
 - `--no-cache` — For HTTP SSO on this fetch only: do not read or write `~/.openadt/cache/http-sso/` (forces browser ticket flow when no `OPENADT_MYSAPSSO2`). Ignored for SDK/JCo transport. Does not apply when fetch reuses a running `openadt proxy` (use `--direct` to bypass the proxy)
 
 Behavior:
@@ -323,10 +272,10 @@ SDK transport (default when `adt_plugins_dir` is configured; `adt.transport = "s
 HTTP transport (`adt.transport = "http"`):
 
 - Does not use JCo or the ADT SDK
-- Requires `destinations.<alias>.adt.base_url` (SAP frontend origin from `saprules.xml`; ADT path `/sap/bc/adt` is fixed)
+- Requires `destinations.<alias>.adt.discovery_url` (logical frontend from `saprules.xml`)
 - Accepts SAP logon tickets from `OPENADT_MYSAPSSO2`, `secure_login.mysapsso2`, or `OPENADT_COOKIE_FILE`
 - If no ticket is available, OpenADT runs browser reentrance-ticket SSO (see below)
-- After browser SSO, OpenADT warms the SAP session (`GET …/sap/bc/adt/discovery`) and caches **`Set-Cookie` values** (e.g. `SAP_SESSIONID_*`) together with the reentrance ticket under `~/.openadt/cache/http-sso/` (user home only), plus resolved ADT API base. A second `fetch` reuses ticket + session cookies when still valid. Cached tickets past embedded SAP validity (`YYYYMMDDHHmmss` in the ticket) are dropped on read. On **401**, OpenADT invalidates the disk cache and retries once via browser callback (no manual cache delete). For many requests in one session, `openadt proxy <SYSTEM> --profile=sso` remains the fastest path. Use `fetch --no-cache` or `OPENADT_HTTP_SSO_NO_CACHE=1` to skip disk cache for one fetch or all processes
+- After browser SSO, OpenADT warms the SAP session (`GET …/sap/bc/adt/discovery`) and caches **`Set-Cookie` values** (e.g. `SAP_SESSIONID_*`) together with the reentrance ticket under `~/.openadt/cache/http-sso/` (user home only), plus resolved ADT API base. A second `fetch` should reuse ticket + session cookies without another callback. For many requests in one session, `openadt proxy <SYSTEM> --profile=sso` remains the fastest path. Use `fetch --no-cache` or `OPENADT_HTTP_SSO_NO_CACHE=1` to skip disk cache for one fetch or all processes
 - `openadt fetch` reuses a running `openadt proxy` for the same alias/profile when present, so HTTP SSO (and extra browser tabs) run once per proxy process, not on every fetch
 
 #### Browser reentrance-ticket SSO
@@ -335,27 +284,25 @@ OpenADT cannot read cookies from the user's browser. The CLI only obtains a logo
 
 Typical flow:
 
-1. **Cache** — read `~/.openadt/cache/http-sso/` (ticket + session cookies when still valid).
-2. **Fetch target** — HTTP ADT call with cached `MYSAPSSO2` (+ session cookies).
-3. **On 401 or cache miss** — start localhost callback server, then browser SSO:
-   - **Optional manual prep** — when `browser_entry_url` (or `OPENADT_HTTP_BROWSER_ENTRY_URL`) is configured, OpenADT opens that URL first and asks the user to confirm that browser sign-in/session setup is complete. This is the workaround for frontends where the ADT reentrance-ticket URL does not yet trigger the full SAML/Okta flow automatically.
-   - **Reentrance-ticket step** — OpenADT then opens `/sap/bc/adt/core/http/reentranceticket?redirect-url=http://localhost:<port>/adt/redirect?state=…` on the `base_url` frontend. SAP issues the ticket and redirects to localhost with `reentrance-ticket=…`.
-4. **Cache** — store ticket + warmed session cookies; **retry fetch** to the target URL.
-5. **Server-side warmup** — after the ticket is received, the CLI may `GET /sap/bc/adt/discovery` with `MYSAPSSO2` via Java HTTP client only (not a browser tab) to cache session cookies.
-
-**Do not** open `/sap/bc/adt/discovery` in the browser (Atom/ICF HTTP Basic). There is no `localhost/adt/open` launch page.
+0. **Optional landing** — only when `sso_landing_url` / `OPENADT_HTTP_SSO_LANDING_URL` is set to your **IdP/Okta app URL**. Do **not** use bare frontend `/` (often opens Fiori `/fiori#Shell-home` without ADT ICF cookies). Skip with `OPENADT_HTTP_SSO_SKIP_LANDING`.
+1. **Reentrance-ticket (default SSO)** — localhost `/adt/open` opens a popup to `/sap/bc/adt/core/http/reentranceticket?redirect-url=http://localhost:…/adt/redirect`. **Do not** open `/sap/bc/adt/discovery` in the browser (Atom/ICF HTTP Basic). **IdP/SAML redirects** happen on the reentrance-ticket chain (or via optional `sso_landing_url`), then SAP redirects back with `reentrance-ticket=…`.
+2. **Optional ADT bridge tab** — only when `OPENADT_HTTP_SSO_OPEN_BRIDGE=1`: may open bare `/sap/bc/adt` (never `/sap/bc/adt/discovery`) before reentrance. Off by default.
+3. **Server-side warmup** — after the ticket is received, the CLI may `GET /sap/bc/adt/discovery` with `MYSAPSSO2` via Java HTTP client only (not a browser tab) to cache session cookies.
 
 Environment (optional):
 
-| Variable                                                    | Purpose                                                                                                                |
-| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `OPENADT_HTTP_SSO_NON_INTERACTIVE`                          | Explicitly allow automatic continuation without Enter after the optional browser prep step (`true`/`1`/`yes`)          |
-| `OPENADT_HTTP_BROWSER_ENTRY_URL`                            | Override `browser_entry_url` in config for the optional manual browser prep step                                       |
-| `OPENADT_HTTP_BASE_URL`                                     | Legacy alias for `OPENADT_HTTP_BROWSER_ENTRY_URL`                                                                      |
-| `OPENADT_HTTP_CALLBACK_HOST` / `OPENADT_HTTP_CALLBACK_PORT` | Loopback callback bind (`localhost` required for SAP redirect validation)                                              |
-| `OPENADT_HTTP_CALLBACK_TIMEOUT_MINUTES`                     | Max wait for redirect (default `5`)                                                                                    |
-| `OPENADT_HTTP_SSO_NO_CACHE`                                 | Disable HTTP SSO disk cache read/write for the whole process (`1`/`true`; same effect as `fetch --no-cache` per fetch) |
-| `OPENADT_VERBOSE`                                           | `true` — SDK/JCo/SNC bootstrap, HTTP SSO cache/cookie, proxy tip, SSO step URLs (default off)                          |
+| Variable                                                    | Purpose                                                                                                                                    |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `OPENADT_HTTP_SSO_NON_INTERACTIVE`                          | Skip Enter prompts (`true`/`1`/`yes`)                                                                                                      |
+| `OPENADT_HTTP_SSO_BRIDGE_WAIT_SECONDS`                      | Seconds to wait after bridge before reentrance when non-interactive (default `15`; `0` = warm session — also skips opening the bridge tab) |
+| `OPENADT_HTTP_SSO_OPEN_BRIDGE`                              | Open optional bare `/sap/bc/adt` bridge tab before reentrance (never `/sap/bc/adt/discovery`)                                              |
+| `OPENADT_HTTP_SSO_SKIP_BRIDGE`                              | Force bridge tab off even when `OPENADT_HTTP_SSO_OPEN_BRIDGE=1`                                                                            |
+| `OPENADT_HTTP_SSO_SKIP_LANDING`                             | Skip optional `sso_landing_url`                                                                                                            |
+| `OPENADT_HTTP_SSO_LANDING_URL`                              | Override landing URL (else `destinations.*.adt.sso_landing_url`)                                                                           |
+| `OPENADT_HTTP_CALLBACK_HOST` / `OPENADT_HTTP_CALLBACK_PORT` | Loopback callback bind (`localhost` required for SAP redirect validation)                                                                  |
+| `OPENADT_HTTP_CALLBACK_TIMEOUT_MINUTES`                     | Max wait for redirect (default `5`)                                                                                                        |
+| `OPENADT_HTTP_SSO_NO_CACHE`                                 | Disable HTTP SSO disk cache read/write for the whole process (`1`/`true`; same effect as `fetch --no-cache` per fetch)                     |
+| `OPENADT_VERBOSE`                                           | `true` — SDK/JCo/SNC bootstrap, HTTP SSO cache/cookie, proxy tip, SSO step URLs (default off)                                              |
 
 To avoid browser SSO entirely: set `OPENADT_MYSAPSSO2` or `OPENADT_COOKIE_FILE`, or keep `openadt proxy` running after the first successful SSO so subsequent `fetch` calls reuse the proxy's in-memory ticket.
 

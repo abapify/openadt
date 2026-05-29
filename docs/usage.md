@@ -24,7 +24,7 @@ That stack is **not required for every installation**:
 
 - **SNC SSO** needs JCo, the matching native library, and `sapcrypto` on the host OS. Secure Login Client is common in corporate landscapes but not the only credential source (for example Linux `SECUDIR` with PSE material).
 - **`rest-rfc`** needs JCo (and SNC artifacts when the destination uses SNC).
-- **`http`** transport can work with a configured `base_url` and `MYSAPSSO2` ticket source without JCo.
+- **`http`** transport can work with a configured `discovery_url` and `MYSAPSSO2` ticket source without JCo.
 - **Proxy `--local-auth basic`** only protects the localhost listener; it is unrelated to SAP logon and does not require JCo.
 
 A basic or password-based SAP destination in config is a valid choice when your landscape allows it. Prefer the full stack when you need parity with Eclipse ADT and SNC SSO.
@@ -89,11 +89,9 @@ When winget/Homebrew packages are not published yet, build from source on any su
 
 ```bash
 git clone https://github.com/abapify/openadt.git
-cd openadt
-./mvnw -q verify -f pom.xml -Pdistribution
+cd openadt/apps/openadt-cli
+mvn package -DskipTests
 ```
-
-The shaded CLI jar is `apps/openadt-cli/target/openadt-*.jar` (version matches root `pom.xml`, currently `1.1.x`).
 
 From the repository root (dev build, not Scoop/winget):
 
@@ -108,13 +106,13 @@ chmod +x openadt   # once, on Unix / Git Bash
 ./openadt setup
 ```
 
-For `--profile snc` with Eclipse ADT plugins on the classpath, use `scripts/openadt-sdk.ps1` on Windows (resolves the newest `openadt-*.jar` under `apps/openadt-cli/target/`).
+Uses the newest `apps/openadt-cli/target/openadt-*.jar`. For `--profile snc`, use `scripts/openadt-sdk.ps1` on Windows.
 
 ### Windows launcher
 
 ```powershell
 New-Item -ItemType Directory -Force C:\Tools\OpenADT | Out-Null
-Copy-Item .\apps\openadt-cli\target\openadt-*.jar C:\Tools\OpenADT\openadt.jar -Force
+Copy-Item .\target\openadt-1.0.0-SNAPSHOT.jar C:\Tools\OpenADT\openadt.jar -Force
 New-Item -ItemType Directory -Force C:\Tools\OpenADT\bin | Out-Null
 ```
 
@@ -136,7 +134,7 @@ Add `C:\Tools\OpenADT\bin` to your user `PATH`, open a new terminal, and run `op
 
 ```bash
 mkdir -p "$HOME/.local/share/openadt" "$HOME/.local/bin"
-cp apps/openadt-cli/target/openadt-*.jar "$HOME/.local/share/openadt/openadt.jar"
+cp target/openadt-1.0.0-SNAPSHOT.jar "$HOME/.local/share/openadt/openadt.jar"
 cat > "$HOME/.local/bin/openadt" <<'EOF'
 #!/usr/bin/env bash
 exec java -jar "$HOME/.local/share/openadt/openadt.jar" "$@"
@@ -378,47 +376,6 @@ openadt fetch DEV /sap/bc/adt/core/http/systeminformation --json --fail
 
 Do not share verbose logs until they have been checked for private landscape data.
 
-## SDK diagnostics (`openadt adt`)
-
-Typed SAP ADT SDK commands (discovery, logon) complement `fetch` / `proxy`. They use the same config and SDK runtime as fetch when `transport = "sdk"`.
-
-See [specs/sdk-capabilities.md](../specs/sdk-capabilities.md) and [specs/cli.md](../specs/cli.md).
-
-### Prerequisites
-
-1. Run `openadt setup` or `openadt config bootstrap` then `openadt config build` so `runtime.adt_plugins_dir` and the SDK runtime jar exist.
-2. Destination alias (for example `DEV`) in merged config with `transport = "sdk"` and working SNC/SSO or password logon for your landscape.
-
-### Commands
-
-```powershell
-openadt adt discover DEV
-openadt adt discover DEV --collection systems --category sap.adt --format json
-openadt adt logon DEV
-openadt adt logon-status DEV --format json
-```
-
-On Windows with plugins on the classpath but without installing the distribution jar globally:
-
-```powershell
-.\scripts\openadt-sdk.ps1 adt discover DEV
-.\scripts\openadt-sdk.ps1 adt logon DEV
-```
-
-### Testing with SDK runtime
-
-| Step | Command                                                                                 |
-| ---- | --------------------------------------------------------------------------------------- |
-| 1    | `openadt config` — confirm alias, `adt_plugins_dir`, JCo paths                          |
-| 2    | `openadt adt logon DEV` — establish SDK session                                         |
-| 3    | `openadt adt logon-status DEV` — should report logged on                                |
-| 4    | `openadt adt discover DEV --format json` — atom discovery document                      |
-| 5    | `openadt fetch DEV /sap/bc/adt/core/http/systeminformation --json` — confirms transport |
-
-Use `$env:OPENADT_VERBOSE = "true"` when diagnosing classpath or logon failures.
-
-MCP: [tools/mcp-bridge](../tools/mcp-bridge/) exposes `adt_discover` and `adt_logon` via subprocess to the CLI.
-
 ## Start The Local Proxy
 
 Start a loopback-only proxy:
@@ -467,12 +424,12 @@ transport = "rest-rfc"
 authentication_kind = "sso"
 ```
 
-Use HTTP mode only when you have a valid SAP frontend `base_url` and an explicit `MYSAPSSO2` source:
+Use HTTP mode only when you have a valid frontend discovery URL and an explicit `MYSAPSSO2` source:
 
 ```toml
 [destinations.DEV.adt]
 transport = "http"
-base_url = "https://dev.example.com:8001"
+discovery_url = "https://dev.example.com:8001/sap/bc/adt"
 authentication_kind = "sso"
 ```
 
@@ -508,7 +465,7 @@ If you intentionally stage Linux SAP runtime for WSL:
 ./scripts/openadt-wsl-env ./.devcontainer/dist/snc/sapgenpse seclogin -l
 OPENADT_CONFIG="$(pwd)/tmp/wsl-openadt-config.toml" \
   ./scripts/openadt-wsl-env \
-  java -jar apps/openadt-cli/target/openadt-*.jar \
+  java -jar apps/openadt-cli/target/openadt-1.0.0-SNAPSHOT.jar \
   fetch DEV /sap/bc/adt/core/http/systeminformation --json --fail
 ```
 
@@ -551,18 +508,14 @@ Run the local setup doctor:
 
 Common failures:
 
-| Symptom                                      | Likely cause                                                                                    | Action                                                                               |
-| -------------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `JCo jar not configured`                     | Runtime fragment is missing                                                                     | Run `openadt setup`, then check `~\.openadt\local.openadt.toml`                      |
-| `no sapjco3 in java.library.path`            | `jco_native_dir` is for another OS (often `.devcontainer/dist/jco` with Linux `.so` on Windows) | Run `openadt setup` on the **host**; directory must contain `sapjco3.dll` on Windows |
-| `Illegal JCo archive`                        | JCo jar has Eclipse p2 filename                                                                 | Re-run setup so `JCoJarCanonicalizer` creates the canonical jar                      |
-| `SessionReferenceProvider` class not found   | Core JCo jar is missing or loaded after `jco.eclipse`                                           | Build/package with the SDK runner and keep canonical JCo first                       |
-| `GSS-API(maj): No credentials were supplied` | SNC runtime has no usable credential                                                            | Verify Secure Login Client on host OS or Linux `SECUDIR`                             |
-| HTTP 406 for system information              | Missing ADT Accept header                                                                       | Use `--json` default behavior or pass the systeminformation Accept header            |
-| Proxy works differently from fetch           | Commands use different config or transport                                                      | Check `OPENADT_CONFIG`, alias, and `[destinations.<alias>.adt].transport`            |
-| `adt discover` / `logon` ClassNotFoundError  | SAP ADT bundles not on classpath                                                                | Run `openadt config build`; use `openadt-sdk.ps1` or distribution jar with runtime   |
-| `adt logon` succeeds but `fetch` fails       | Different transport or profile                                                                  | Align `transport` and profile; compare `openadt config` output                       |
-| Discovery empty or errors                    | Not logged on or wrong destination id                                                           | Run `openadt adt logon` first; verify alias matches SDK destination id               |
+| Symptom                                      | Likely cause                                          | Action                                                                    |
+| -------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------- |
+| `JCo jar not configured`                     | Runtime fragment is missing                           | Run `openadt setup`, then check `~\.openadt\local.openadt.toml`           |
+| `Illegal JCo archive`                        | JCo jar has Eclipse p2 filename                       | Re-run setup so `JCoJarCanonicalizer` creates the canonical jar           |
+| `SessionReferenceProvider` class not found   | Core JCo jar is missing or loaded after `jco.eclipse` | Build/package with the SDK runner and keep canonical JCo first            |
+| `GSS-API(maj): No credentials were supplied` | SNC runtime has no usable credential                  | Verify Secure Login Client on host OS or Linux `SECUDIR`                  |
+| HTTP 406 for system information              | Missing ADT Accept header                             | Use `--json` default behavior or pass the systeminformation Accept header |
+| Proxy works differently from fetch           | Commands use different config or transport            | Check `OPENADT_CONFIG`, alias, and `[destinations.<alias>.adt].transport` |
 
 ## Security Checklist
 
@@ -574,27 +527,21 @@ Before sharing logs, config, screenshots, issues, or pull requests:
 
 ## Developer Validation
 
-From the repository root (full reactor, distribution profile, no SAP plugins required for unit tests):
+Run unit tests from WSL with an explicit ADT plugin directory when the plugin pool is Windows-side:
 
 ```bash
-bun scripts/verify-spec-sync.ts
-bun scripts/verify-package-docs.ts
-./mvnw -q verify -f pom.xml -Pdistribution
-bun run openadt:test
+cd apps/openadt-cli
+../../tmp/apache-maven-3.9.9/bin/mvn \
+  -Dmaven.repo.local=../../tmp/m2 \
+  -Dadt.plugins.dir=/mnt/c/Users/<user>/.p2/pool/plugins \
+  test
 ```
 
-Integration tests (`@Tag("integration")`) need a local SAP runtime and are skipped by default.
-
-Optional: run a single module from root, for example `openadt-config`:
+For a normal workstation Maven install:
 
 ```bash
-./mvnw -q test -pl apps/openadt-config
-```
-
-With SAP ADT plugins on the classpath (WSL reading Windows p2 pool):
-
-```bash
-./mvnw -q test -pl apps/openadt-sap-adt -Dadt.plugins.dir=/mnt/c/Users/<user>/.p2/pool/plugins
+cd apps/openadt-cli
+mvn -Dadt.plugins.dir=/mnt/c/Users/<user>/.p2/pool/plugins test
 ```
 
 Use JDK 17 or JDK 21 unless the dependency toolchain has been verified on newer Java versions.

@@ -13,30 +13,17 @@
       "{projectRoot}/mvnw",
       "{projectRoot}/mvnw.cmd",
       "{projectRoot}/.mvn/**/*"
-    ],
-    "javaMonorepoSources": [
-      "{workspaceRoot}/pom.xml",
-      "{workspaceRoot}/mvnw",
-      "{workspaceRoot}/mvnw.cmd",
-      "{workspaceRoot}/.mvn/**/*",
-      "{workspaceRoot}/apps/**/pom.xml",
-      "{workspaceRoot}/apps/**/src/**/*"
     ]
   },
   "targetDefaults": {
-    "compile": {
+    "build": {
       "cache": true,
-      "inputs": ["javaMonorepoSources"],
+      "inputs": ["javaSources"],
       "outputs": ["{projectRoot}/target"]
     },
     "test": {
       "cache": true,
-      "inputs": ["javaMonorepoSources"],
-      "outputs": ["{projectRoot}/target"]
-    },
-    "package": {
-      "cache": true,
-      "inputs": ["javaMonorepoSources"],
+      "inputs": ["javaSources"],
       "outputs": ["{projectRoot}/target"]
     }
   },

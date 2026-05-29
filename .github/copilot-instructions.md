@@ -15,16 +15,14 @@ Trust this file and **do not re-discover** layout each session. For full agent r
 
 ## What this repo is
 
-OpenADT is a **thin Java wrapper around the official SAP ADT SDK** — `openadt fetch` and `openadt proxy` use the same destination/session stack as Eclipse. Do **not** reimplement ADT HTTP, logon, or SNC unless `adt.transport = "http"` in config and specs. `setup` / `config bootstrap` only writes `~/.openadt/config.toml`. Specs in `specs/` are authoritative. SAP binaries are **never** committed. Layout: [`apps/ARCHITECTURE.md`](../apps/ARCHITECTURE.md), [`specs/vision.md`](../specs/vision.md).
+OpenADT: Java CLI (`apps/openadt-cli`) — local SAP ADT bridge (`setup`, `fetch`, `proxy`). Specs in `specs/` are authoritative for behavior. SAP binaries (JCo, sapcrypto, Secure Login) are **never** committed.
 
 ## Agent skills (read before specialized work)
 
 | Skill                               | Path                                                            | When                                               |
 | ----------------------------------- | --------------------------------------------------------------- | -------------------------------------------------- |
 | `act`                               | [`.agents/skills/act/SKILL.md`](../.agents/skills/act/SKILL.md) | **`/act`**, `@copilot /act`, `@codex /act` on a PR |
-| `openadt-product`                   | `.agents/skills/openadt-product/SKILL.md`                       | fetch, proxy, MCP, transport choice                |
-| `openadt-sdd`                       | `.agents/skills/openadt-sdd/SKILL.md`                           | Spec-driven changes, verify-spec-sync              |
-| `openadt-local-sap-runtime`         | `.agents/skills/openadt-local-sap-runtime/SKILL.md`             | SDK runtime, fetch, proxy, bootstrap               |
+| `openadt-local-sap-runtime`         | `.agents/skills/openadt-local-sap-runtime/SKILL.md`             | Setup, fetch, proxy, JCo/SNC                       |
 | `openadt-devcontainer-host-runtime` | `.agents/skills/openadt-devcontainer-host-runtime/SKILL.md`     | Devcontainer / WSL vs host                         |
 
 Index: [`.agents/skills/README.md`](../.agents/skills/README.md).
@@ -58,10 +56,9 @@ Before pushing TS under `tools/`: `bunx nx format:write`.
 
 ```bash
 bun install --frozen-lockfile
-bun scripts/verify-spec-sync.ts
 bunx nx format:check
-./mvnw -q verify                                      # reactor from repo root
-bun run openadt:test
+cd apps/openadt-cli && ./mvnw test                    # needs SAP plugins locally, or CI skips
+cd apps/openadt-cli && ./mvnw -Pdistribution package -Dmaven.test.skip=true
 bun run package:release -- --version=<semver>         # maintainers; Windows exe needs SDK
 ```
 

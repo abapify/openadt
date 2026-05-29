@@ -17,10 +17,9 @@ Orchestrates all detectors and aggregates results:
 1. Runs SapGuiLandscapeDetector
 2. Runs NwbcSystemDetector
 3. Runs SapBusinessClientDetector
-4. Runs EclipseAdtDetector
-5. Runs SapRulesDetector
-6. Runs RuntimeDetector
-7. Runs SecureLoginDetector
+4. Runs SapRulesDetector
+5. Runs RuntimeDetector
+6. Runs SecureLoginDetector
 
 Returns a `SetupResult` with:
 
@@ -102,9 +101,7 @@ Lookup paths:
 - JCo jars from user Eclipse / p2 plugin pools
 - JCo native libraries: `sapjco3.dll`, `libsapjco3.so`, or `libsapjco3.dylib`
 - CryptoLib: `sapcrypto.dll`, `libsapcrypto.so`, `libsapcrypto.dylib`, or SAP Secure Login install paths
-- staged devcontainer runtime under `./.devcontainer/dist/` as fallback (platform-specific: Linux `.so` there will not load under Windows host Java)
-
-After devcontainer bootstrap, run `openadt setup` again on the host OS before `fetch`/`proxy` if `runtime.jco_native_dir` still points at `.devcontainer/dist/jco` without the matching native for that host (`sapjco3.dll` vs `libsapjco3.so`).
+- staged devcontainer runtime under `./.devcontainer/dist/` as fallback
 
 Fills:
 
@@ -126,7 +123,7 @@ Extracts:
 
 - `context.system` → system_id
 - `context.client` → client
-- `files.name` entries that contain `/sap/bc/adt` → `adt.ashost` and `adt.base_url` (frontend origin)
+- `files.name` entries that contain `/sap/bc/adt` → `adt.ashost` and `adt.discovery_url`
 
 Sets `source = "saprules"`.
 

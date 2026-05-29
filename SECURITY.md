@@ -8,7 +8,7 @@ Security fixes are published for supported release lines. Install the latest pat
 
 | Version    | Supported   | Notes                                                                                                                                       |
 | ---------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `v1.1.x`   | Yes         | Current release line ([latest: v1.1.2](https://github.com/abapify/openadt/releases) or repo `pom.xml` version)                              |
+| `v1.1.x`   | Yes         | Current release line ([latest: v1.1.0](https://github.com/abapify/openadt/releases/tag/v1.1.0))                                             |
 | `v1.0.x`   | Best effort | Last release: [v1.0.11](https://github.com/abapify/openadt/releases/tag/v1.0.11); critical fixes may be backported at maintainer discretion |
 | `< v1.0.0` | No          | Upgrade to a supported release                                                                                                              |
 
