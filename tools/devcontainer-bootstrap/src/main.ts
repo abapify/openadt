@@ -15,22 +15,6 @@ import { stdin as input, stdout as output } from "node:process";
 import { fileURLToPath } from "node:url";
 import * as tar from "tar";
 
-const OPENADT_IMAGE_SDK_ROOT =
-  process.env.OPENADT_SDK_ROOT?.trim() || "/opt/openadt";
-
-const P2_ADT_REPOSITORY = "https://tools.hana.ondemand.com/latest";
-const P2_PLUGIN_FILTER =
-  "com.sap.adt.*,com.sap.conn.jco.*,org.eclipse.core.*,org.eclipse.equinox.*,org.eclipse.osgi*,org.osgi.*";
-
-const REQUIRED_ADT_BUNDLE_PREFIXES = [
-  "com.sap.adt.communication_",
-  "com.sap.adt.destinations_",
-  "com.sap.adt.destinations.model_",
-  "com.sap.adt.compatibility_",
-  "com.sap.adt.logging_",
-  "com.sap.adt.util_",
-] as const;
-
 type Args = {
   sourceRoot?: string;
   jcoArchive?: string;
@@ -39,12 +23,9 @@ type Args = {
   containerWorkspace?: string;
   nonInteractive: boolean;
   skipIfMissing: boolean;
-  provisionP2Sdk: boolean;
-  skipP2Sdk: boolean;
 };
 
 type DevcontainerRuntimePaths = {
-  adtPluginsDir?: string;
   jcoJar: string;
   jcoNativeDir: string;
   sapcrypto?: string;
@@ -71,8 +52,6 @@ function parseArgs(argv: string[]): Args {
   const args: Args = {
     nonInteractive: false,
     skipIfMissing: false,
-    provisionP2Sdk: false,
-    skipP2Sdk: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -97,12 +76,6 @@ function parseArgs(argv: string[]): Args {
         break;
       case "--skip-if-missing":
         args.skipIfMissing = true;
-        break;
-      case "--provision-p2-sdk":
-        args.provisionP2Sdk = true;
-        break;
-      case "--skip-p2-sdk":
-        args.skipP2Sdk = true;
         break;
       default:
         throw new Error(`Unknown argument: ${arg}`);
@@ -460,230 +433,6 @@ function ensureProjectDestinations(root: string): void {
   }
 }
 
-function p2PluginsDir(root: string): string {
-  return join(root, ".devcontainer/dist/p2/plugins");
-}
-
-function imageSdkPluginsDir(): string {
-  return join(OPENADT_IMAGE_SDK_ROOT, "dist/p2/plugins");
-}
-
-function imageSdkJcoDir(): string {
-  return join(OPENADT_IMAGE_SDK_ROOT, "dist/jco");
-}
-
-function imageSdkReady(): boolean {
-  const pluginsDir = imageSdkPluginsDir();
-  const native = join(imageSdkJcoDir(), "libsapjco3.so");
-  return (
-    hasRequiredAdtBundles(pluginsDir) &&
-    !!findLatestJcoPluginJar(pluginsDir) &&
-    existsSync(native)
-  );
-}
-
-function p2CliEntry(root: string): string {
-  return join(root, "node_modules/@abapify/p2-cli/dist/cli.mjs");
-}
-
-function hasBundle(pluginsDir: string, prefix: string): boolean {
-  if (!existsSync(pluginsDir)) {
-    return false;
-  }
-  return readdirSync(pluginsDir).some(
-    (name) => name.startsWith(prefix) && name.endsWith(".jar"),
-  );
-}
-
-function hasRequiredAdtBundles(pluginsDir: string): boolean {
-  return REQUIRED_ADT_BUNDLE_PREFIXES.every((prefix) =>
-    hasBundle(pluginsDir, prefix),
-  );
-}
-
-function findLatestJcoPluginJar(pluginsDir: string): string | undefined {
-  if (!existsSync(pluginsDir)) {
-    return undefined;
-  }
-  const pattern = /^com\.sap\.conn\.jco_(\d+(?:\.\d+)+)\.jar$/;
-  let latest: { path: string; key: number[] } | undefined;
-  for (const name of readdirSync(pluginsDir)) {
-    const match = pattern.exec(name);
-    if (!match) {
-      continue;
-    }
-    const key = match[1].split(".").map((part) => Number.parseInt(part, 10));
-    if (!latest || compareVersionKeys(key, latest.key) > 0) {
-      latest = { path: join(pluginsDir, name), key };
-    }
-  }
-  return latest?.path;
-}
-
-function compareVersionKeys(left: number[], right: number[]): number {
-  const max = Math.max(left.length, right.length);
-  for (let i = 0; i < max; i++) {
-    const l = i < left.length ? left[i] : 0;
-    const r = i < right.length ? right[i] : 0;
-    const cmp = l - r;
-    if (cmp !== 0) {
-      return cmp;
-    }
-  }
-  return 0;
-}
-
-function findLinuxJcoFragmentJar(pluginsDir: string): string | undefined {
-  const files = walkFiles(pluginsDir).filter((file) =>
-    /^com\.sap\.conn\.jco\.linux\.[^/\\]+\.jar$/i.test(basename(file)),
-  );
-  if (files.length === 0) {
-    return undefined;
-  }
-  return files
-    .sort()
-    .map((file) => {
-      const m = /_(\d+(?:\.\d+)+)\.jar$/i.exec(basename(file));
-      const key = m ? m[1].split(".").map((p) => Number.parseInt(p, 10)) : [0];
-      return { file, key };
-    })
-    .reduce((best, cur) =>
-      compareVersionKeys(cur.key, best.key) > 0 ? cur : best,
-    ).file;
-}
-
-function stageJcoNativeFromFragment(
-  fragmentJar: string,
-  jcoStageDir: string,
-): void {
-  mkdirSync(jcoStageDir, { recursive: true });
-  const zip = new AdmZip(fragmentJar);
-  const nativeEntry = zip
-    .getEntries()
-    .find(
-      (entry) =>
-        !entry.isDirectory && entry.entryName.endsWith("libsapjco3.so"),
-    );
-  if (!nativeEntry) {
-    throw new Error(
-      `libsapjco3.so not found inside Linux JCo fragment: ${fragmentJar}`,
-    );
-  }
-  const target = join(jcoStageDir, "libsapjco3.so");
-  writeFileSync(target, nativeEntry.getData());
-}
-
-function pathForChildProcess(): string {
-  const current = process.env.PATH ?? process.env.Path ?? "";
-  const delimiter = process.platform === "win32" ? ";" : ":";
-  const segments = current
-    .split(delimiter)
-    .filter((entry) => entry.trim().length > 0);
-  const seen = new Set(segments);
-  const extras =
-    process.platform === "win32"
-      ? []
-      : [
-          "/usr/local/sbin",
-          "/usr/local/bin",
-          "/usr/sbin",
-          "/usr/bin",
-          "/sbin",
-          "/bin",
-        ];
-  for (const extra of extras) {
-    if (!seen.has(extra)) {
-      segments.push(extra);
-      seen.add(extra);
-    }
-  }
-  return segments.join(delimiter);
-}
-
-function runP2Download(root: string, outputDir: string): void {
-  const cli = p2CliEntry(root);
-  if (!existsSync(cli)) {
-    throw new Error(
-      "Missing @abapify/p2-cli. Run `bun install` in the repository root first.",
-    );
-  }
-  mkdirSync(outputDir, { recursive: true });
-  const childEnv = { ...process.env, PATH: pathForChildProcess() };
-  const result = spawnSync(
-    process.execPath,
-    [
-      cli,
-      "download",
-      P2_ADT_REPOSITORY,
-      "-o",
-      outputDir,
-      "-f",
-      P2_PLUGIN_FILTER,
-    ],
-    { cwd: root, stdio: "inherit", env: childEnv },
-  );
-  if (result.status !== 0) {
-    throw new Error(
-      `p2-cli download failed (exit ${result.status ?? "unknown"})`,
-    );
-  }
-}
-
-async function ensureP2Sdk(root: string, args: Args): Promise<void> {
-  if (args.skipP2Sdk) {
-    return;
-  }
-  if (imageSdkReady()) {
-    console.log(
-      `Using SAP ADT SDK from container image (${OPENADT_IMAGE_SDK_ROOT})`,
-    );
-    return;
-  }
-  if (!args.provisionP2Sdk) {
-    return;
-  }
-
-  const pluginsDir = p2PluginsDir(root);
-  const jcoStageDir = join(root, ".devcontainer/dist/jco");
-  const nativePath = join(jcoStageDir, "libsapjco3.so");
-  if (hasRequiredAdtBundles(pluginsDir) && existsSync(nativePath)) {
-    console.log(`Reusing staged ADT p2 plugins under ${pluginsDir}`);
-    return;
-  }
-
-  console.log(`Downloading SAP ADT p2 plugins into ${pluginsDir}...`);
-  runP2Download(root, join(root, ".devcontainer/dist/p2"));
-
-  if (!hasRequiredAdtBundles(pluginsDir)) {
-    throw new Error(
-      `ADT p2 download finished but required bundles are missing under ${pluginsDir}`,
-    );
-  }
-
-  const fragment = findLinuxJcoFragmentJar(pluginsDir);
-  if (!fragment) {
-    throw new Error(
-      `No com.sap.conn.jco.linux.* fragment found under ${pluginsDir}`,
-    );
-  }
-  stageJcoNativeFromFragment(fragment, jcoStageDir);
-  console.log(`Staged libsapjco3.so from ${basename(fragment)}`);
-}
-
-function toContainerWorkspacePath(
-  root: string,
-  containerWorkspace: string,
-  absolutePath: string,
-): string {
-  const repoRoot = resolve(root);
-  const target = resolve(absolutePath);
-  if (target.startsWith(repoRoot)) {
-    const relative = target.slice(repoRoot.length).replace(/^[/\\]/, "");
-    return join(containerWorkspace, relative).replaceAll("\\", "/");
-  }
-  return target.replaceAll("\\", "/");
-}
-
 function resolveWorkspaceSapcrypto(
   root: string,
   containerWorkspace: string,
@@ -704,40 +453,11 @@ function resolveDevcontainerRuntime(
   containerWorkspace: string,
   staged?: StagedRuntime,
 ): DevcontainerRuntimePaths {
-  const sapcrypto = resolveWorkspaceSapcrypto(root, containerWorkspace, staged);
-
-  if (imageSdkReady()) {
-    const pluginsDir = imageSdkPluginsDir();
-    const jcoNativeDir = `${OPENADT_IMAGE_SDK_ROOT}/dist/jco`;
-    const latestJco = existsSync(pluginsDir)
-      ? findLatestJcoPluginJar(pluginsDir)
-      : undefined;
-    return {
-      adtPluginsDir: `${OPENADT_IMAGE_SDK_ROOT}/dist/p2/plugins`,
-      jcoJar: latestJco
-        ? latestJco.replaceAll("\\", "/")
-        : `${jcoNativeDir}/sapjco3.jar`,
-      jcoNativeDir,
-      sapcrypto,
-    };
-  }
-
-  const pluginsDir = p2PluginsDir(root);
   const jcoNativeDir = `${containerWorkspace}/.devcontainer/dist/jco`;
-  const latestJco = existsSync(pluginsDir)
-    ? findLatestJcoPluginJar(pluginsDir)
-    : undefined;
-  const adtPluginsDir = hasRequiredAdtBundles(pluginsDir)
-    ? `${containerWorkspace}/.devcontainer/dist/p2/plugins`
-    : undefined;
-
   return {
-    adtPluginsDir,
-    jcoJar: latestJco
-      ? toContainerWorkspacePath(root, containerWorkspace, latestJco)
-      : `${containerWorkspace}/.devcontainer/dist/jco/sapjco3.jar`,
+    jcoJar: `${jcoNativeDir}/sapjco3.jar`,
     jcoNativeDir,
-    sapcrypto,
+    sapcrypto: resolveWorkspaceSapcrypto(root, containerWorkspace, staged),
   };
 }
 
@@ -746,12 +466,13 @@ function writeDevcontainerRuntime(
   runtime: DevcontainerRuntimePaths,
 ): void {
   mkdirSync(dirname(path), { recursive: true });
-  const lines = ["version = 1", "", "[runtime]"];
-  if (runtime.adtPluginsDir) {
-    lines.push(`adt_plugins_dir = "${runtime.adtPluginsDir}"`);
-  }
-  lines.push(`jco_jar = "${runtime.jcoJar}"`);
-  lines.push(`jco_native_dir = "${runtime.jcoNativeDir}"`);
+  const lines = [
+    "version = 1",
+    "",
+    "[runtime]",
+    `jco_jar = "${runtime.jcoJar}"`,
+    `jco_native_dir = "${runtime.jcoNativeDir}"`,
+  ];
   if (runtime.sapcrypto) {
     lines.push(`sapcrypto = "${runtime.sapcrypto}"`);
   }
@@ -765,7 +486,6 @@ async function finalizeDevcontainer(
   args: Args,
   staged?: StagedRuntime,
 ): Promise<void> {
-  await ensureP2Sdk(root, args);
   const devcontainerConfigPath = join(
     root,
     ".devcontainer",

@@ -516,20 +516,14 @@ If this fails with `No SSO credentials available`, the Linux runtime does not ha
 
 ## Devcontainer Usage
 
-The devcontainer **image** installs the SAP ADT SDK at build time (`/opt/openadt/dist/p2/plugins` and `libsapjco3.so` via `@abapify/p2-cli` in `.devcontainer/Dockerfile`). That works in GitHub Codespaces and anywhere without a host machine. `postCreate` only merges config and optionally stages SNC/crypto from SAP archives when present.
-
-To re-download p2 into the workspace (custom image without `/opt/openadt`):
+The devcontainer does **not** download or redistribute SAP software. Stage Linux JCo/CryptoLib from archives you obtained under SAP license (for example under `~/.openadt/dist` on the host), then run bootstrap:
 
 ```bash
 bun install
-bun run bootstrap:devcontainer -- --non-interactive --provision-p2-sdk --skip-if-missing --container-workspace /workspaces/openadt
-```
-
-When SAP JCo/CryptoLib archives are available, bootstrap can also stage `sapcrypto` from zip/SAR:
-
-```bash
 bun run bootstrap:devcontainer -- --non-interactive --skip-if-missing --container-workspace /workspaces/openadt
 ```
+
+Run `openadt setup` inside the container so `adt_plugins_dir` points at your licensed Eclipse plugins (often via `/mnt/c/.../.p2/pool/plugins` on WSL). SDK `fetch`/`proxy` use the same classpath model as the Windows release (`openadt-full.jar` built on your machine).
 
 It writes local-only generated files:
 

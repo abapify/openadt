@@ -68,6 +68,9 @@ public class FetchCommand implements Callable<Integer> {
     @Option(names = {"--pretty"}, description = "Pretty-print JSON or XML response body")
     private boolean pretty;
 
+    @Option(names = {"--json"}, description = "Request JSON (Accept: application/json) and pretty-print the body")
+    private boolean json;
+
     @Option(names = {"--raw"}, description = "Body only on stdout; no proxy/tip messages on stderr")
     private boolean raw;
 
@@ -130,8 +133,14 @@ public class FetchCommand implements Callable<Integer> {
         if (inputs == null) {
             return 1;
         }
+        if (json) {
+            pretty = true;
+        }
 
         Map<String, String> headerMap = parseHeaders(this.headers);
+        if (json && accept.isEmpty() && !hasHeader(headerMap, HEADER_ACCEPT)) {
+            headerMap.put(HEADER_ACCEPT, "application/json");
+        }
         applyAcceptHeaders(headerMap, inputs.adtPath());
         byte[] requestBody = resolveBody(body);
 

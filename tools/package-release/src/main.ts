@@ -181,6 +181,7 @@ if (!existsSync(jarPath)) {
 }
 
 cpSync(jarPath, join(stageDir, "openadt.jar"));
+writeFileSync(join(stageDir, "VERSION"), `${version}\n`);
 cpSync(join(root, "LICENSE"), join(stageDir, "LICENSE"));
 writeLaunchers(stageDir);
 if (

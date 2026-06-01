@@ -108,7 +108,6 @@ final class SetupPathLocator {
         }
         paths.add(openadtSdkRoot().resolve("dist/p2/plugins"));
         paths.add(stagedDevcontainerDistDir().resolve("jco"));
-        paths.add(stagedDevcontainerDistDir().resolve("p2/plugins"));
         return paths;
     }
 

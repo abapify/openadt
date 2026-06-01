@@ -32,6 +32,8 @@ From a repo root with a built jar:
 
 ```powershell
 .\mvnw.cmd -q verify -f pom.xml -Pdistribution
+
+# Release zip: OpenADT only (MIT). SAP ADT/JCo are not bundled — use openadt setup + your adt_plugins_dir.
 $env:OPENADT_PACKAGE_WIN_EXE = "1"
 bun run package:release -- --version=1.1.2
 winget validate --manifest packaging\winget\manifests\o\OpenADT\OpenADT\1.1.2
