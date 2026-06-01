@@ -50,10 +50,10 @@ internal static class Program
         }
         catch (Win32Exception)
         {
-            var pwsh = Environment.GetEnvironmentVariable("ProgramFiles");
-            if (!string.IsNullOrWhiteSpace(pwsh))
+            var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            if (!string.IsNullOrWhiteSpace(programFiles) && Path.IsPathRooted(programFiles))
             {
-                var pwshExe = Path.Combine(pwsh, "PowerShell", "7", "pwsh.exe");
+                var pwshExe = Path.Combine(programFiles, "PowerShell", "7", "pwsh.exe");
                 if (File.Exists(pwshExe))
                 {
                     return RunPowerShellExecutable(pwshExe, home, launcher, args);
