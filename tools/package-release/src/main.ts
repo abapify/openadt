@@ -170,23 +170,6 @@ if (!existsSync(jarPath)) {
 
 cpSync(jarPath, join(stageDir, "openadt.jar"));
 writeFileSync(join(stageDir, "VERSION"), `${version}\n`);
-
-const sdkSupportJar = join(
-  root,
-  "apps/openadt-sap-adt/target",
-  `openadt-sap-adt-${version}.jar`,
-);
-if (existsSync(sdkSupportJar)) {
-  const libDir = join(stageDir, "lib");
-  mkdirSync(libDir, { recursive: true });
-  cpSync(sdkSupportJar, join(libDir, "openadt-sap-adt-sdk.jar"));
-} else {
-  console.warn(
-    `Warning: ${sdkSupportJar} missing — release zip will not include SDK transport classes. ` +
-      "Build sap-adt with -Dadt.plugins.dir before packaging.",
-  );
-}
-
 cpSync(join(root, "LICENSE"), join(stageDir, "LICENSE"));
 writeLaunchers(stageDir);
 if (

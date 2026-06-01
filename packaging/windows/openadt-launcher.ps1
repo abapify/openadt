@@ -15,7 +15,6 @@ if ((-not $OpenAdtArgs -or $OpenAdtArgs.Count -eq 0) -and $env:OPENADT_ARG_COUNT
 
 $OpenAdtHome = if ($env:OPENADT_HOME) { $env:OPENADT_HOME } else { Split-Path -Parent $PSScriptRoot }
 $LiteJar = Join-Path $OpenAdtHome "openadt.jar"
-$SdkSupportJar = Join-Path $OpenAdtHome "lib/openadt-sap-adt-sdk.jar"
 $FullJar = Join-Path $env:USERPROFILE ".openadt/runtime/openadt-full.jar"
 $VersionFile = Join-Path $OpenAdtHome "VERSION"
 
@@ -72,9 +71,6 @@ function Get-OpenAdtInstallVersion {
 
 function Ensure-SdkRuntimePrepared {
   param([string] $AdtPluginsDir)
-  if (Test-Path $SdkSupportJar) {
-    return
-  }
   if (Test-Path $FullJar) {
     $marker = Join-Path $env:USERPROFILE ".openadt/runtime/version.txt"
     if ((Test-Path $marker) -and ((Get-Content $marker -Raw).Trim() -eq (Get-OpenAdtInstallVersion))) {
@@ -121,14 +117,10 @@ function Invoke-SdkOpenAdt {
   if ($sapJars.Count -eq 0) {
     Write-Error "No SAP ADT bundles in $adtPluginsDir"
   }
-  $cp = @($LiteJar)
-  if (Test-Path $SdkSupportJar) {
-    $cp += $SdkSupportJar
-  } elseif (Test-Path $FullJar) {
-    $cp += $FullJar
-  } else {
-    Write-Error "SDK runtime is not available. Reinstall OpenADT or run 'openadt config build'."
+  if (-not (Test-Path $FullJar)) {
+    Write-Error "SDK runtime jar missing at $FullJar. Run: openadt setup  (or: openadt config build)"
   }
+  $cp = @($LiteJar, $FullJar)
   $jcoCorePattern = '^(?:com\.sap\.conn\.jco_\d|jco-\d[\d.]*)\.jar$'
   $jcoJars = @($sapJars | Where-Object { $_.Name -match $jcoCorePattern })
   $nonJcoJars = @($sapJars | Where-Object { $_.Name -notmatch $jcoCorePattern })
