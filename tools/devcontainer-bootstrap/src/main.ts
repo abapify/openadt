@@ -573,7 +573,7 @@ function stageJcoNativeFromFragment(
 function pathForChildProcess(): string {
   const current = process.env.PATH ?? process.env.Path ?? "";
   const delimiter = process.platform === "win32" ? ";" : ":";
-  const segments = current.split(delimiter).filter((entry) => entry.length > 0);
+  const segments = current.split(delimiter).filter((entry) => entry.trim().length > 0);
   const seen = new Set(segments);
   const extras =
     process.platform === "win32"

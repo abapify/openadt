@@ -106,8 +106,7 @@ final class SetupPathLocator {
         for (Path windowsHome : windowsUserHomes()) {
             paths.add(windowsHome.resolve(".p2/pool/plugins"));
         }
-        String sdkRoot = System.getenv("OPENADT_SDK_ROOT");
-        paths.add(Path.of(sdkRoot != null && !sdkRoot.isBlank() ? sdkRoot : "/opt/openadt").resolve("dist/p2/plugins"));
+        paths.add(openadtSdkRoot().resolve("dist/p2/plugins"));
         paths.add(stagedDevcontainerDistDir().resolve("jco"));
         paths.add(stagedDevcontainerDistDir().resolve("p2/plugins"));
         return paths;
@@ -123,12 +122,16 @@ final class SetupPathLocator {
             paths.add(windowsHome.resolve("ide-latest-released/eclipse"));
             paths.add(windowsHome.resolve("ide-2025-06/eclipse"));
         }
-        String sdkRoot = System.getenv("OPENADT_SDK_ROOT");
-        paths.add(Path.of(sdkRoot != null && !sdkRoot.isBlank() ? sdkRoot : "/opt/openadt").resolve("dist/jco"));
+        paths.add(openadtSdkRoot().resolve("dist/jco"));
         Path stagedDist = stagedDevcontainerDistDir();
         paths.add(stagedDist.resolve("jco"));
         paths.add(stagedDist.resolve("snc"));
         return paths;
+    }
+
+    private static Path openadtSdkRoot() {
+        String sdkRoot = System.getenv("OPENADT_SDK_ROOT");
+        return Path.of(sdkRoot != null && !sdkRoot.isBlank() ? sdkRoot : "/opt/openadt");
     }
 
     static List<Path> sapcryptoCandidates() {

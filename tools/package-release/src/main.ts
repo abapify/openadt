@@ -40,7 +40,9 @@ const jarFile = (() => {
   if (existsSync(snapshot)) {
     return snapshot;
   }
-  return plain;
+  throw new Error(
+    `Neither openadt-${version}.jar nor openadt-${version}-SNAPSHOT.jar found under ${join(cliDir, "target")}. Run 'mvn package' first.`,
+  );
 })();
 const jarPath = jarFile;
 const distDir = join(root, "packaging/dist");
