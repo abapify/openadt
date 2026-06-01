@@ -27,7 +27,13 @@ internal static class Program
 
     private static int RunPowerShellLauncher(string home, string launcher, string[] args)
     {
-        var start = new ProcessStartInfo("powershell.exe")
+        var systemRoot = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+        if (string.IsNullOrWhiteSpace(systemRoot))
+        {
+            systemRoot = Environment.GetEnvironmentVariable("SystemRoot") ?? @"C:\Windows";
+        }
+        var powershell = Path.Combine(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+        var start = new ProcessStartInfo(powershell)
         {
             UseShellExecute = false,
         };

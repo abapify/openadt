@@ -7,8 +7,9 @@
   "workspaceFolder": "/workspaces/openadt",
   "remoteEnv": {
     "OPENADT_CONFIG": "/workspaces/openadt/.devcontainer/openadt-config.toml",
+    "OPENADT_SDK_ROOT": "/opt/openadt",
     "SECUDIR": "/workspaces/openadt/.devcontainer/sec",
-    "LD_LIBRARY_PATH": "/workspaces/openadt/.devcontainer/dist/jco:/workspaces/openadt/.devcontainer/dist/snc"
+    "LD_LIBRARY_PATH": "/opt/openadt/dist/jco:/workspaces/openadt/.devcontainer/dist/jco:/workspaces/openadt/.devcontainer/dist/snc"
   },
   "postCreateCommand": "bun install && bun run bootstrap:devcontainer -- --non-interactive --skip-if-missing --container-workspace /workspaces/openadt",
   "customizations": {

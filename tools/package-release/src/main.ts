@@ -13,7 +13,7 @@ import { spawnSync } from "node:child_process";
 
 const root = resolve(import.meta.dir, "../../..");
 const cliDir = join(root, "apps/openadt-cli");
-const pomContent = readFileSync(join(cliDir, "pom.xml"), "utf8");
+const pomContent = readFileSync(join(root, "pom.xml"), "utf8");
 
 const versionArg = process.argv
   .find((a) => a.startsWith("--version="))
@@ -21,22 +21,17 @@ const versionArg = process.argv
 const version = versionArg ?? process.env.OPENADT_VERSION ?? readPomVersion();
 
 function readPomVersion(): string {
-  const match = /<version>([^<]+)<\/version>/.exec(pomContent);
+  const match =
+    /<artifactId>openadt-parent<\/artifactId>\s*\n\s*<version>([^<]+)<\/version>/.exec(
+      pomContent,
+    );
   if (!match) {
     throw new Error("Could not read version from pom.xml");
   }
   return match[1].trim().replace(/-SNAPSHOT$/, "");
 }
 
-const jarFile = (() => {
-  const pomVersion = /<version>([^<]+)<\/version>/
-    .exec(pomContent)?.[1]
-    ?.trim();
-  const name = pomVersion
-    ? `openadt-${pomVersion}.jar`
-    : `openadt-${version}.jar`;
-  return join(cliDir, "target", name);
-})();
+const jarFile = join(cliDir, "target", `openadt-${version}.jar`);
 const jarPath = jarFile;
 const distDir = join(root, "packaging/dist");
 const stageDir = join(distDir, `openadt-${version}`);

@@ -156,9 +156,12 @@ function latestGitTag(): string | null {
 }
 
 function readPomBaselineVersion(): SemVer {
-  const pomPath = join(root, "apps/openadt-cli/pom.xml");
+  const pomPath = join(root, "pom.xml");
   const pom = readFileSync(pomPath, "utf8");
-  const match = /<version>([^<]+)<\/version>/.exec(pom);
+  const match =
+    /<artifactId>openadt-parent<\/artifactId>\s*\n\s*<version>([^<]+)<\/version>/.exec(
+      pom,
+    );
   if (!match) {
     throw new Error(`Could not read version from ${pomPath}`);
   }
@@ -166,14 +169,17 @@ function readPomBaselineVersion(): SemVer {
 }
 
 function writePomVersion(version: string): void {
-  const pomPath = join(root, "apps/openadt-cli/pom.xml");
+  const pomPath = join(root, "pom.xml");
   const pom = readFileSync(pomPath, "utf8");
-  const parentEnd = pom.indexOf("</parent>");
-  const searchFrom = parentEnd >= 0 ? parentEnd + "</parent>".length : 0;
-  const openTag = pom.indexOf("<version>", searchFrom);
+  const marker = "<artifactId>openadt-parent</artifactId>";
+  const markerIndex = pom.indexOf(marker);
+  if (markerIndex < 0) {
+    throw new Error(`Could not find openadt-parent in ${pomPath}`);
+  }
+  const openTag = pom.indexOf("<version>", markerIndex);
   const closeTag = pom.indexOf("</version>", openTag);
   if (openTag < 0 || closeTag < 0) {
-    throw new Error(`Could not update project version in ${pomPath}`);
+    throw new Error(`Could not update parent version in ${pomPath}`);
   }
   const updated = `${pom.slice(0, openTag)}<version>${version}</version>${pom.slice(closeTag + "</version>".length)}`;
   writeFileSync(pomPath, updated);
