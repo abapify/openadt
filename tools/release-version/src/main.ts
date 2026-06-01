@@ -159,7 +159,7 @@ function readPomBaselineVersion(): SemVer {
   const pomPath = join(root, "pom.xml");
   const pom = readFileSync(pomPath, "utf8");
   const match =
-    /<artifactId>openadt-parent<\/artifactId>\s*\n\s*<version>([^<]+)<\/version>/.exec(
+    /<artifactId>openadt-parent<\/artifactId>\s+<version>([^<]+)<\/version>/.exec(
       pom,
     );
   if (!match) {
@@ -186,16 +186,16 @@ function writeOpenAdtParentVersion(pomPath: string, version: string): void {
   writeFileSync(pomPath, updated);
 }
 
-function syncModuleParentVersions(version: string): void {
-  const appsDir = join(root, "apps");
-  if (!existsSync(appsDir)) {
-    return;
-  }
-  for (const entry of readdirSync(appsDir, { withFileTypes: true })) {
-    if (!entry.isDirectory()) {
-      continue;
-    }
-    const pomPath = join(appsDir, entry.name, "pom.xml");
+function writePomVersion(version: string): void {
+  const pomFiles = [
+    "pom.xml",
+    "apps/openadt-config/pom.xml",
+    "apps/openadt-sap-adt/pom.xml",
+    "apps/openadt-bootstrap/pom.xml",
+    "apps/openadt-cli/pom.xml",
+  ];
+  for (const relPath of pomFiles) {
+    const pomPath = join(root, relPath);
     if (!existsSync(pomPath)) {
       continue;
     }
@@ -223,11 +223,11 @@ function repairCliDependencyPluginVersion(): void {
   }
   pom = pom.replace(
     /(<artifactId>maven-dependency-plugin<\/artifactId>\s*\n\s*<version>)[^<]+(<\/version>)/,
-    "$13.10.0$2",
+    "$13.11.0$2",
   );
   writeFileSync(pomPath, pom);
   console.log(
-    `Repaired maven-dependency-plugin ${pluginVersion} -> 3.10.0 in apps/openadt-cli/pom.xml`,
+    `Repaired maven-dependency-plugin ${pluginVersion} -> 3.11.0 in apps/openadt-cli/pom.xml`,
   );
 }
 
@@ -339,8 +339,7 @@ const nextVersion = formatVersion(
   bumpVersion(baseVersion, bumpArg, prereleaseId),
 );
 
-writeOpenAdtParentVersion(join(root, "pom.xml"), nextVersion);
-syncModuleParentVersions(nextVersion);
+writePomVersion(nextVersion);
 repairCliDependencyPluginVersion();
 
 const wingetVersions = listWingetVersionDirs();

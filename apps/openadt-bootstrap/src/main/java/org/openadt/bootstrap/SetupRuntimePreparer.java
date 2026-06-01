@@ -129,15 +129,25 @@ public final class SetupRuntimePreparer {
             if (systemRoot == null || systemRoot.isBlank()) {
                 systemRoot = "C:\\Windows";
             }
+            String trustedPath = systemRoot + "\\System32\\WindowsPowerShell\\v1.0;"
+                + systemRoot + "\\System32;"
+                + systemRoot;
+            String inheritedPath = builder.environment().getOrDefault("PATH", System.getenv("PATH"));
             builder.environment().put(
                 "PATH",
-                systemRoot + "\\System32\\WindowsPowerShell\\v1.0;"
-                    + systemRoot + "\\System32;"
-                    + systemRoot
+                inheritedPath == null || inheritedPath.isBlank()
+                    ? trustedPath
+                    : trustedPath + ";" + inheritedPath
             );
             return;
         }
-        builder.environment().put("PATH", "/usr/bin:/bin");
+        String inheritedPath = builder.environment().getOrDefault("PATH", System.getenv("PATH"));
+        builder.environment().put(
+            "PATH",
+            inheritedPath == null || inheritedPath.isBlank()
+                ? "/usr/bin:/bin"
+                : "/usr/bin:/bin:" + inheritedPath
+        );
     }
 
     private static String windowsSystemExecutable(String relativePath) {
