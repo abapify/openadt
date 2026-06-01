@@ -26,7 +26,7 @@ Manual **Release** workflow (Actions → Release → Run workflow):
 1. Choose **version bump**: `patch`, `minor`, `major`, `prerelease`, `prepatch`, `preminor`, `premajor`
 2. Optionally set **prerelease id** (`rc`, `beta`, `alpha`) — required only for `prerelease`, `prepatch`, `preminor`, and `premajor` (omit for `patch` / `minor` / `major`)
 3. Job `bump` reads the latest `v*` tag (or `pom.xml` baseline), bumps `pom.xml`, winget manifests, Homebrew `STABLE`, and Scoop `openadt.json`, then commits and pushes the version-bump commit
-4. Job `publish` checks out that bump commit, builds, runs `package:release`, commits winget/homebrew/scoop checksum updates, tags `vX.Y.Z`, pushes, and publishes GitHub Release assets
+4. Job `publish` checks out that bump commit, builds, runs `package:release`, commits winget/homebrew/scoop checksum updates, tags `vX.Y.Z`, pushes, syncs Scoop manifests (branch `scoop-bucket` on this repo; optional `abapify/scoop-bucket` when secret `OPENADT_SCOOP_BUCKET_TOKEN` is set), and publishes GitHub Release assets
 
 Local dry-run (no git writes):
 

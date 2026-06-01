@@ -117,9 +117,11 @@ jobs:
           git push origin HEAD:${{ github.ref_name }}
           git push origin "${{ needs.bump.outputs.tag }}"
 
-      - name: Sync scoop-bucket branch (scoop install openadt)
+      - name: Sync scoop bucket manifests
         shell: bash
-        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENADT_SCOOP_BUCKET_TOKEN: ${{ secrets.OPENADT_SCOOP_BUCKET_TOKEN }}
         run: bash tools/sync-scoop-bucket/sync.sh
 
       - name: Create GitHub release

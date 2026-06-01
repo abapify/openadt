@@ -22,7 +22,12 @@ Alternative without adding a bucket (manifest URL):
 scoop install https://raw.githubusercontent.com/abapify/openadt/main/packaging/scoop/openadt.json
 ```
 
-The Release workflow syncs `packaging/scoop/openadt.json` into the [`abapify/scoop-bucket`](https://github.com/abapify/scoop-bucket) repository after each publish.
+Each release pushes `packaging/scoop/openadt.json` to branch [`scoop-bucket`](https://github.com/abapify/openadt/tree/scoop-bucket) on this repo (works with default `GITHUB_TOKEN`). Optionally set repo secret `OPENADT_SCOOP_BUCKET_TOKEN` to also update [`abapify/scoop-bucket`](https://github.com/abapify/scoop-bucket).
+
+```powershell
+scoop bucket add openadt https://github.com/abapify/openadt.git#scoop-bucket
+# or: scoop bucket add openadt https://github.com/abapify/scoop-bucket.git
+```
 
 Scoop installs OpenADT (`openadt.jar` + `openadt.exe`) and suggests JDK 21. SAP JCo, Secure Login, and landscape data are not bundled.
 
