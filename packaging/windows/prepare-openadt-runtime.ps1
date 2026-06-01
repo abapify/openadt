@@ -29,7 +29,7 @@ if (-not $Force -and (Test-Path (Join-Path $runtimeDir "version.txt"))) {
   }
 }
 
-if (-not (Test-Path (Join-Path $sourceDir "apps/openadt-cli/mvnw.cmd"))) {
+if (-not (Test-Path (Join-Path $sourceDir "mvnw.cmd"))) {
   Write-Host "Downloading OpenADT $tag source..."
   $url = "https://github.com/abapify/openadt/archive/refs/tags/$tag.zip"
   Invoke-WebRequest -Uri $url -OutFile $zipPath
@@ -45,16 +45,17 @@ if (-not (Test-Path (Join-Path $sourceDir "apps/openadt-cli/mvnw.cmd"))) {
 }
 
 $cliDir = Join-Path $sourceDir "apps/openadt-cli"
-Push-Location $cliDir
+Push-Location $sourceDir
 try {
   Write-Host "Building full OpenADT runtime jar (first run may take a few minutes)..."
-  ./mvnw.cmd -q package "-Dmaven.test.skip=true" "-Dadt.plugins.dir=$AdtPluginsDir"
-  $built = Get-ChildItem "target/openadt-*.jar" |
+  ./mvnw.cmd -q -f pom.xml -pl apps/openadt-cli -am package `
+    "-Dmaven.test.skip=true" "-Dadt.plugins.dir=$AdtPluginsDir"
+  $built = Get-ChildItem (Join-Path $cliDir "target/openadt-*.jar") |
     Where-Object { $_.Name -notmatch '-sources|-javadoc' } |
     Sort-Object LastWriteTime -Descending |
     Select-Object -First 1
   if (-not $built) {
-    Write-Error "Maven build did not produce openadt-*.jar in target/"
+    Write-Error "Maven build did not produce openadt-*.jar in apps/openadt-cli/target/"
   }
   Copy-Item -LiteralPath $built.FullName -Destination $outJar -Force
   $sapLib = Join-Path $cliDir "target/sap-lib"

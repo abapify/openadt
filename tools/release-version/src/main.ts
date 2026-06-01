@@ -156,9 +156,12 @@ function latestGitTag(): string | null {
 }
 
 function readPomBaselineVersion(): SemVer {
-  const pomPath = join(root, "apps/openadt-cli/pom.xml");
+  const pomPath = join(root, "pom.xml");
   const pom = readFileSync(pomPath, "utf8");
-  const match = /<version>([^<]+)<\/version>/.exec(pom);
+  const match =
+    /<artifactId>openadt-parent<\/artifactId>\s+<version>([^<]+)<\/version>/.exec(
+      pom,
+    );
   if (!match) {
     throw new Error(`Could not read version from ${pomPath}`);
   }
@@ -166,17 +169,35 @@ function readPomBaselineVersion(): SemVer {
 }
 
 function writePomVersion(version: string): void {
-  const pomPath = join(root, "apps/openadt-cli/pom.xml");
-  const pom = readFileSync(pomPath, "utf8");
-  const parentEnd = pom.indexOf("</parent>");
-  const searchFrom = parentEnd >= 0 ? parentEnd + "</parent>".length : 0;
-  const openTag = pom.indexOf("<version>", searchFrom);
-  const closeTag = pom.indexOf("</version>", openTag);
-  if (openTag < 0 || closeTag < 0) {
-    throw new Error(`Could not update project version in ${pomPath}`);
+  const pomFiles = [
+    "pom.xml",
+    "apps/openadt-config/pom.xml",
+    "apps/openadt-sap-adt/pom.xml",
+    "apps/openadt-bootstrap/pom.xml",
+    "apps/openadt-cli/pom.xml",
+  ];
+  for (const relPath of pomFiles) {
+    const pomPath = join(root, relPath);
+    if (!existsSync(pomPath)) {
+      continue;
+    }
+    const pom = readFileSync(pomPath, "utf8");
+    const marker = "<artifactId>openadt-parent</artifactId>";
+    const markerIndex = pom.indexOf(marker);
+    if (markerIndex < 0) {
+      if (relPath === "pom.xml") {
+        throw new Error(`Could not find openadt-parent in ${pomPath}`);
+      }
+      continue;
+    }
+    const openTag = pom.indexOf("<version>", markerIndex);
+    const closeTag = pom.indexOf("</version>", openTag);
+    if (openTag < 0 || closeTag < 0) {
+      throw new Error(`Could not update version in ${pomPath}`);
+    }
+    const updated = `${pom.slice(0, openTag)}<version>${version}</version>${pom.slice(closeTag + "</version>".length)}`;
+    writeFileSync(pomPath, updated);
   }
-  const updated = `${pom.slice(0, openTag)}<version>${version}</version>${pom.slice(closeTag + "</version>".length)}`;
-  writeFileSync(pomPath, updated);
 }
 
 function listWingetVersionDirs(): string[] {

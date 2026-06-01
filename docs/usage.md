@@ -516,11 +516,19 @@ If this fails with `No SSO credentials available`, the Linux runtime does not ha
 
 ## Devcontainer Usage
 
-The devcontainer bootstrap prepares Linux-native runtime files when SAP archives are available locally:
+The devcontainer **image** installs the SAP ADT SDK at build time (`/opt/openadt/dist/p2/plugins` and `libsapjco3.so` via `@abapify/p2-cli` in `.devcontainer/Dockerfile`). That works in GitHub Codespaces and anywhere without a host machine. `postCreate` only merges config and optionally stages SNC/crypto from SAP archives when present.
+
+To re-download p2 into the workspace (custom image without `/opt/openadt`):
 
 ```bash
 bun install
-bun run bootstrap:devcontainer -- --non-interactive --container-workspace /workspaces/openadt
+bun run bootstrap:devcontainer -- --non-interactive --provision-p2-sdk --skip-if-missing --container-workspace /workspaces/openadt
+```
+
+When SAP JCo/CryptoLib archives are available, bootstrap can also stage `sapcrypto` from zip/SAR:
+
+```bash
+bun run bootstrap:devcontainer -- --non-interactive --skip-if-missing --container-workspace /workspaces/openadt
 ```
 
 It writes local-only generated files:
