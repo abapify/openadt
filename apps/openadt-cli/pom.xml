@@ -7,7 +7,7 @@
     <parent>
         <groupId>org.openadt</groupId>
         <artifactId>openadt-parent</artifactId>
-        <version>1.2.1</version>
+        <version>1.1.2</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
 
@@ -57,7 +57,7 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-dependency-plugin</artifactId>
-                        <version>3.10.0</version>
+                        <version>1.2.0</version>
                         <executions>
                             <execution>
                                 <id>copy-sap-bundles</id>

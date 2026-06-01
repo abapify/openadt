@@ -168,11 +168,12 @@ function readPomBaselineVersion(): SemVer {
   return parseVersion(match[1].trim().replace(/-SNAPSHOT$/, ""));
 }
 
-function writePomVersion(version: string): void {
-  const pomPath = join(root, "pom.xml");
+const PARENT_COORD_MARKER = "<artifactId>openadt-parent</artifactId>";
+
+/** Updates only the parent coordinate version (never plugin or dependency versions). */
+function writeOpenAdtParentVersion(pomPath: string, version: string): void {
   const pom = readFileSync(pomPath, "utf8");
-  const marker = "<artifactId>openadt-parent</artifactId>";
-  const markerIndex = pom.indexOf(marker);
+  const markerIndex = pom.indexOf(PARENT_COORD_MARKER);
   if (markerIndex < 0) {
     throw new Error(`Could not find openadt-parent in ${pomPath}`);
   }
@@ -183,6 +184,51 @@ function writePomVersion(version: string): void {
   }
   const updated = `${pom.slice(0, openTag)}<version>${version}</version>${pom.slice(closeTag + "</version>".length)}`;
   writeFileSync(pomPath, updated);
+}
+
+function syncModuleParentVersions(version: string): void {
+  const appsDir = join(root, "apps");
+  if (!existsSync(appsDir)) {
+    return;
+  }
+  for (const entry of readdirSync(appsDir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+    const pomPath = join(appsDir, entry.name, "pom.xml");
+    if (!existsSync(pomPath)) {
+      continue;
+    }
+    writeOpenAdtParentVersion(pomPath, version);
+  }
+}
+
+/** v1.2.0 release tooling once wrote the product version into maven-dependency-plugin. */
+function repairCliDependencyPluginVersion(): void {
+  const pomPath = join(root, "apps/openadt-cli/pom.xml");
+  if (!existsSync(pomPath)) {
+    return;
+  }
+  let pom = readFileSync(pomPath, "utf8");
+  const match =
+    /<artifactId>maven-dependency-plugin<\/artifactId>\s*\n\s*<version>([^<]+)<\/version>/.exec(
+      pom,
+    );
+  if (!match) {
+    return;
+  }
+  const pluginVersion = match[1].trim();
+  if (!/^1\.\d+\.\d+$/.test(pluginVersion)) {
+    return;
+  }
+  pom = pom.replace(
+    /(<artifactId>maven-dependency-plugin<\/artifactId>\s*\n\s*<version>)[^<]+(<\/version>)/,
+    "$13.10.0$2",
+  );
+  writeFileSync(pomPath, pom);
+  console.log(
+    `Repaired maven-dependency-plugin ${pluginVersion} -> 3.10.0 in apps/openadt-cli/pom.xml`,
+  );
 }
 
 function listWingetVersionDirs(): string[] {
@@ -293,7 +339,9 @@ const nextVersion = formatVersion(
   bumpVersion(baseVersion, bumpArg, prereleaseId),
 );
 
-writePomVersion(nextVersion);
+writeOpenAdtParentVersion(join(root, "pom.xml"), nextVersion);
+syncModuleParentVersions(nextVersion);
+repairCliDependencyPluginVersion();
 
 const wingetVersions = listWingetVersionDirs();
 const wingetTemplate = wingetVersions.at(0) ?? "1.0.0";

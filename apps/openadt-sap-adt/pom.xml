@@ -7,7 +7,7 @@
     <parent>
         <groupId>org.openadt</groupId>
         <artifactId>openadt-parent</artifactId>
-        <version>1.2.1</version>
+        <version>1.1.2</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
 
@@ -67,17 +67,6 @@
             </properties>
             <build>
                 <plugins>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-surefire-plugin</artifactId>
-                        <configuration>
-                            <excludes>
-                                <exclude>**/AdtSdkTransportClientTest.java</exclude>
-                                <exclude>**/AdtTransportFactoryTest.java</exclude>
-                                <exclude>**/EclipseDestinationLoaderTest.java</exclude>
-                            </excludes>
-                        </configuration>
-                    </plugin>
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-compiler-plugin</artifactId>
