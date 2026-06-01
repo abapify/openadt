@@ -538,7 +538,7 @@ function findLinuxJcoFragmentJar(pluginsDir: string): string | undefined {
   }
   return files
     .map((file) => {
-      const m = /\.(\d+(?:\.\d+)+)\.jar$/i.exec(basename(file));
+      const m = /_(\d+(?:\.\d+)+)\.jar$/i.exec(basename(file));
       const key = m
         ? m[1].split(".").map((p) => Number.parseInt(p, 10))
         : [0];

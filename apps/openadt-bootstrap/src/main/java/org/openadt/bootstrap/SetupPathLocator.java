@@ -131,7 +131,8 @@ final class SetupPathLocator {
 
     private static Path openadtSdkRoot() {
         String sdkRoot = System.getenv("OPENADT_SDK_ROOT");
-        return Path.of(sdkRoot != null && !sdkRoot.isBlank() ? sdkRoot : "/opt/openadt");
+        String trimmed = sdkRoot != null ? sdkRoot.trim() : "";
+        return Path.of(!trimmed.isBlank() ? trimmed : "/opt/openadt");
     }
 
     static List<Path> sapcryptoCandidates() {

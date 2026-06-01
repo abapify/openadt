@@ -57,7 +57,7 @@ RUN curl -fsSL -o /tmp/bun-install.sh https://bun.sh/install \
 # SAP ADT SDK (Eclipse p2) — baked into the image for Codespaces/devcontainer (no host bootstrap).
 ARG OPENADT_SDK_ROOT=/opt/openadt
 ENV OPENADT_SDK_ROOT=${OPENADT_SDK_ROOT}
-COPY package.json bun.lock* /tmp/openadt-image-sdk/
+COPY package.json /tmp/openadt-image-sdk/
 WORKDIR /tmp/openadt-image-sdk
 RUN bun install \
     && mkdir -p "${OPENADT_SDK_ROOT}/dist/p2" "${OPENADT_SDK_ROOT}/dist/jco" \
