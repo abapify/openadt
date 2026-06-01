@@ -22,7 +22,7 @@ const version = versionArg ?? process.env.OPENADT_VERSION ?? readPomVersion();
 
 function readPomVersion(): string {
   const match =
-    /<artifactId>openadt-parent<\/artifactId>\s*\n\s*<version>([^<]+)<\/version>/.exec(
+    /<artifactId>openadt-parent<\/artifactId>\s+<version>([^<]+)<\/version>/.exec(
       pomContent,
     );
   if (!match) {
@@ -31,7 +31,17 @@ function readPomVersion(): string {
   return match[1].trim().replace(/-SNAPSHOT$/, "");
 }
 
-const jarFile = join(cliDir, "target", `openadt-${version}.jar`);
+const jarFile = (() => {
+  const plain = join(cliDir, "target", `openadt-${version}.jar`);
+  if (existsSync(plain)) {
+    return plain;
+  }
+  const snapshot = join(cliDir, "target", `openadt-${version}-SNAPSHOT.jar`);
+  if (existsSync(snapshot)) {
+    return snapshot;
+  }
+  return plain;
+})();
 const jarPath = jarFile;
 const distDir = join(root, "packaging/dist");
 const stageDir = join(distDir, `openadt-${version}`);

@@ -44,7 +44,7 @@ type Args = {
 };
 
 type DevcontainerRuntimePaths = {
-  adtPluginsDir: string;
+  adtPluginsDir?: string;
   jcoJar: string;
   jcoNativeDir: string;
   sapcrypto?: string;
@@ -498,6 +498,9 @@ function hasRequiredAdtBundles(pluginsDir: string): boolean {
 }
 
 function findLatestJcoPluginJar(pluginsDir: string): string | undefined {
+  if (!existsSync(pluginsDir)) {
+    return undefined;
+  }
   const pattern = /^com\.sap\.conn\.jco_(\d+(?:\.\d+)+)\.jar$/;
   let latest: { path: string; key: number[] } | undefined;
   for (const name of readdirSync(pluginsDir)) {
@@ -527,12 +530,23 @@ function compareVersionKeys(left: number[], right: number[]): number {
 }
 
 function findLinuxJcoFragmentJar(pluginsDir: string): string | undefined {
-  return walkFiles(pluginsDir)
-    .filter((file) =>
-      /^com\.sap\.conn\.jco\.linux\.[^/\\]+\.jar$/i.test(basename(file)),
-    )
-    .sort()
-    .at(-1);
+  const files = walkFiles(pluginsDir).filter((file) =>
+    /^com\.sap\.conn\.jco\.linux\.[^/\\]+\.jar$/i.test(basename(file)),
+  );
+  if (files.length === 0) {
+    return undefined;
+  }
+  return files
+    .map((file) => {
+      const m = /\.(\d+(?:\.\d+)+)\.jar$/i.exec(basename(file));
+      const key = m
+        ? m[1].split(".").map((p) => Number.parseInt(p, 10))
+        : [0];
+      return { file, key };
+    })
+    .reduce((best, cur) =>
+      compareVersionKeys(cur.key, best.key) > 0 ? cur : best,
+    ).file;
 }
 
 function stageJcoNativeFromFragment(
@@ -558,8 +572,9 @@ function stageJcoNativeFromFragment(
 
 function pathForChildProcess(): string {
   const current = process.env.PATH ?? process.env.Path ?? "";
-  const segments = current.split(process.platform === "win32" ? ";" : ":");
-  const seen = new Set(segments.filter((entry) => entry.length > 0));
+  const delimiter = process.platform === "win32" ? ";" : ":";
+  const segments = current.split(delimiter).filter((entry) => entry.length > 0);
+  const seen = new Set(segments);
   const extras =
     process.platform === "win32"
       ? []
@@ -577,7 +592,7 @@ function pathForChildProcess(): string {
       seen.add(extra);
     }
   }
-  return segments.join(process.platform === "win32" ? ";" : ":");
+  return segments.join(delimiter);
 }
 
 function runP2Download(root: string, outputDir: string): void {
@@ -689,7 +704,9 @@ function resolveDevcontainerRuntime(
   if (imageSdkReady()) {
     const pluginsDir = imageSdkPluginsDir();
     const jcoNativeDir = `${OPENADT_IMAGE_SDK_ROOT}/dist/jco`;
-    const latestJco = findLatestJcoPluginJar(pluginsDir);
+    const latestJco = existsSync(pluginsDir)
+      ? findLatestJcoPluginJar(pluginsDir)
+      : undefined;
     return {
       adtPluginsDir: `${OPENADT_IMAGE_SDK_ROOT}/dist/p2/plugins`,
       jcoJar: latestJco
@@ -705,9 +722,12 @@ function resolveDevcontainerRuntime(
   const latestJco = existsSync(pluginsDir)
     ? findLatestJcoPluginJar(pluginsDir)
     : undefined;
+  const adtPluginsDir = hasRequiredAdtBundles(pluginsDir)
+    ? `${containerWorkspace}/.devcontainer/dist/p2/plugins`
+    : undefined;
 
   return {
-    adtPluginsDir: `${containerWorkspace}/.devcontainer/dist/p2/plugins`,
+    adtPluginsDir,
     jcoJar: latestJco
       ? toContainerWorkspacePath(root, containerWorkspace, latestJco)
       : `${containerWorkspace}/.devcontainer/dist/jco/sapjco3.jar`,
@@ -725,10 +745,12 @@ function writeDevcontainerRuntime(
     "version = 1",
     "",
     "[runtime]",
-    `adt_plugins_dir = "${runtime.adtPluginsDir}"`,
-    `jco_jar = "${runtime.jcoJar}"`,
-    `jco_native_dir = "${runtime.jcoNativeDir}"`,
   ];
+  if (runtime.adtPluginsDir) {
+    lines.push(`adt_plugins_dir = "${runtime.adtPluginsDir}"`);
+  }
+  lines.push(`jco_jar = "${runtime.jcoJar}"`);
+  lines.push(`jco_native_dir = "${runtime.jcoNativeDir}"`);
   if (runtime.sapcrypto) {
     lines.push(`sapcrypto = "${runtime.sapcrypto}"`);
   }
