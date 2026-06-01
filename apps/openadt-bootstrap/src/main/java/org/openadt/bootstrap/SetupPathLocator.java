@@ -106,7 +106,7 @@ final class SetupPathLocator {
         for (Path windowsHome : windowsUserHomes()) {
             paths.add(windowsHome.resolve(".p2/pool/plugins"));
         }
-        paths.add(Path.of("/opt/openadt/dist/p2/plugins"));
+        paths.add(openadtSdkRoot().resolve("dist/p2/plugins"));
         paths.add(stagedDevcontainerDistDir().resolve("jco"));
         paths.add(stagedDevcontainerDistDir().resolve("p2/plugins"));
         return paths;
@@ -122,11 +122,25 @@ final class SetupPathLocator {
             paths.add(windowsHome.resolve("ide-latest-released/eclipse"));
             paths.add(windowsHome.resolve("ide-2025-06/eclipse"));
         }
-        paths.add(Path.of("/opt/openadt/dist/jco"));
+        paths.add(openadtSdkRoot().resolve("dist/jco"));
         Path stagedDist = stagedDevcontainerDistDir();
         paths.add(stagedDist.resolve("jco"));
         paths.add(stagedDist.resolve("snc"));
         return paths;
+    }
+
+    private static Path openadtSdkRoot() {
+        String sdkRoot = System.getenv("OPENADT_SDK_ROOT");
+        String trimmed = sdkRoot != null ? sdkRoot.trim() : "";
+        if (!trimmed.isBlank()) {
+            try {
+                return Path.of(trimmed);
+            } catch (Exception e) {
+                System.err.println(
+                        "WARN: Invalid OPENADT_SDK_ROOT value '" + trimmed + "', falling back to /opt/openadt");
+            }
+        }
+        return Path.of("/opt/openadt");
     }
 
     static List<Path> sapcryptoCandidates() {

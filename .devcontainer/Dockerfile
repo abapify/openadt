@@ -57,19 +57,22 @@ RUN curl -fsSL -o /tmp/bun-install.sh https://bun.sh/install \
 # SAP ADT SDK (Eclipse p2) — baked into the image for Codespaces/devcontainer (no host bootstrap).
 ARG OPENADT_SDK_ROOT=/opt/openadt
 ENV OPENADT_SDK_ROOT=${OPENADT_SDK_ROOT}
-COPY package.json bun.lock /tmp/openadt-image-sdk/
+COPY package.json /tmp/openadt-image-sdk/
 WORKDIR /tmp/openadt-image-sdk
-RUN bun install --frozen-lockfile 2>/dev/null || bun install \
+RUN bun install \
     && mkdir -p "${OPENADT_SDK_ROOT}/dist/p2" "${OPENADT_SDK_ROOT}/dist/jco" \
     && bun ./node_modules/@abapify/p2-cli/dist/cli.mjs download \
         "https://tools.hana.ondemand.com/latest" \
         -o "${OPENADT_SDK_ROOT}/dist/p2" \
         -f "com.sap.adt.*,com.sap.conn.jco.*,org.eclipse.core.*,org.eclipse.equinox.*,org.eclipse.osgi*,org.osgi.*" \
-    && FRAG="$(ls -1 "${OPENADT_SDK_ROOT}/dist/p2/plugins"/com.sap.conn.jco.linux.*.jar 2>/dev/null | sort -V | tail -1)" \
-    && test -n "${FRAG}" \
+    && JARS=("${OPENADT_SDK_ROOT}/dist/p2/plugins"/com.sap.conn.jco.linux.*.jar) \
+    && FRAG="$(printf '%s\n' "${JARS[@]}" | sort -V | tail -1)" \
+    && test -f "${FRAG}" \
     && SO_PATH="$(unzip -l "${FRAG}" | awk '/libsapjco3\.so$/ { print $4; exit }')" \
     && test -n "${SO_PATH}" \
     && unzip -p "${FRAG}" "${SO_PATH}" > "${OPENADT_SDK_ROOT}/dist/jco/libsapjco3.so" \
+    && cd / \
     && rm -rf /tmp/openadt-image-sdk
 
+WORKDIR /
 ENV LD_LIBRARY_PATH="${OPENADT_SDK_ROOT}/dist/jco:${LD_LIBRARY_PATH}"
