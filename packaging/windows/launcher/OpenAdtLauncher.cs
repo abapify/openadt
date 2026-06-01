@@ -53,11 +53,11 @@ internal static class Program
             var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
             if (!string.IsNullOrWhiteSpace(programFiles) && Path.IsPathRooted(programFiles))
             {
-                var pwshExe = Path.Combine(
+                var pwshExe = Path.Join(
                     programFiles,
-                    "PowerShell".TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
-                    "7".TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
-                    "pwsh.exe".TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+                    "PowerShell",
+                    "7",
+                    "pwsh.exe");
                 if (File.Exists(pwshExe))
                 {
                     return RunPowerShellExecutable(pwshExe, home, launcher, args);
