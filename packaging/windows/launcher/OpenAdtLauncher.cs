@@ -33,7 +33,7 @@ internal static class Program
             systemRoot = Environment.GetEnvironmentVariable("SystemRoot") ?? @"C:\Windows";
         }
         var systemRootFull = Path.GetFullPath(systemRoot);
-        var powershell = Path.Combine(systemRootFull, @"System32\WindowsPowerShell\v1.0\powershell.exe");
+        var powershell = Path.Combine(systemRootFull, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
         var start = new ProcessStartInfo(powershell)
         {
             UseShellExecute = false,
