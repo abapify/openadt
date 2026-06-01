@@ -27,7 +27,7 @@ Maven modules: [apps/ARCHITECTURE.md](apps/ARCHITECTURE.md).
 1. Read specs/ before broad implementation changes ([specs/README.md](specs/README.md)).
 2. Prefer TDD for config, proxy auth, header redaction, detectors.
 3. SAP/JCo integration tests: `@Tag("integration")`, skipped by default.
-4. Never commit SAP JCo jars, sapcrypto, or Secure Login files.
+4. Never commit SAP JCo jars, sapcrypto, or Secure Login files. Do not download SAP ADT/JCo into CI, Docker images, or release zips — users supply licensed installs (`~/.p2`, SAP Support Portal archives).
 5. **Never commit private SAP landscape data** — use fictional fixtures only: `DEV`, `DEVELOPER`, `dev-ms.example.com`, `DEV_100_developer_en`, `PUBLIC`, `p:CN=SAPServiceDEV`, fake UUIDs.
 6. Redact secrets in logs.
 7. Update specs/ when command behavior changes.
