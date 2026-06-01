@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Sync packaging/scoop/openadt.json to Scoop install sources.
-# - Default (CI): push openadt.json to branch scoop-bucket on GITHUB_REPOSITORY (GITHUB_TOKEN).
-# - Optional: push to abapify/scoop-bucket when OPENADT_SCOOP_BUCKET_TOKEN (or GH_TOKEN) can write there.
+# - CI (GITHUB_TOKEN): branch scoop-bucket on this repo (always).
+# - abapify/scoop-bucket: git push or Contents API when OPENADT_SCOOP_BUCKET_TOKEN is set.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -29,8 +29,43 @@ git_token() {
   fi
 }
 
+scoop_bucket_token() {
+  if [[ -n "${OPENADT_SCOOP_BUCKET_TOKEN:-}" ]]; then
+    printf '%s' "${OPENADT_SCOOP_BUCKET_TOKEN}"
+  fi
+}
+
 remote_exists() {
   git ls-remote --heads "$1" "$2" 2>/dev/null | grep -q .
+}
+
+manifest_base64() {
+  if base64 --help 2>&1 | grep -q -- '-w'; then
+    base64 -w0 "${manifest}"
+  else
+    base64 <"${manifest}" | tr -d '\n'
+  fi
+}
+
+push_manifest_via_gh_contents() {
+  local repo_slug="$1"
+  local token="$2"
+  export GH_TOKEN="${token}"
+  local sha=""
+  sha="$(gh api "repos/${repo_slug}/contents/openadt.json" --jq .sha 2>/dev/null || true)"
+  local content
+  content="$(manifest_base64)"
+  local api_args=(
+    --method PUT
+    "repos/${repo_slug}/contents/openadt.json"
+    -f "message=chore(release): openadt ${version}"
+    -f "content=${content}"
+  )
+  if [[ -n "${sha}" ]]; then
+    api_args+=(-f "sha=${sha}")
+  fi
+  gh api "${api_args[@]}" >/dev/null
+  echo "Updated ${repo_slug}@main via Contents API (openadt ${version})"
 }
 
 push_manifest_to_repo() {
@@ -76,18 +111,31 @@ if [[ -z "${token}" ]]; then
 fi
 
 synced=0
+external_synced=0
 
 if [[ -n "${GITHUB_REPOSITORY:-}" ]]; then
   push_manifest_to_repo "${GITHUB_REPOSITORY}" "${same_repo_branch}" "${token}"
   synced=1
 fi
 
-if [[ -n "${OPENADT_SCOOP_BUCKET_TOKEN:-}" ]]; then
-  push_manifest_to_repo "${external_repo}" "${branch}" "${OPENADT_SCOOP_BUCKET_TOKEN}"
+bucket_token="$(scoop_bucket_token || true)"
+if [[ -n "${bucket_token}" ]]; then
+  if push_manifest_via_gh_contents "${external_repo}" "${bucket_token}" 2>/dev/null; then
+    external_synced=1
+  elif push_manifest_to_repo "${external_repo}" "${branch}" "${bucket_token}"; then
+    external_synced=1
+  fi
   synced=1
+else
+  echo "Skipping ${external_repo}: set repo secret OPENADT_SCOOP_BUCKET_TOKEN (PAT with contents:write on ${external_repo})." >&2
+  echo "Scoop: scoop bucket add openadt https://github.com/${GITHUB_REPOSITORY:-abapify/openadt}.git#${same_repo_branch}" >&2
 fi
 
 if [[ "${synced}" -eq 0 ]]; then
   echo "No scoop manifest destination was updated." >&2
   exit 1
+fi
+
+if [[ "${external_synced}" -eq 0 && -n "${GITHUB_REPOSITORY:-}" ]]; then
+  echo "Note: ${external_repo} was not updated; use the scoop-bucket branch on ${GITHUB_REPOSITORY} or add OPENADT_SCOOP_BUCKET_TOKEN." >&2
 fi

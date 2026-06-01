@@ -124,6 +124,16 @@ jobs:
           OPENADT_SCOOP_BUCKET_TOKEN: ${{ secrets.OPENADT_SCOOP_BUCKET_TOKEN }}
         run: bash tools/sync-scoop-bucket/sync.sh
 
+      - name: Trigger abapify/scoop-bucket mirror
+        if: ${{ secrets.OPENADT_SCOOP_BUCKET_TOKEN != '' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.OPENADT_SCOOP_BUCKET_TOKEN }}
+        run: |
+          gh api repos/abapify/scoop-bucket/dispatches \
+            -f event_type=openadt-release \
+            -f "client_payload[version]=${{ needs.bump.outputs.version }}"
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3
         with:

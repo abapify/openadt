@@ -4,7 +4,7 @@ OpenADT ships as a portable ZIP (`openadt.jar` + launchers). SAP binaries are ne
 
 ## Windows
 
-- **Scoop** (simplest): [`abapify/scoop-bucket`](https://github.com/abapify/scoop-bucket) — after `scoop bucket add openadt https://github.com/abapify/scoop-bucket.git`, run `scoop install openadt`
+- **Scoop** (simplest): `scoop bucket add openadt https://github.com/abapify/openadt.git#scoop-bucket` then `scoop install openadt` (updated every Release). Legacy [`abapify/scoop-bucket`](https://github.com/abapify/scoop-bucket) requires `OPENADT_SCOOP_BUCKET_TOKEN` on the openadt repo.
 - **Winget**: manifests under `packaging/winget/manifests/o/OpenADT/OpenADT/<version>/`
 - Install: `scoop install https://raw.githubusercontent.com/abapify/openadt/main/packaging/scoop/openadt.json` or `winget install --id OpenADT.OpenADT` (after winget-pkgs merge)
 - Maintainer: `bun run package:release -- --version=<semver>` then validate winget manifest if needed

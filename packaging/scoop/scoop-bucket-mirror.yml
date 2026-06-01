@@ -1,0 +1,36 @@
+# Copy to abapify/scoop-bucket as .github/workflows/sync-from-openadt.yml
+# Triggered by openadt Release workflow (repository_dispatch) or manually.
+name: Sync manifest from openadt
+
+on:
+  repository_dispatch:
+    types: [openadt-release]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Fetch manifest from openadt scoop-bucket branch
+        run: |
+          curl -fsSL \
+            "https://raw.githubusercontent.com/abapify/openadt/scoop-bucket/openadt.json" \
+            -o openadt.json
+
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add openadt.json
+          if git diff --cached --quiet; then
+            echo "Already up to date."
+            exit 0
+          fi
+          version="$(grep -m1 '"version"' openadt.json | sed 's/.*: "\(.*\)".*/\1/')"
+          git commit -m "chore(release): openadt ${version}"
+          git push origin HEAD:main

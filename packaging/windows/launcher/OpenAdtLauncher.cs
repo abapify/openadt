@@ -20,6 +20,12 @@ internal static class Program
 
     private static int RunPowerShellLauncher(string home, string launcher, string[] args)
     {
+        var pwsh = ResolvePwshExecutable();
+        if (pwsh is not null)
+        {
+            return RunPowerShellExecutable(pwsh, home, launcher, args);
+        }
+
         var systemRoot = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
         if (string.IsNullOrWhiteSpace(systemRoot))
         {
@@ -66,6 +72,34 @@ internal static class Program
             Console.Error.WriteLine("Failed to start PowerShell for openadt launcher.");
             return 1;
         }
+    }
+
+    private static string? ResolvePwshExecutable()
+    {
+        var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+        if (!string.IsNullOrWhiteSpace(programFiles) && Path.IsPathRooted(programFiles))
+        {
+            var pwshExe = Path.Join(programFiles, "PowerShell", "7", "pwsh.exe");
+            if (File.Exists(pwshExe))
+            {
+                return pwshExe;
+            }
+        }
+
+        var fromPath = Environment.GetEnvironmentVariable("PATH");
+        if (!string.IsNullOrWhiteSpace(fromPath))
+        {
+            foreach (var segment in fromPath.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+            {
+                var candidate = Path.Combine(segment.Trim(), "pwsh.exe");
+                if (File.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+        }
+
+        return null;
     }
 
     private static int RunPowerShellExecutable(string powershell, string home, string launcher, string[] args)

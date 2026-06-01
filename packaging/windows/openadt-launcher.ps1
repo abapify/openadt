@@ -48,7 +48,10 @@ function Invoke-LiteOpenAdt {
 }
 
 function Resolve-CanonicalJcoJar([System.IO.FileInfo]$Jar) {
-  if ($Jar.Name -notmatch '^(?:com\.sap\.conn\.jco[_-]|jco-)(\d+(?:\.\d+)+)\.jar$') {
+  $jcoNamePattern = @'
+^(?:com\.sap\.conn\.jco[_-]|jco-)(\d+(?:\.\d+)+)\.jar$
+'@
+  if ($Jar.Name -notmatch $jcoNamePattern) {
     return $Jar.FullName
   }
   $canonical = "com.sap.conn.jco-$($Matches[1]).jar"
@@ -82,7 +85,7 @@ function Ensure-SdkRuntimePrepared {
   }
   $prepareScript = Join-Path $OpenAdtHome "bin/prepare-openadt-runtime.ps1"
   if (-not (Test-Path $prepareScript)) {
-    Write-Error "Missing $prepareScript — reinstall OpenADT from the release zip."
+    Write-Error "Missing $prepareScript - reinstall OpenADT from the release zip."
   }
   Write-Host "Preparing SAP SDK runtime (first fetch/proxy may take several minutes)..." -ForegroundColor Yellow
   & $prepareScript -Version (Get-OpenAdtInstallVersion) -AdtPluginsDir $AdtPluginsDir
@@ -96,8 +99,16 @@ function Invoke-SdkOpenAdt {
   $configPath = Join-Path $env:USERPROFILE ".openadt/config.toml"
   $adtPluginsDir = $null
   if (Test-Path $configPath) {
-    $match = Select-String -Path $configPath -Pattern '^\s*adt_plugins_dir\s*=\s*"([^"]+)"' | Select-Object -First 1
-    if ($match) { $adtPluginsDir = $match.Matches[0].Groups[1].Value }
+    foreach ($line in Get-Content -LiteralPath $configPath) {
+      $trimmed = $line.Trim()
+      if ($trimmed.StartsWith('adt_plugins_dir') -and $trimmed.Contains('=')) {
+        $value = $trimmed.Substring($trimmed.IndexOf('=') + 1).Trim()
+        if ($value.StartsWith('"') -and $value.EndsWith('"') -and $value.Length -ge 2) {
+          $adtPluginsDir = $value.Substring(1, $value.Length - 2)
+          break
+        }
+      }
+    }
   }
   if (-not $adtPluginsDir) {
     $adtPluginsDir = Join-Path $env:USERPROFILE ".p2/pool/plugins"
@@ -110,8 +121,11 @@ function Invoke-SdkOpenAdt {
   if ((Test-Path $runtimeSapLib) -and ((Get-ChildItem $runtimeSapLib -Filter "*.jar").Count -ge 100)) {
     $sapJars = @(Get-ChildItem $runtimeSapLib -Filter "*.jar")
   } else {
+    $sapBundlePattern = @'
+^(com\.sap\.(adt|conn)|org\.(eclipse|osgi)\.)
+'@
     $sapJars = @(Get-ChildItem $adtPluginsDir -Filter "*.jar" | Where-Object {
-      $_.Name -match '^(com\.sap\.(adt|conn)|org\.(eclipse|osgi)\.)'
+      $_.Name -match $sapBundlePattern
     })
   }
   if ($sapJars.Count -eq 0) {
@@ -121,11 +135,16 @@ function Invoke-SdkOpenAdt {
     Write-Error "SDK runtime jar missing at $FullJar. Run: openadt setup  (or: openadt config build)"
   }
   $cp = @($LiteJar, $FullJar)
-  $jcoCorePattern = '^(?:com\.sap\.conn\.jco_\d|jco-\d[\d.]*)\.jar$'
+  $jcoCorePattern = @'
+^(?:com\.sap\.conn\.jco_\d|jco-\d[\d.]*)\.jar$
+'@
+  $jcoSourcePattern = @'
+^com\.sap\.conn\.jco[_-]
+'@
   $jcoJars = @($sapJars | Where-Object { $_.Name -match $jcoCorePattern })
   $nonJcoJars = @($sapJars | Where-Object { $_.Name -notmatch $jcoCorePattern })
   if ($jcoJars.Count -gt 0) {
-    $jcoSource = @($jcoJars | Where-Object { $_.Name -match '^com\.sap\.conn\.jco[_-]' } | Sort-Object Name -Descending | Select-Object -First 1)
+    $jcoSource = @($jcoJars | Where-Object { $_.Name -match $jcoSourcePattern } | Sort-Object Name -Descending | Select-Object -First 1)
     if (-not $jcoSource) { $jcoSource = $jcoJars | Sort-Object Name -Descending | Select-Object -First 1 }
     $cp += (Resolve-CanonicalJcoJar $jcoSource)
   }
@@ -152,7 +171,10 @@ function Invoke-SdkOpenAdt {
 function Test-OpenAdtProxyActive {
   param([string]$Alias)
   if (-not $Alias) { return $false }
-  $safe = ($Alias.ToLower() -replace '[^a-z0-9._-]+', '_')
+  $allowed = 'abcdefghijklmnopqrstuvwxyz0123456789._-'
+  $safe = -join ($Alias.ToLower().ToCharArray() | ForEach-Object {
+    if ($allowed.IndexOf($_) -ge 0) { $_ } else { '_' }
+  })
   $reg = Join-Path $env:USERPROFILE ".openadt/runtime/proxy-$safe.json"
   if (-not (Test-Path $reg)) { return $false }
   try {
