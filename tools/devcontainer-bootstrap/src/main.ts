@@ -475,7 +475,11 @@ function imageSdkJcoDir(): string {
 function imageSdkReady(): boolean {
   const pluginsDir = imageSdkPluginsDir();
   const native = join(imageSdkJcoDir(), "libsapjco3.so");
-  return hasRequiredAdtBundles(pluginsDir) && existsSync(native);
+  return (
+    hasRequiredAdtBundles(pluginsDir) &&
+    !!findLatestJcoPluginJar(pluginsDir) &&
+    existsSync(native)
+  );
 }
 
 function p2CliEntry(root: string): string {
