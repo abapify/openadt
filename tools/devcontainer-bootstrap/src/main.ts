@@ -537,11 +537,10 @@ function findLinuxJcoFragmentJar(pluginsDir: string): string | undefined {
     return undefined;
   }
   return files
+    .sort()
     .map((file) => {
       const m = /_(\d+(?:\.\d+)+)\.jar$/i.exec(basename(file));
-      const key = m
-        ? m[1].split(".").map((p) => Number.parseInt(p, 10))
-        : [0];
+      const key = m ? m[1].split(".").map((p) => Number.parseInt(p, 10)) : [0];
       return { file, key };
     })
     .reduce((best, cur) =>
@@ -573,7 +572,9 @@ function stageJcoNativeFromFragment(
 function pathForChildProcess(): string {
   const current = process.env.PATH ?? process.env.Path ?? "";
   const delimiter = process.platform === "win32" ? ";" : ":";
-  const segments = current.split(delimiter).filter((entry) => entry.trim().length > 0);
+  const segments = current
+    .split(delimiter)
+    .filter((entry) => entry.trim().length > 0);
   const seen = new Set(segments);
   const extras =
     process.platform === "win32"
@@ -741,11 +742,7 @@ function writeDevcontainerRuntime(
   runtime: DevcontainerRuntimePaths,
 ): void {
   mkdirSync(dirname(path), { recursive: true });
-  const lines = [
-    "version = 1",
-    "",
-    "[runtime]",
-  ];
+  const lines = ["version = 1", "", "[runtime]"];
   if (runtime.adtPluginsDir) {
     lines.push(`adt_plugins_dir = "${runtime.adtPluginsDir}"`);
   }
