@@ -7,7 +7,7 @@
   "architecture": {
     "64bit": {
       "url": "https://github.com/abapify/openadt/releases/download/v1.2.2/openadt-1.2.2.zip",
-      "hash": "PLACEHOLDER_RUN_PACKAGE_RELEASE"
+      "hash": "a3d6f988fa095ccfee8a7c7829c25cdac124078c0ca7f45537afa758d8ab340f"
     }
   },
   "extract_dir": "openadt-1.2.2",
