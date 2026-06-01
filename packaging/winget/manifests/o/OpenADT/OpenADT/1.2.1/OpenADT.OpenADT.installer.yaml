@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.9.0.schema.json
+PackageIdentifier: OpenADT.OpenADT
+PackageVersion: 1.2.1
+InstallerType: zip
+NestedInstallerType: portable
+NestedInstallerFiles:
+  - RelativeFilePath: openadt-1.2.1/openadt.exe
+    PortableCommandAlias: openadt
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/abapify/openadt/releases/download/v1.2.1/openadt-1.2.1.zip
+    InstallerSha256: 6F04FD4B91C648C43CAF21D690C40279DADC197BA0943531E6DA03C5B7E450A1
+Commands:
+  - openadt
+Dependencies:
+  PackageDependencies:
+    - PackageIdentifier: EclipseAdoptium.Temurin.21.JDK
+ReleaseDate: 2026-05-29
+ManifestType: installer
+ManifestVersion: 1.9.0
