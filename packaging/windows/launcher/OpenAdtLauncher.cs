@@ -8,14 +8,7 @@ internal static class Program
     private static int Main(string[] args)
     {
         var home = AppDomain.CurrentDomain.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        var needsSdk = args.Length > 0 && (args[0] is "fetch" or "proxy");
         var launcher = Path.Combine(home, "bin", "openadt-launcher.ps1");
-        var fullJar = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".openadt", "runtime", "openadt-full.jar");
-
-        if (needsSdk && File.Exists(fullJar) && File.Exists(launcher))
-        {
-            return RunPowerShellLauncher(home, launcher, args);
-        }
 
         if (File.Exists(launcher))
         {
@@ -56,9 +49,40 @@ internal static class Program
         }
         catch (Win32Exception)
         {
+            var pwsh = Environment.GetEnvironmentVariable("ProgramFiles");
+            if (!string.IsNullOrWhiteSpace(pwsh))
+            {
+                var pwshExe = Path.Combine(pwsh, "PowerShell", "7", "pwsh.exe");
+                if (File.Exists(pwshExe))
+                {
+                    return RunPowerShellExecutable(pwshExe, home, launcher, args);
+                }
+            }
             Console.Error.WriteLine("Failed to start PowerShell for openadt launcher.");
             return 1;
         }
+    }
+
+    private static int RunPowerShellExecutable(string powershell, string home, string launcher, string[] args)
+    {
+        var start = new ProcessStartInfo(powershell)
+        {
+            UseShellExecute = false,
+        };
+        start.ArgumentList.Add("-NoProfile");
+        start.ArgumentList.Add("-ExecutionPolicy");
+        start.ArgumentList.Add("Bypass");
+        start.ArgumentList.Add("-File");
+        start.ArgumentList.Add(launcher);
+        start.Environment["OPENADT_HOME"] = home;
+        start.Environment["OPENADT_ARG_COUNT"] = args.Length.ToString();
+        for (var i = 0; i < args.Length; i++)
+        {
+            start.Environment[$"OPENADT_ARG_{i}"] = args[i];
+        }
+        using var process = Process.Start(start) ?? throw new InvalidOperationException("Failed to start PowerShell launcher.");
+        process.WaitForExit();
+        return process.ExitCode;
     }
 
     private static int RunJavaJar(string home, string[] args)

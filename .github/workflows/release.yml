@@ -92,6 +92,25 @@ jobs:
           java-version: "21"
           check-latest: true
 
+      - name: Download SAP ADT p2 plugins (SDK support jar)
+        shell: bash
+        run: |
+          set -euo pipefail
+          P2_ROOT="${RUNNER_TEMP}/openadt-p2"
+          mkdir -p "${P2_ROOT}"
+          bunx @abapify/p2-cli download "https://tools.hana.ondemand.com/latest" \
+            -o "${P2_ROOT}" \
+            -f "com.sap.adt.*,com.sap.conn.jco.*,org.eclipse.core.*,org.eclipse.equinox.*,org.eclipse.osgi*,org.osgi.*"
+          echo "OPENADT_P2_PLUGINS=${P2_ROOT}/plugins" >> "${GITHUB_ENV}"
+
+      - name: Build SDK support jar (AdtSdkTransportClient and friends)
+        shell: bash
+        run: |
+          chmod +x ./mvnw
+          ./mvnw -q -f pom.xml -pl apps/openadt-sap-adt -am package \
+            -Dadt.plugins.dir="${OPENADT_P2_PLUGINS}" \
+            -Dmaven.test.skip=true
+
       - name: Build distribution jar
         shell: bash
         run: |

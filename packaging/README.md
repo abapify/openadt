@@ -32,6 +32,12 @@ From a repo root with a built jar:
 
 ```powershell
 .\mvnw.cmd -q verify -f pom.xml -Pdistribution
+
+Release zip layout (after `bun run package:release`):
+
+- `openadt.jar` — CLI (distribution build)
+- `lib/openadt-sap-adt-sdk.jar` — SDK transport classes (`AdtSdkTransportClient`, …); built in CI with SAP ADT p2 plugins
+- `bin/openadt-launcher.ps1` — adds `lib/` + your `adt_plugins_dir` on the classpath for `fetch` / `proxy`
 $env:OPENADT_PACKAGE_WIN_EXE = "1"
 bun run package:release -- --version=1.1.2
 winget validate --manifest packaging\winget\manifests\o\OpenADT\OpenADT\1.1.2
