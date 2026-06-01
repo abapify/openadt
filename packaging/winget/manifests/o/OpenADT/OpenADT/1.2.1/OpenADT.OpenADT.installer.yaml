@@ -9,12 +9,12 @@ NestedInstallerFiles:
 Installers:
   - Architecture: x64
     InstallerUrl: https://github.com/abapify/openadt/releases/download/v1.2.1/openadt-1.2.1.zip
-    InstallerSha256: 6F04FD4B91C648C43CAF21D690C40279DADC197BA0943531E6DA03C5B7E450A1
+    InstallerSha256: 843B73A5B2A173B2894A96BFB682C1E629BA32A5E8673DB977D0CF06FA5F1B9B
 Commands:
   - openadt
 Dependencies:
   PackageDependencies:
     - PackageIdentifier: EclipseAdoptium.Temurin.21.JDK
-ReleaseDate: 2026-05-29
+ReleaseDate: 2026-06-01
 ManifestType: installer
 ManifestVersion: 1.9.0
