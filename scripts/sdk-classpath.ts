@@ -15,13 +15,47 @@ import { basename, join } from "node:path";
 const JCO_CORE_PATTERN =
   /^(?:com\.sap\.conn\.jco[_-]|jco-)(\d+(?:\.\d+)+)\.jar$/i;
 /** Eclipse p2 bundle file names */
-const P2_SAP_BUNDLE_PATTERN = /^(com\.sap\.(adt|conn)|org\.eclipse\.)/;
+const P2_SAP_BUNDLE_PATTERN = /^(com\.sap\.(adt|conn)|org\.(eclipse|osgi)\.)/;
 /** Maven copy-dependencies names under target/sap-lib (communication-3.58.0.jar, jco-3.1.13.jar, …) */
 const MAVEN_SAP_LIB_PATTERN =
   /^(communication|compatibility|destinations|destinations-model|logging|util|jco|jco-eclipse)-|^(core-|equinox-|osgi|service\.prefs)|^core-net-/;
 
 /** Bundles Maven sap-lib omits but headless ADT SDK still needs (from Eclipse p2). */
 const P2_SUPPLEMENT_PREFIXES = ["org.eclipse.core.net_"];
+
+/** Windows release copies a minimal Maven sap-lib; full Eclipse p2 is required for `adt` and EMF. */
+export const RUNTIME_SAP_LIB_MIN_JARS = 100;
+
+export function countSapJars(dir: string): number {
+  if (!existsSync(dir)) {
+    return 0;
+  }
+  return readdirSync(dir).filter((name) => name.endsWith(".jar")).length;
+}
+
+/**
+ * Prefer a complete bundle dir (runtime copy or Eclipse p2). Partial target/sap-lib breaks `adt discover`.
+ */
+export function resolveSapBundleDirs(options: {
+  runtimeSapLibDir: string;
+  projectSapLibDir: string;
+  p2Dir: string;
+}): SapBundleDir[] {
+  const { runtimeSapLibDir, projectSapLibDir, p2Dir } = options;
+  if (countSapJars(runtimeSapLibDir) >= RUNTIME_SAP_LIB_MIN_JARS) {
+    return [{ path: runtimeSapLibDir, kind: "sap-lib" }];
+  }
+  if (countSapJars(projectSapLibDir) >= RUNTIME_SAP_LIB_MIN_JARS) {
+    return [{ path: projectSapLibDir, kind: "sap-lib" }];
+  }
+  if (existsSync(p2Dir)) {
+    return [{ path: p2Dir, kind: "p2" }];
+  }
+  if (countSapJars(projectSapLibDir) > 0) {
+    return [{ path: projectSapLibDir, kind: "sap-lib" }];
+  }
+  return [];
+}
 
 export function isJcoCoreJar(fileName: string): boolean {
   return JCO_CORE_PATTERN.test(fileName);

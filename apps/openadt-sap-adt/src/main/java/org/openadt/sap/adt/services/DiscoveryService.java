@@ -39,7 +39,7 @@ public final class DiscoveryService {
                 List.of()
             );
         }
-        IStatus status = discovery.getStatus(monitor);
+        IStatus status = readDiscoveryStatus(discovery, monitor);
         if (status != null && !status.isOK()) {
             String message = status.getMessage() != null ? status.getMessage() : status.toString();
             return new AdtDiscoveryReport(
@@ -85,5 +85,17 @@ public final class DiscoveryService {
             memberUri,
             accepted
         );
+    }
+
+    /**
+     * Some ADT plugin versions expose {@link IAdtDiscovery} without {@code getStatus}; skip when absent.
+     */
+    private static IStatus readDiscoveryStatus(IAdtDiscovery discovery, IProgressMonitor monitor) {
+        try {
+            return discovery.getStatus(monitor);
+        } catch (AbstractMethodError | NoSuchMethodError error) {
+            CliLog.sdk("IAdtDiscovery.getStatus unavailable, continuing: " + error.getMessage());
+            return null;
+        }
     }
 }

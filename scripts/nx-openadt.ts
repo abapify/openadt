@@ -1,23 +1,27 @@
 /**
  * Dev entry for `nx run openadt-cli:run -- <openadt args>`.
  * - `--profile=sso` / `--profile=http` → slim fat jar (`java -jar`)
- * - `snc` or no `--profile` (destination default) → full ADT classpath like openadt-sdk.ps1
+ * - `adt`, `fetch`, `proxy` (and default SNC profiles) → full ADT classpath like openadt-sdk.ps1
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, statSync } from "node:fs";
+import { spawnJavaWithClasspath } from "./java-argfile.ts";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import {
   buildSdkClasspathEntries,
   hasMinimalSdkBundles,
+  resolveSapBundleDirs,
   supplementFromP2,
-  type SapBundleDir,
 } from "./sdk-classpath.ts";
 
 const repoRoot = join(import.meta.dir, "..");
 const cliDir = join(repoRoot, "apps", "openadt-cli");
+const sapAdtDir = join(repoRoot, "apps", "openadt-sap-adt");
 const targetDir = join(cliDir, "target");
 const sapLibDir = join(targetDir, "sap-lib");
+const runtimeSapLibDir = join(homedir(), ".openadt", "runtime", "sap-lib");
+const p2Dir = join(homedir(), ".p2", "pool", "plugins");
 const mainClass = "org.openadt.cli.OpenAdtCommand";
 const pathSep = process.platform === "win32" ? ";" : ":";
 
@@ -33,7 +37,7 @@ function findDevJar(): string {
       (name) =>
         name.startsWith("openadt-") &&
         name.endsWith(".jar") &&
-        !/original|sources|javadoc/i.test(name),
+        !/original|sources|javadoc|shaded/i.test(name),
     )
     .map((name) => join(targetDir, name))
     .filter((path) => statSync(path).isFile())
@@ -65,38 +69,82 @@ function parseProfile(args: string[]): string | undefined {
   return undefined;
 }
 
+const VALUE_FLAGS = new Set([
+  "profile",
+  "config",
+  "collection",
+  "category",
+  "format",
+]);
+
+function firstSubcommand(args: string[]): string | undefined {
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]!;
+    if (arg === "--") {
+      return args[i + 1];
+    }
+    if (arg.startsWith("--")) {
+      const eq = arg.indexOf("=");
+      if (eq > 0) {
+        continue;
+      }
+      const name = arg.slice(2);
+      if (
+        VALUE_FLAGS.has(name) &&
+        i + 1 < args.length &&
+        !args[i + 1]!.startsWith("-")
+      ) {
+        i++;
+      }
+      continue;
+    }
+    if (arg === "-c" || arg === "-p") {
+      if (i + 1 < args.length) {
+        i++;
+      }
+      continue;
+    }
+    if (arg.startsWith("-")) {
+      continue;
+    }
+    return arg;
+  }
+  return undefined;
+}
+
 /** HTTP browser SSO / plain HTTP transport — fat jar is enough. */
-function useFatJar(profile: string | undefined): boolean {
+function useFatJar(profile: string | undefined, args: string[]): boolean {
+  const subcommand = firstSubcommand(args);
+  if (subcommand === "adt") {
+    return false;
+  }
   if (profile === undefined) {
     return false;
   }
   return profile === "sso" || profile === "http";
 }
 
-function sapBundleDirs(): SapBundleDir[] {
-  if (
-    existsSync(sapLibDir) &&
-    readdirSync(sapLibDir).some((n) => n.endsWith(".jar"))
-  ) {
-    return [{ path: sapLibDir, kind: "sap-lib" }];
-  }
-  const p2 = join(homedir(), ".p2", "pool", "plugins");
-  if (existsSync(p2)) {
-    return [{ path: p2, kind: "p2" }];
-  }
-  return [];
+function sapBundleDirs() {
+  return resolveSapBundleDirs({
+    runtimeSapLibDir,
+    projectSapLibDir: sapLibDir,
+    p2Dir,
+  });
 }
 
 function buildSdkClasspath(jar: string): string {
   const sapDirs = sapBundleDirs();
+  const sapAdtClasses = join(sapAdtDir, "target", "classes");
   let entries = buildSdkClasspathEntries({
     classesDir: join(cliDir, "target", "classes"),
     appJar: jar,
     sapDirs,
   });
-  const p2 = join(homedir(), ".p2", "pool", "plugins");
+  if (existsSync(sapAdtClasses)) {
+    entries = [sapAdtClasses, ...entries];
+  }
   if (sapDirs[0]?.kind === "sap-lib") {
-    entries = supplementFromP2(entries, p2);
+    entries = supplementFromP2(entries, p2Dir);
   }
   if (!hasMinimalSdkBundles(entries)) {
     console.error(
@@ -116,13 +164,21 @@ const args = process.argv.slice(2);
 const profile =
   parseProfile(args) ?? normalizeProfile(process.env.OPENADT_PROFILE);
 
-const javaArgs = useFatJar(profile)
-  ? ["-jar", jar, ...args]
-  : ["-cp", buildSdkClasspath(jar), mainClass, ...args];
+if (useFatJar(profile, args)) {
+  const result = spawnSync("java", ["-jar", jar, ...args], {
+    stdio: "inherit",
+    cwd: repoRoot,
+    env: process.env,
+  });
+  process.exit(result.status ?? 1);
+}
 
-const result = spawnSync("java", javaArgs, {
-  stdio: "inherit",
-  cwd: repoRoot,
-  env: process.env,
-});
-process.exit(result.status ?? 1);
+process.exit(
+  spawnJavaWithClasspath({
+    classpath: buildSdkClasspath(jar),
+    mainClass,
+    args,
+    cwd: repoRoot,
+    env: process.env,
+  }),
+);

@@ -9,18 +9,26 @@ $jar = @(Get-ChildItem (Join-Path $cli "target") -Filter "openadt-*.jar" -ErrorA
     Select-Object -First 1)
 if ($jar) { $jar = $jar.FullName } else { $jar = Join-Path $cli "target\openadt.jar" }
 $sapLib = Join-Path $cli "target\sap-lib"
+$runtimeSapLib = Join-Path $env:USERPROFILE ".openadt\runtime\sap-lib"
+$sapAdtClasses = Join-Path $repoRoot "apps\openadt-sap-adt\target\classes"
 if (-not (Test-Path $jar) -and -not (Test-Path $classes)) {
     Write-Error "Build first: ./mvnw -q verify -f pom.xml -Pdistribution -Dopenadt.distribution=true (from repo root)"
 }
-$sapJars = @(Get-ChildItem $sapLib -Filter "*.jar" -ErrorAction SilentlyContinue)
-if ($sapJars.Count -eq 0) {
-    $p2 = Join-Path $env:USERPROFILE ".p2\pool\plugins"
-    $sapJars = @(Get-ChildItem $p2 -Filter "*.jar" | Where-Object {
-        $_.Name -match '^(com\.sap\.(adt|conn)|org\.eclipse\.)'
-    })
-    Write-Warning "target/sap-lib is empty — using $($sapJars.Count) bundles from $p2"
+$p2 = Join-Path $env:USERPROFILE ".p2\pool\plugins"
+$sapBundlePattern = '^(com\.sap\.(adt|conn)|org\.(eclipse|osgi)\.)'
+$sapJars = @()
+if ((Test-Path $runtimeSapLib) -and ((Get-ChildItem $runtimeSapLib -Filter "*.jar").Count -ge 100)) {
+    $sapJars = @(Get-ChildItem $runtimeSapLib -Filter "*.jar")
+} elseif ((Test-Path $sapLib) -and ((Get-ChildItem $sapLib -Filter "*.jar").Count -ge 100)) {
+    $sapJars = @(Get-ChildItem $sapLib -Filter "*.jar")
+} elseif (Test-Path $p2) {
+    $sapJars = @(Get-ChildItem $p2 -Filter "*.jar" | Where-Object { $_.Name -match $sapBundlePattern })
+    Write-Warning "Using $($sapJars.Count) bundles from $p2 (Maven sap-lib is incomplete for adt discover)"
+} else {
+    $sapJars = @(Get-ChildItem $sapLib -Filter "*.jar" -ErrorAction SilentlyContinue)
 }
 $cp = @()
+if (Test-Path $sapAdtClasses) { $cp += $sapAdtClasses }
 if (Test-Path $classes) { $cp += $classes }
 if (Test-Path $jar) { $cp += $jar }
 function Resolve-CanonicalJcoJar([System.IO.FileInfo]$Jar) {
