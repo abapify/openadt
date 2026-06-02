@@ -93,7 +93,7 @@ public final class DiscoveryService {
     private static IStatus readDiscoveryStatus(IAdtDiscovery discovery, IProgressMonitor monitor) {
         try {
             return discovery.getStatus(monitor);
-        } catch (LinkageError error) {
+        } catch (AbstractMethodError | NoSuchMethodError error) {
             CliLog.sdk("IAdtDiscovery.getStatus unavailable, continuing: " + error.getMessage());
             return null;
         }

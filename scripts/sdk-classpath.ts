@@ -43,7 +43,7 @@ export function resolveSapBundleDirs(options: {
 }): SapBundleDir[] {
   const { runtimeSapLibDir, projectSapLibDir, p2Dir } = options;
   if (countSapJars(runtimeSapLibDir) >= RUNTIME_SAP_LIB_MIN_JARS) {
-    return [{ path: runtimeSapLibDir, kind: "p2" }];
+    return [{ path: runtimeSapLibDir, kind: "sap-lib" }];
   }
   if (countSapJars(projectSapLibDir) >= RUNTIME_SAP_LIB_MIN_JARS) {
     return [{ path: projectSapLibDir, kind: "sap-lib" }];

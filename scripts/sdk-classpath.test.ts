@@ -29,7 +29,7 @@ describe("resolveSapBundleDirs", () => {
       projectSapLibDir: project,
       p2Dir: p2,
     });
-    expect(dirs).toEqual([{ path: runtime, kind: "p2" }]);
+    expect(dirs).toEqual([{ path: runtime, kind: "sap-lib" }]);
   });
 
   test("falls back to p2 when only a minimal Maven sap-lib exists", () => {

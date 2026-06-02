@@ -69,8 +69,41 @@ function parseProfile(args: string[]): string | undefined {
   return undefined;
 }
 
+const VALUE_FLAGS = new Set([
+  "profile",
+  "config",
+  "collection",
+  "category",
+  "format",
+]);
+
 function firstSubcommand(args: string[]): string | undefined {
-  for (const arg of args) {
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]!;
+    if (arg === "--") {
+      return args[i + 1];
+    }
+    if (arg.startsWith("--")) {
+      const eq = arg.indexOf("=");
+      if (eq > 0) {
+        continue;
+      }
+      const name = arg.slice(2);
+      if (
+        VALUE_FLAGS.has(name) &&
+        i + 1 < args.length &&
+        !args[i + 1]!.startsWith("-")
+      ) {
+        i++;
+      }
+      continue;
+    }
+    if (arg === "-c" || arg === "-p") {
+      if (i + 1 < args.length) {
+        i++;
+      }
+      continue;
+    }
     if (arg.startsWith("-")) {
       continue;
     }
