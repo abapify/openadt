@@ -3,6 +3,7 @@ package org.openadt.cli;
 import java.util.concurrent.Callable;
 
 import org.openadt.config.CliLog;
+import org.openadt.config.ProfileFetchHints;
 import org.openadt.config.OpenAdtConfig;
 import org.openadt.config.SystemProfile;
 import org.openadt.sap.adt.sdk.AdtLogonStatusReport;
@@ -44,7 +45,10 @@ public class AuthStatusCommand extends AuthCommandSupport implements Callable<In
             }
             return report.loggedOn() ? 0 : 1;
         } catch (Exception error) {
-            CliLog.error("openadt auth status [" + systemAlias + "]: " + formatTransportError(system, error));
+            String message = system != null
+                ? ProfileFetchHints.formatTransportError(system, null, error)
+                : error.getMessage();
+            CliLog.error("openadt auth status [" + systemAlias + "]: " + message);
             return 1;
         }
     }

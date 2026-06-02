@@ -48,10 +48,10 @@ class ConfigLoaderTest {
         Path configFile = tempDir.resolve("config.toml");
         Files.writeString(configFile, "version = 1\n");
         ConfigLoader loader = new ConfigLoader();
-        loader.saveSessionContext(configFile, "S0D");
+        loader.saveSessionContext(configFile, "DEV");
         OpenAdtConfig config = loader.load(configFile);
         assertNotNull(config.getSession());
-        assertEquals("S0D", config.getSession().getSystem());
+        assertEquals("DEV", config.getSession().getSystem());
         loader.clearSessionContext(configFile);
         config = loader.load(configFile);
         assertTrue(config.getSession() == null || config.getSession().getSystem() == null);

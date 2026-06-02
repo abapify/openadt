@@ -39,7 +39,7 @@ After `openadt auth login <SYSTEM>`, OpenADT writes `session.openadt.toml` next 
 version = 1
 
 [session]
-system = "S0D"
+system = "DEV"
 ```
 
 Commands `fetch`, `proxy`, `discovery`, `auth status`, and `auth logout` use this alias when `<SYSTEM>` is omitted. Override per invocation with an explicit alias or `OPENADT_SYSTEM`.

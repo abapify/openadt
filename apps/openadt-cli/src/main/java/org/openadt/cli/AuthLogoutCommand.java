@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.concurrent.Callable;
 
 import org.openadt.config.CliLog;
+import org.openadt.config.ProfileFetchHints;
 import org.openadt.config.ConfigLoader;
 import org.openadt.config.OpenAdtConfig;
 
@@ -37,14 +38,19 @@ public class AuthLogoutCommand extends AuthCommandSupport implements Callable<In
                 loader.clearSessionContext(effectivePath);
             }
             CliLog.stdout().println("system: " + alias);
-            CliLog.stdout().println("cleared-session-context: yes");
+            boolean sessionCleared = activeSession != null && activeSession.equalsIgnoreCase(alias);
+            loader.clearSessionContext(effectivePath);
+            CliLog.stdout().println("cleared-session-context: " + (sessionCleared ? "yes" : "no"));
             CliLog.stdout().println("cleared-http-sso-cache: " + String.join(", ", cleared));
             CliLog.stdout().println(
                 "note: SDK logon state is not shared between CLI processes; stop openadt proxy to end a warm session."
             );
             return 0;
         } catch (Exception error) {
-            CliLog.error("openadt auth logout [" + systemAlias + "]: " + formatTransportError(destination, error));
+            String message = destination != null
+                ? ProfileFetchHints.formatTransportError(destination, null, error)
+                : error.getMessage();
+            CliLog.error("openadt auth logout [" + systemAlias + "]: " + message);
             return 1;
         }
     }

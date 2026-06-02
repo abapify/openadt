@@ -36,7 +36,7 @@ public final class TransportService {
 
     private static AdtTransportRequestRow toRow(IAdtTransportRequest request) {
         Date lastChanged = request.getLastChanged();
-        String changed = lastChanged != null ? lastChanged.toInstant().toString() : null;
+        String changed = lastChanged != null ? lastChanged.getTime().toString() : null;
         String uri = request.getUri() != null ? request.getUri().toString() : null;
         return new AdtTransportRequestRow(
             request.getRequestNumber(),

@@ -60,7 +60,6 @@ abstract class SdkServiceCommandSupport extends AdtCommandSupport implements Cal
                 buildServiceArgs()
             );
             boolean jsonOutput = SdkDocumentOutput.wantsJsonOutput(json, format, outFile)
-                || result instanceof SdkJsonResult;
             SdkResultOutput.write(
                 result,
                 outFile,
@@ -70,7 +69,10 @@ abstract class SdkServiceCommandSupport extends AdtCommandSupport implements Cal
             );
             return result.ok() ? 0 : 1;
         } catch (Exception error) {
-            CliLog.error("openadt " + serviceId() + " [" + systemAlias + "]: " + formatTransportError(system, error));
+            String message = system != null
+                ? ProfileFetchHints.formatTransportError(system, null, error)
+                : error.getMessage();
+            CliLog.error("openadt " + serviceId() + " [" + systemAlias + "]: " + message);
             return 1;
         }
     }

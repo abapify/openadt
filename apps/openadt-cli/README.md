@@ -6,7 +6,7 @@ Picocli entrypoint and shaded distribution jar (`openadt`).
 
 | Package                     | Role                                                                          |
 | --------------------------- | ----------------------------------------------------------------------------- |
-| `org.openadt.cli`           | {@link org.openadt.cli.OpenAdtCommand}, `fetch`, `proxy`, `auth`, `discovery` |
+| `org.openadt.cli`           | {@link org.openadt.cli.OpenAdtCommand}, `fetch`, `proxy`, `auth`, `discovery`, `sdk`, `transports` |
 | `org.openadt.product.proxy` | Local ADT proxy HTTP server (CLI module)                                      |
 
 ## Depends on

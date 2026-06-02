@@ -167,9 +167,9 @@ Devcontainer note:
 Select an authentication profile, persist it as `default_profile` for the destination (unless `--no-save`), set the **active system context** for later commands, and verify SDK logon. `fetch`, `proxy`, and `discovery` omit `<SYSTEM>` after login when using the saved context (or `OPENADT_SYSTEM`).
 
 ```bash
-openadt auth login S0D
-openadt auth login S0D --profile snc
-openadt auth login S0D --no-save
+openadt auth login DEV
+openadt auth login DEV --profile snc
+openadt auth login DEV --no-save
 ```
 
 Options:
@@ -217,8 +217,8 @@ Fetch the full ADT discovery Atom/XML document via the **native SDK transport** 
 
 ```bash
 openadt discovery
-openadt discovery --out S0D.discovery.json
-openadt discovery --json --out S0D.discovery.json
+openadt discovery --out DEV.discovery.json
+openadt discovery --json --out DEV.discovery.json
 openadt discovery DEV --profile snc --out tmp/discovery.xml
 ```
 

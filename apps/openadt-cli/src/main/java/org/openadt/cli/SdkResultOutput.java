@@ -62,10 +62,15 @@ final class SdkResultOutput {
             Files.write(outFile, jsonBytes);
             CliLog.info("wrote " + jsonBytes.length + " bytes JSON to " + outFile.toAbsolutePath());
         }
-        if (jsonOutput || outFile == null || full) {
-            if (!jsonOutput && outFile == null) {
-                printTextSummary.run();
-            } else {
+        if (outFile != null) {
+            if (full) {
+                CliLog.stdout().write(jsonBytes);
+                CliLog.stdout().flush();
+            }
+        } else {
+            CliLog.stdout().write(jsonBytes);
+            CliLog.stdout().flush();
+        }
                 CliLog.stdout().write(jsonBytes);
                 CliLog.stdout().flush();
             }

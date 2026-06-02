@@ -10,7 +10,7 @@ class SessionContextTest {
     void cliAliasOverridesSession() {
         OpenAdtConfig config = new OpenAdtConfig();
         SessionConfig session = new SessionConfig();
-        session.setSystem("S0D");
+        session.setSystem("DEV");
         config.setSession(session);
         assertEquals("DEV", SessionContext.resolveAlias(config, "DEV"));
     }
@@ -19,9 +19,9 @@ class SessionContextTest {
     void sessionUsedWhenCliOmitted() {
         OpenAdtConfig config = new OpenAdtConfig();
         SessionConfig session = new SessionConfig();
-        session.setSystem("S0D");
+        session.setSystem("DEV");
         config.setSession(session);
-        assertEquals("S0D", SessionContext.resolveAlias(config, null));
+        assertEquals("DEV", SessionContext.resolveAlias(config, null));
     }
 
     @Test

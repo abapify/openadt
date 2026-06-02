@@ -51,6 +51,9 @@ public final class SdkServiceRegistry {
     }
 
     private static SdkServiceHandler loadHandler(String handlerClass) {
+        if (!handlerClass.startsWith("org.openadt.sap.adt.services.handlers.")) {
+            throw new SecurityException("Handler class must be from trusted package: " + handlerClass);
+        }
         try {
             Class<?> type = Class.forName(handlerClass);
             Object instance = type.getConstructor().newInstance();

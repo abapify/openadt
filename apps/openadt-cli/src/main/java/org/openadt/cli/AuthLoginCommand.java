@@ -6,6 +6,7 @@ import java.util.concurrent.Callable;
 import org.openadt.config.CliLog;
 import org.openadt.config.ConfigLoader;
 import org.openadt.config.OpenAdtConfig;
+import org.openadt.config.ProfileFetchHints;
 import org.openadt.config.SystemProfile;
 import org.openadt.sap.adt.sdk.AdtLogonStatusReport;
 import org.openadt.sap.adt.sdk.AdtSdkServiceGateway;
@@ -46,17 +47,19 @@ public class AuthLoginCommand extends AuthCommandSupport implements Callable<Int
                 profile,
                 profile == null || profile.isBlank()
             );
-            loader.saveSessionContext(effectivePath, systemAlias);
-            if (!noSave) {
-                persistDefaultProfile(effectivePath, destination, profileName);
-                config = loader.load(effectivePath);
-                destination = findDestination(config, systemAlias);
-            } else {
-                config = loader.load(effectivePath);
-            }
             SystemProfile system = resolveWithChosenProfile(config, systemAlias, profileName);
             requireSdkTransport(system, "openadt auth login");
             AdtLogonStatusReport report = AdtSdkServiceGateway.logon(config, system);
+            if (report.loggedOn()) {
+                loader.saveSessionContext(effectivePath, systemAlias);
+                if (!noSave) {
+                    persistDefaultProfile(effectivePath, destination, profileName);
+                    config = loader.load(effectivePath);
+                    destination = findDestination(config, systemAlias);
+                } else {
+                    config = loader.load(effectivePath);
+                }
+            }
             if (json || "json".equalsIgnoreCase(format)) {
                 CliLog.stdout().println(toJson(report));
             } else {
@@ -64,7 +67,10 @@ public class AuthLoginCommand extends AuthCommandSupport implements Callable<Int
             }
             return report.loggedOn() ? 0 : 1;
         } catch (Exception error) {
-            CliLog.error("openadt auth login [" + systemAlias + "]: " + formatTransportError(destination, error));
+            String message = destination != null
+                ? ProfileFetchHints.formatTransportError(destination, null, error)
+                : error.getMessage();
+            CliLog.error("openadt auth login [" + systemAlias + "]: " + message);
             return 1;
         }
     }
