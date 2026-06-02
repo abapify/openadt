@@ -135,5 +135,11 @@
                 </plugins>
             </build>
         </profile>
+        <profile>
+            <id>distribution</id>
+            <properties>
+                <openadt.distribution>true</openadt.distribution>
+            </properties>
+        </profile>
     </profiles>
 </project>
