@@ -178,7 +178,7 @@ Options:
 - `--format json` or `--json` — JSON output (`ok`, `destinationId`, `fromEclipse`, …)
 - `--collection`, `--category` — Optional `getCollectionMember` lookup
 
-Exit code: `0` on success, `1` on failure. Requires `transport=sdk` and `runtime.adt_plugins_dir`.
+Exit code: `0` on success, `1` on failure. Requires `transport=sdk` and `runtime.adt_plugins_dir`. On Windows releases, the launcher uses the same SDK classpath as `fetch`/`proxy` (not the lite jar alone).
 
 ---
 

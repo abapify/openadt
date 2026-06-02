@@ -134,7 +134,8 @@ function Invoke-SdkOpenAdt {
   if (-not (Test-Path $FullJar)) {
     Write-Error "SDK runtime jar missing at $FullJar. Run: openadt setup  (or: openadt config build)"
   }
-  $cp = @($LiteJar, $FullJar)
+  # Full runtime jar is a complete shaded CLI including DiscoveryService/LogonService; lite jar must not precede it on the classpath.
+  $cp = @($FullJar)
   $jcoCorePattern = @'
 ^(?:com\.sap\.conn\.jco_\d|jco-\d[\d.]*)\.jar$
 '@
@@ -212,7 +213,7 @@ if ($subcommand -eq "fetch" -and (Resolve-FetchUsesLiteProxy $OpenAdtArgs)) {
   Invoke-LiteOpenAdt $OpenAdtArgs
 }
 
-if ($subcommand -in @("fetch", "proxy")) {
+if ($subcommand -in @("fetch", "proxy", "adt")) {
   Invoke-SdkOpenAdt $OpenAdtArgs
 }
 
