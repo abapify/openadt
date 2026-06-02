@@ -9,6 +9,7 @@ Behavior contracts for OpenADT. **Change specs before or with code** when CLI, p
 | [vision.md](vision.md)                     | Product north star, package map                      |
 | [cli.md](cli.md)                           | Commands: `fetch`, `proxy`, `adt`, `config`, `setup` |
 | [sdk-capabilities.md](sdk-capabilities.md) | SAP ADT SDK APIs used by OpenADT                     |
+| [sdk-services.md](sdk-services.md)         | Registered SDK service registry and handlers         |
 | [config.md](config.md)                     | `~/.openadt/config.toml` schema                      |
 | [proxy.md](proxy.md)                       | Local HTTP proxy, auth, redaction                    |
 | [setup.md](setup.md)                       | Detectors and bootstrap output                       |

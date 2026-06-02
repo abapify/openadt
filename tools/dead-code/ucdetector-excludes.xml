@@ -15,10 +15,6 @@
         <class name="org.openadt.cli.SetupCommand" />
         <class name="org.openadt.cli.ProxyCommand" />
         <class name="org.openadt.cli.FetchCommand" />
-        <class name="org.openadt.cli.AdtCommand" />
-        <class name="org.openadt.cli.AdtDiscoverCommand" />
-        <class name="org.openadt.cli.AdtLogonCommand" />
-        <class name="org.openadt.cli.AdtLogonStatusCommand" />
         <class name="org.openadt.sap.adt.sdk.AdtSdkTransportClient" />
         <class name="org.openadt.sap.adt.sdk.AdtSdkClassLoaderFactory" />
         <class name="org.openadt.sap.adt.sdk.AdtSdkServiceGateway" />

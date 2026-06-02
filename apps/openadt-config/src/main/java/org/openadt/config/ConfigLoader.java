@@ -22,6 +22,7 @@ public class ConfigLoader {
     private static final String DESTINATIONS_PREFIX = "[destinations.";
     private static final String DESTINATIONS_DIR = "destinations";
     private static final String LOCAL_FRAGMENT_FILE = "local.openadt.toml";
+    private static final String SESSION_FRAGMENT_FILE = "session.openadt.toml";
     private static final String MANUAL_FRAGMENT_FILE = "manual.openadt.toml";
     private static final String DETECTED_FRAGMENT_FILE = "detected.openadt.toml";
     private static final String DESTINATIONS_GLOB = "destinations/*.openadt.toml";
@@ -100,7 +101,56 @@ public class ConfigLoader {
         canonicalizeRuntimeJcoJar(config);
         normalizeLoadedHttpUrls(config);
         validateHttpBaseUrls(config);
+        applySessionOverlay(config, path);
         return config;
+    }
+
+    /**
+     * Persists the active system alias for commands that omit {@code <SYSTEM>}.
+     * Written to {@code session.openadt.toml} next to the loaded config entrypoint.
+     */
+    public void saveSessionContext(Path configPath, String systemAlias) throws IOException {
+        if (systemAlias == null || systemAlias.isBlank()) {
+            throw new IllegalArgumentException("System alias is required");
+        }
+        Path normalized = configPath.toAbsolutePath().normalize();
+        Path sessionFile = normalized.getParent().resolve(SESSION_FRAGMENT_FILE);
+        Files.createDirectories(sessionFile.getParent());
+        List<String> lines = new ArrayList<>();
+        lines.add(VERSION_LINE);
+        lines.add("");
+        lines.add("[session]");
+        lines.add("system = " + quoteValue(systemAlias.trim()));
+        Files.writeString(sessionFile, String.join(System.lineSeparator(), lines) + System.lineSeparator());
+    }
+
+    /**
+     * Clears {@code session.openadt.toml} when present.
+     */
+    public void clearSessionContext(Path configPath) throws IOException {
+        Path sessionFile = configPath.toAbsolutePath().normalize().getParent().resolve(SESSION_FRAGMENT_FILE);
+        Files.deleteIfExists(sessionFile);
+    }
+
+    private void applySessionOverlay(OpenAdtConfig config, Path loadedConfigPath) throws IOException {
+        Path sessionFile = loadedConfigPath.toAbsolutePath().normalize().getParent().resolve(SESSION_FRAGMENT_FILE);
+        if (!Files.isRegularFile(sessionFile)) {
+            return;
+        }
+        OpenAdtConfig overlay = loadFragment(sessionFile, new LinkedHashSet<>());
+        mergeSession(config, overlay.getSession());
+    }
+
+    private void mergeSession(OpenAdtConfig target, SessionConfig source) {
+        if (source == null || source.getSystem() == null || source.getSystem().isBlank()) {
+            return;
+        }
+        SessionConfig session = target.getSession();
+        if (session == null) {
+            session = new SessionConfig();
+            target.setSession(session);
+        }
+        session.setSystem(source.getSystem());
     }
 
     private static void canonicalizeRuntimeJcoJar(OpenAdtConfig config) {
@@ -489,6 +539,7 @@ public class ConfigLoader {
         config.setRuntime(fragment.runtime);
         config.setSecureLogin(fragment.secureLogin);
         config.setProxy(fragment.proxy);
+        config.setSession(fragment.session);
 
         LinkedHashMap<String, SystemProfile> systems = new LinkedHashMap<>();
         if (fragment.systems != null) {
@@ -527,6 +578,7 @@ public class ConfigLoader {
         mergeRuntimeLastWins(target, source.getRuntime());
         mergeSecureLoginLastWins(target, source.getSecureLogin());
         mergeProxyLastWins(target, source.getProxy());
+        mergeSession(target, source.getSession());
 
         LinkedHashMap<String, SystemProfile> mergedSystems = new LinkedHashMap<>();
         if (target.getSystems() != null) {
@@ -551,6 +603,7 @@ public class ConfigLoader {
         mergeRuntime(target, source.getRuntime());
         mergeSecureLogin(target, source.getSecureLogin());
         mergeProxy(target, source.getProxy());
+        mergeSession(target, source.getSession());
 
         LinkedHashMap<String, SystemProfile> mergedSystems = new LinkedHashMap<>();
         if (target.getSystems() != null) {
@@ -1165,6 +1218,8 @@ public class ConfigLoader {
         public OpenAdtConfig.SecureLoginConfig secureLogin;
         @JsonProperty("proxy")
         public OpenAdtConfig.ProxyConfig proxy;
+        @JsonProperty("session")
+        public SessionConfig session;
         @JsonProperty("systems")
         public List<SystemProfile> systems;
         @JsonProperty("destinations")

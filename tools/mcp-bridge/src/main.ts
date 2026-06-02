@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 // @ts-nocheck
 /**
- * Minimal stdio MCP stub: tools delegate to `openadt fetch` and `openadt adt`.
+ * Minimal stdio MCP stub: tools delegate to `openadt fetch`, `discovery`, and `auth login`.
  * See specs/mcp.md.
  */
 import { spawnSync } from "node:child_process";
@@ -46,9 +46,11 @@ function openadtBin(): string {
 }
 
 function handleFetch(args: { system?: string; path?: string }) {
-  const system = args.system ?? "DEV";
   const path = args.path ?? "/sap/bc/adt/discovery";
-  const result = spawnSync(openadtBin(), ["fetch", system, path, "--pretty"], {
+  const argv = args.system
+    ? ["fetch", args.system, path, "--pretty"]
+    : ["fetch", path, "--pretty"];
+  const result = spawnSync(openadtBin(), argv, {
     encoding: "utf8",
   });
   const text = (result.stdout ?? "") + (result.stderr ?? "");
@@ -59,15 +61,13 @@ function handleFetch(args: { system?: string; path?: string }) {
 }
 
 function handleDiscover(args: { system?: string; format?: string }) {
-  const system = args.system ?? "DEV";
-  const format = args.format ?? "text";
-  const result = spawnSync(
-    openadtBin(),
-    ["adt", "discover", system, "--format", format],
-    {
-      encoding: "utf8",
-    },
-  );
+  const format = args.format ?? "json";
+  const argv = args.system
+    ? ["discovery", args.system, "--format", format]
+    : ["discovery", "--format", format];
+  const result = spawnSync(openadtBin(), argv, {
+    encoding: "utf8",
+  });
   const text = (result.stdout ?? "") + (result.stderr ?? "");
   return {
     content: [{ type: "text", text: text || `exit ${result.status}` }],
@@ -80,7 +80,7 @@ function handleLogon(args: { system?: string; format?: string }) {
   const format = args.format ?? "text";
   const result = spawnSync(
     openadtBin(),
-    ["adt", "logon", system, "--format", format],
+    ["auth", "login", system, "--format", format],
     {
       encoding: "utf8",
     },
@@ -105,34 +105,39 @@ const tools = [
     inputSchema: {
       type: "object",
       properties: {
-        system: { type: "string", description: "Config alias (e.g. DEV)" },
+        system: {
+          type: "string",
+          description: "Config alias (optional after auth login)",
+        },
         path: {
           type: "string",
           description: "ADT path e.g. /sap/bc/adt/discovery",
         },
       },
-      required: ["system", "path"],
+      required: ["path"],
     },
   },
   {
     name: "adt_discover",
-    description: "Run openadt adt discover (SDK IAdtDiscovery)",
+    description: "Run openadt discovery (full ADT discovery document)",
     inputSchema: {
       type: "object",
       properties: {
-        system: { type: "string", description: "Config alias (e.g. DEV)" },
+        system: {
+          type: "string",
+          description: "Config alias (optional after auth login)",
+        },
         format: {
           type: "string",
           description: "text or json",
           enum: ["text", "json"],
         },
       },
-      required: ["system"],
     },
   },
   {
     name: "adt_logon",
-    description: "Run openadt adt logon (SDK IAdtLogonService)",
+    description: "Run openadt auth login (sets session context)",
     inputSchema: {
       type: "object",
       properties: {

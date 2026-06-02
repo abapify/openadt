@@ -2,6 +2,8 @@
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $cli = Join-Path $repoRoot "apps\openadt-cli"
+$configClasses = Join-Path $repoRoot "apps\openadt-config\target\classes"
+$bootstrapClasses = Join-Path $repoRoot "apps\openadt-bootstrap\target\classes"
 $classes = Join-Path $cli "target\classes"
 $jar = @(Get-ChildItem (Join-Path $cli "target") -Filter "openadt-*.jar" -ErrorAction SilentlyContinue |
     Where-Object { $_.Name -notmatch '(-sources|-javadoc)\.jar$' } |
@@ -28,6 +30,8 @@ if ((Test-Path $runtimeSapLib) -and ((Get-ChildItem $runtimeSapLib -Filter "*.ja
     $sapJars = @(Get-ChildItem $sapLib -Filter "*.jar" -ErrorAction SilentlyContinue)
 }
 $cp = @()
+if (Test-Path $configClasses) { $cp += $configClasses }
+if (Test-Path $bootstrapClasses) { $cp += $bootstrapClasses }
 if (Test-Path $sapAdtClasses) { $cp += $sapAdtClasses }
 if (Test-Path $classes) { $cp += $classes }
 if (Test-Path $jar) { $cp += $jar }

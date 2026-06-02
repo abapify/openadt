@@ -5,6 +5,7 @@ import org.openadt.sap.adt.sdk.AdtTransportFactory;
 import org.openadt.config.CliLog;
 import org.openadt.config.ConfigLoader;
 import org.openadt.config.DestinationProfileResolver;
+import org.openadt.config.SessionContext;
 import org.openadt.product.proxy.LocalProxyRegistry;
 import org.openadt.config.OpenAdtConfig;
 import org.openadt.config.SystemProfile;
@@ -25,7 +26,7 @@ import java.io.IOException;
 public class ProxyCommand implements Callable<Integer> {
     private static final String DEFAULT_LISTEN = "127.0.0.1:8079";
 
-    @Parameters(index = "0", description = "System alias to proxy", arity = "0..1")
+    @Parameters(index = "0", description = "System alias (default: active session from auth login)", arity = "0..1")
     private String systemAlias;
 
     @Option(names = {"--listen"}, description = "Bind address:port (default: config proxy.listen or 127.0.0.1:8079)")
@@ -73,13 +74,12 @@ public class ProxyCommand implements Callable<Integer> {
     }
 
     private String resolveEffectiveAlias(OpenAdtConfig config) {
-        if (systemAlias != null && !systemAlias.isBlank()) {
-            return systemAlias;
+        try {
+            return SessionContext.requireAlias(config, systemAlias);
+        } catch (IllegalArgumentException e) {
+            CliLog.error(e.getMessage());
+            return null;
         }
-        if (config.getSystems() != null && !config.getSystems().isEmpty()) {
-            return config.getSystems().get(0).getAlias();
-        }
-        return systemAlias;
     }
 
     private SystemProfile resolveSystem(OpenAdtConfig config, String effectiveAlias) {

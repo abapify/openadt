@@ -213,7 +213,7 @@ if ($subcommand -eq "fetch" -and (Resolve-FetchUsesLiteProxy $OpenAdtArgs)) {
   Invoke-LiteOpenAdt $OpenAdtArgs
 }
 
-if ($subcommand -in @("fetch", "proxy", "adt")) {
+if ($subcommand -in @("fetch", "proxy", "auth", "discovery")) {
   Invoke-SdkOpenAdt $OpenAdtArgs
 }
 

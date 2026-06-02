@@ -29,6 +29,20 @@ Supported fragment areas:
 - `runtime`
 - `secure_login`
 - `proxy`
+- `session` (also written automatically to `session.openadt.toml` by `openadt auth login`)
+
+## Session context
+
+After `openadt auth login <SYSTEM>`, OpenADT writes `session.openadt.toml` next to the loaded config entrypoint:
+
+```toml
+version = 1
+
+[session]
+system = "S0D"
+```
+
+Commands `fetch`, `proxy`, `discovery`, `auth status`, and `auth logout` use this alias when `<SYSTEM>` is omitted. Override per invocation with an explicit alias or `OPENADT_SYSTEM`.
 
 ## Top-level fields
 

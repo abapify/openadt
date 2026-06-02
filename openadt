@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Dev launcher: delegates to scripts/nx-openadt.ts (SDK classpath for snc, fat jar for --profile=sso|http).
+# Dev launcher: nx compile (cached) + module target/classes + optional fat jar, then Java.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
+cd "$ROOT"
 if ! command -v bun >/dev/null 2>&1; then
-  echo "bun is required for ./openadt. Install bun or use scripts/openadt-sdk.ps1 on Windows." >&2
+  echo "bun is required for ./openadt. Install bun or use: bun run openadt -- …" >&2
   exit 1
 fi
-exec bun run "$ROOT/scripts/nx-openadt.ts" "$@"
+exec bun run openadt -- "$@"

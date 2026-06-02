@@ -11,6 +11,7 @@ import org.openadt.config.DestinationProfileResolver;
 import org.openadt.config.CliLog;
 import org.openadt.config.OpenAdtConfig;
 import org.openadt.config.ProfileFetchHints;
+import org.openadt.config.SessionContext;
 import org.openadt.config.SystemProfile;
 import org.openadt.sap.adt.sdk.AdtLogonStatusReport;
 import picocli.CommandLine.Option;
@@ -25,10 +26,12 @@ abstract class AdtCommandSupport {
     @Option(names = {"--profile"}, description = "Authentication profile (e.g. snc, sso)")
     String profile;
 
-    protected SystemProfile resolveSystem(OpenAdtConfig config, String alias) {
-        if (alias == null || alias.isBlank()) {
-            throw new IllegalArgumentException("System alias is required");
-        }
+    protected String resolveSystemAlias(OpenAdtConfig config, String cliAlias) {
+        return SessionContext.requireAlias(config, cliAlias);
+    }
+
+    protected SystemProfile resolveSystem(OpenAdtConfig config, String cliAlias) {
+        String alias = resolveSystemAlias(config, cliAlias);
         String effectiveProfile = ProfileFetchHints.resolveEffectiveProfile(profile);
         return DestinationProfileResolver.resolve(config, alias, effectiveProfile);
     }

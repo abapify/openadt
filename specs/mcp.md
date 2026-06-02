@@ -4,11 +4,11 @@ Experimental stdio MCP server wrapping `openadt fetch` for agent hosts (Cursor, 
 
 ## Tools
 
-| Tool           | Args                | Behavior                                                |
-| -------------- | ------------------- | ------------------------------------------------------- |
-| `adt_fetch`    | `system`, `path`    | Runs `openadt fetch <system> <path>` and returns stdout |
-| `adt_discover` | `system`, `format?` | Runs `openadt adt discover <system> --format <format>`  |
-| `adt_logon`    | `system`, `format?` | Runs `openadt adt logon <system> --format <format>`     |
+| Tool           | Args                 | Behavior                                                                 |
+| -------------- | -------------------- | ------------------------------------------------------------------------ |
+| `adt_fetch`    | `path`, `system?`    | Runs `openadt fetch [system] <path>` (uses session context when omitted) |
+| `adt_discover` | `system?`, `format?` | Runs `openadt discovery [system] --format <format>`                      |
+| `adt_logon`    | `system`, `format?`  | Runs `openadt auth login <system> --format <format>` (sets session)      |
 
 Future: `adt_proxy_status` when proxy introspection is stable.
 

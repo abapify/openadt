@@ -6,6 +6,7 @@ import org.openadt.config.CliLog;
 import org.openadt.sap.adt.fallback.http.AdtAcceptHeaders;
 import org.openadt.config.ConfigLoader;
 import org.openadt.config.DestinationProfileResolver;
+import org.openadt.config.SessionContext;
 import org.openadt.product.fetch.FetchTransportResolver;
 import org.openadt.product.proxy.LocalProxyRegistry;
 import org.openadt.config.ProfileFetchHints;
@@ -38,7 +39,7 @@ import java.util.concurrent.Callable;
 public class FetchCommand implements Callable<Integer> {
     private static final String HEADER_ACCEPT = "Accept";
 
-    @Parameters(index = "0", arity = "0..1", description = "System alias")
+    @Parameters(index = "0", arity = "0..1", description = "System alias or ADT path when session context is set")
     private String systemAlias;
 
     @Parameters(index = "1", arity = "0..1", description = "ADT URL or path (e.g. /sap/bc/adt/discovery)")
@@ -159,22 +160,35 @@ public class FetchCommand implements Callable<Integer> {
         if (isDirectHttpMode()) {
             return resolveDirectHttpInputs();
         }
-        if (systemAlias == null || systemAlias.isBlank() || urlOrPath == null || urlOrPath.isBlank()) {
-            CliLog.error("Usage: openadt fetch <SYSTEM> <URL-OR-PATH> (or use --base-url with --path)");
-            return null;
-        }
         Path effectivePath = configPath != null ? configPath : loader.getDefaultConfigPath();
         OpenAdtConfig config = loader.load(effectivePath);
-        applyProfileCallbackPort(config, systemAlias);
+        String aliasArg = systemAlias;
+        String pathArg = urlOrPath;
+        if (pathArg == null && aliasArg != null && looksLikeAdtPath(aliasArg)) {
+            pathArg = aliasArg;
+            aliasArg = null;
+        }
+        String resolvedAlias;
+        try {
+            resolvedAlias = SessionContext.requireAlias(config, aliasArg);
+        } catch (IllegalArgumentException e) {
+            CliLog.error(e.getMessage());
+            return null;
+        }
+        if (pathArg == null || pathArg.isBlank()) {
+            CliLog.error("Usage: openadt fetch [<SYSTEM>] <URL-OR-PATH> (or use --base-url with --path)");
+            return null;
+        }
+        applyProfileCallbackPort(config, resolvedAlias);
         SystemProfile destination;
         try {
-            destination = DestinationProfileResolver.resolve(config, systemAlias, profile);
+            destination = DestinationProfileResolver.resolve(config, resolvedAlias, profile);
         } catch (IllegalArgumentException e) {
             CliLog.error(e.getMessage());
             return null;
         }
         applyHttpTlsCliOverrides(destination);
-        return new FetchInputs(config, destination, resolveAdtPath(urlOrPath));
+        return new FetchInputs(config, destination, resolveAdtPath(pathArg));
     }
 
     private FetchInputs resolveDirectHttpInputs() {
@@ -203,7 +217,7 @@ public class FetchCommand implements Callable<Integer> {
             String profileHint = profile != null && !profile.isBlank()
                 ? " --profile=" + profile
                 : "";
-            CliLog.diagnostic("Tip: run 'openadt proxy " + system.getAlias()
+            CliLog.diagnostic("Tip: run 'openadt proxy"
                 + profileHint + "' in another terminal; fetch will reuse it and start faster.");
         }
     }
@@ -262,6 +276,10 @@ public class FetchCommand implements Callable<Integer> {
     }
 
     private record FetchInputs(OpenAdtConfig config, SystemProfile system, String adtPath) {
+    }
+
+    private static boolean looksLikeAdtPath(String value) {
+        return value.startsWith("/") || value.startsWith("http://") || value.startsWith("https://");
     }
 
     private String resolveAdtPath(String urlOrPath) {

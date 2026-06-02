@@ -21,6 +21,10 @@
             <artifactId>openadt-config</artifactId>
         </dependency>
         <dependency>
+            <groupId>org.json</groupId>
+            <artifactId>json</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
             <scope>test</scope>
@@ -42,6 +46,7 @@
                 <dependency><groupId>com.sap.adt</groupId><artifactId>destinations-model</artifactId><version>3.58.0</version><scope>system</scope><systemPath>${adt.plugins.dir}/com.sap.adt.destinations.model_3.58.0.jar</systemPath></dependency>
                 <dependency><groupId>com.sap.adt</groupId><artifactId>logging</artifactId><version>3.58.0</version><scope>system</scope><systemPath>${adt.plugins.dir}/com.sap.adt.logging_3.58.0.jar</systemPath></dependency>
                 <dependency><groupId>com.sap.adt</groupId><artifactId>util</artifactId><version>3.58.0</version><scope>system</scope><systemPath>${adt.plugins.dir}/com.sap.adt.util_3.58.0.jar</systemPath></dependency>
+                <dependency><groupId>com.sap.adt</groupId><artifactId>transport</artifactId><version>3.58.0</version><scope>system</scope><systemPath>${adt.plugins.dir}/com.sap.adt.transport_3.58.0.jar</systemPath></dependency>
                 <dependency><groupId>com.sap.conn</groupId><artifactId>jco</artifactId><version>3.1.13</version><scope>system</scope><systemPath>${adt.plugins.dir}/com.sap.conn.jco_3.1.13.jar</systemPath></dependency>
                 <dependency><groupId>com.sap.conn</groupId><artifactId>jco-eclipse</artifactId><version>1.32.0</version><scope>system</scope><systemPath>${adt.plugins.dir}/com.sap.conn.jco.eclipse_1.32.0.jar</systemPath></dependency>
                 <dependency><groupId>org.eclipse.platform</groupId><artifactId>core-runtime</artifactId><version>3.34.200</version><scope>system</scope><systemPath>${adt.plugins.dir}/org.eclipse.core.runtime_3.34.200.v20251220-0953.jar</systemPath></dependency>
@@ -81,7 +86,10 @@
                                 <exclude>org/openadt/sap/adt/sdk/SapSdkRuntime.java</exclude>
                                 <exclude>org/openadt/sap/adt/services/SapAdtSessionContext.java</exclude>
                                 <exclude>org/openadt/sap/adt/services/DiscoveryService.java</exclude>
+                                <exclude>org/openadt/sap/adt/services/SdkDiscoveryAccess.java</exclude>
                                 <exclude>org/openadt/sap/adt/services/LogonService.java</exclude>
+                                <exclude>org/openadt/sap/adt/services/TransportService.java</exclude>
+                                <exclude>org/openadt/sap/adt/services/handlers/**</exclude>
                             </excludes>
                             <testExcludes>
                                 <testExclude>org/openadt/sap/adt/sdk/AdtSdkTransportClientTest.java</testExclude>
