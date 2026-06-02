@@ -77,17 +77,17 @@
                         <artifactId>maven-compiler-plugin</artifactId>
                         <configuration>
                             <excludes>
-                                <exclude>org/openadt/sap/adt/sdk/AdtSdkTransportClient.java</exclude>
+                                <exclude>**/AdtSdkTransportClient.java</exclude>
                                 <exclude>org/openadt/sap/adt/sdk/AdtSdkClassLoaderFactory.java</exclude>
                                 <exclude>org/openadt/sap/adt/sdk/AdtCommunicationBootstrap.java</exclude>
                                 <exclude>org/openadt/sap/adt/sdk/JCoEclipseBootstrap.java</exclude>
-                                <exclude>org/openadt/sap/adt/destination/EclipseDestinationLoader.java</exclude>
-                                <exclude>org/openadt/sap/adt/destination/SapDestinationResolver.java</exclude>
+                                <exclude>**/EclipseDestinationLoader.java</exclude>
+                                <exclude>**/SapDestinationResolver.java</exclude>
                                 <exclude>org/openadt/sap/adt/sdk/SapSdkRuntime.java</exclude>
-                                <exclude>org/openadt/sap/adt/services/SapAdtSessionContext.java</exclude>
+                                <exclude>**/SapAdtSessionContext.java</exclude>
                                 <exclude>org/openadt/sap/adt/services/DiscoveryService.java</exclude>
                                 <exclude>org/openadt/sap/adt/services/SdkDiscoveryAccess.java</exclude>
-                                <exclude>org/openadt/sap/adt/services/LogonService.java</exclude>
+                                <exclude>**/LogonService.java</exclude>
                                 <exclude>org/openadt/sap/adt/services/TransportService.java</exclude>
                                 <exclude>org/openadt/sap/adt/services/handlers/**</exclude>
                             </excludes>
