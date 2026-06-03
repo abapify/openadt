@@ -1,3 +1,6 @@
+# DO NOT EDIT DIRECTLY.
+# This file is regenerated from packaging/homebrew/openadt.rb by
+# `bun run package:release` on every release. Any local edits will be lost.
 class Openadt < Formula
   desc "Local bridge for SAP ADT traffic"
   homepage "https://github.com/abapify/openadt"

@@ -1,4 +1,4 @@
-# Dev launcher: run OpenADT from a local Maven build (not Scoop/winget).
+# Dev launcher: run OpenADT from a local Maven build (not Scoop).
 # Delegates to scripts/nx-openadt.ts (SDK classpath for snc, fat jar for --profile=sso|http).
 param(
   [Parameter(ValueFromRemainingArguments = $true)]

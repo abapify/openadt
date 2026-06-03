@@ -14,7 +14,7 @@ Behavior contracts for OpenADT. **Change specs before or with code** when CLI, p
 | [proxy.md](proxy.md)                       | Local HTTP proxy, auth, redaction                    |
 | [setup.md](setup.md)                       | Detectors and bootstrap output                       |
 | [mcp.md](mcp.md)                           | MCP bridge (experimental)                            |
-| [packaging.md](packaging.md)               | Releases, winget, brew                               |
+| [packaging.md](packaging.md)               | Releases, Scoop, Homebrew                            |
 
 ## Workflow
 

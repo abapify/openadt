@@ -1,10 +1,4 @@
-import {
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 
@@ -231,44 +225,6 @@ function repairCliDependencyPluginVersion(): void {
   );
 }
 
-function listWingetVersionDirs(): string[] {
-  const base = join(root, "packaging/winget/manifests/o/OpenADT/OpenADT");
-  if (!existsSync(base)) {
-    return [];
-  }
-  return readdirSync(base, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .sort((a, b) => {
-      try {
-        return (
-          parseVersion(b).major - parseVersion(a).major ||
-          parseVersion(b).minor - parseVersion(a).minor ||
-          parseVersion(b).patch - parseVersion(a).patch
-        );
-      } catch {
-        return b.localeCompare(a);
-      }
-    });
-}
-
-function syncWingetManifests(version: string, templateVersion: string): void {
-  const base = join(root, "packaging/winget/manifests/o/OpenADT/OpenADT");
-  const templateDir = join(base, templateVersion);
-  const targetDir = join(base, version);
-  if (!existsSync(templateDir)) {
-    throw new Error(`Winget template folder missing: ${templateDir}`);
-  }
-  mkdirSync(targetDir, { recursive: true });
-  for (const file of readdirSync(templateDir)) {
-    const from = join(templateDir, file);
-    const to = join(targetDir, file.replaceAll(templateVersion, version));
-    let content = readFileSync(from, "utf8");
-    content = content.replaceAll(templateVersion, version);
-    writeFileSync(to, content);
-  }
-}
-
 function updateHomebrew(version: string): void {
   const formulaPath = join(root, "packaging/homebrew/openadt.rb");
   let formula = readFileSync(formulaPath, "utf8");
@@ -277,11 +233,11 @@ function updateHomebrew(version: string): void {
     /sha256 "[^"]+"/,
     'sha256 "PLACEHOLDER_RUN_PACKAGE_RELEASE"',
   );
-  formula = formula.replace(
-    /# Stable: prebuilt zip from GitHub Releases \(sha256 updated by `bun run package:release`\)\./,
-    `# Stable: prebuilt zip from GitHub Releases (sha256 updated by package:release on v${version}).`,
-  );
   writeFileSync(formulaPath, formula);
+  // Do NOT sync Formula/openadt.rb here: the bump commit would land a
+  // PLACEHOLDER sha256 on `main` and break `brew install openadt` until
+  // the publish step refreshes it. package-release syncs the tap formula
+  // after the real sha256 is known (see tools/package-release/src/main.ts).
 }
 
 function updateScoop(version: string): void {
@@ -341,12 +297,6 @@ const nextVersion = formatVersion(
 
 writePomVersion(nextVersion);
 repairCliDependencyPluginVersion();
-
-const wingetVersions = listWingetVersionDirs();
-const wingetTemplate = wingetVersions.at(0) ?? "1.0.0";
-if (wingetTemplate !== nextVersion) {
-  syncWingetManifests(nextVersion, wingetTemplate);
-}
 
 updateHomebrew(nextVersion);
 updateScoop(nextVersion);

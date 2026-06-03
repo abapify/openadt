@@ -11,5 +11,5 @@ When adding or editing CI, packaging, or install docs:
 - **Do not** copy old workflow snippets (`checkout@v4`, `setup-bun@v1`, `setup-java@v4`, `action-gh-release@v2`) without checking upstream releases.
 - **Bun**: prefer `oven-sh/setup-bun@v2` without a hardcoded `bun-version`; rely on `package.json` `packageManager` / lockfile.
 - **Java / .NET in CI**: use LTS channels (`21`, `8.0.x`) with `check-latest: true` on setup actions when patch updates are desired.
-- **CLI tools** (winget, brew, gh, dotnet, java): document current stable install IDs/commands; avoid pinning outdated package versions unless reproducibility requires it.
+- **CLI tools** (Scoop, brew, gh, dotnet, java): document current stable install commands; avoid pinning outdated package versions unless reproducibility requires it.
 - Before claiming a version is current, verify the upstream release page or registry — do not guess.

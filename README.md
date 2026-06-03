@@ -8,9 +8,24 @@ SAP ships ADT as Eclipse plugins and JCo destinations. OpenADT runs that stack h
 
 ## Install
 
-**Windows:** `winget install --id OpenADT.OpenADT`
+**Windows:** Scoop's `bucket add` does not parse `#branch` in the URL, so clone the `scoop-bucket` branch first and add the local checkout as a bucket:
 
-**Linux / macOS:** `brew install --HEAD --formula packaging/homebrew/openadt.rb`
+```powershell
+git clone -b scoop-bucket --depth 1 https://github.com/abapify/openadt openadt-bucket
+scoop bucket add openadt .\openadt-bucket\packaging\scoop
+scoop install openadt
+```
+
+Or skip the bucket and install directly from the manifest URL: `scoop install https://raw.githubusercontent.com/abapify/openadt/scoop-bucket/openadt.json`
+
+**Linux / macOS:**
+
+```bash
+brew tap abapify/openadt https://github.com/abapify/openadt.git
+brew install openadt
+```
+
+Later: `brew update && brew upgrade openadt`
 
 Build from source: [docs/usage.md](docs/usage.md#install-openadt-today).
 

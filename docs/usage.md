@@ -31,13 +31,12 @@ A basic or password-based SAP destination in config is a valid choice when your 
 
 ## Install Build Tools
 
-### Windows (`winget`)
+### Windows (Scoop)
 
 ```powershell
-winget install --id EclipseAdoptium.Temurin.21.JDK --source winget
-winget install --id Apache.Maven --source winget
-winget install --id Git.Git --source winget
-winget install --id Oven-sh.Bun --source winget
+scoop install git maven bun
+scoop bucket add java
+scoop install openjdk21
 ```
 
 Verify:
@@ -85,7 +84,7 @@ Devcontainer setup is useful for reproducible Linux-native development. It is no
 
 ## Install OpenADT Today (build from source)
 
-When winget/Homebrew packages are not published yet, build from source on any supported OS.
+When Scoop/Homebrew packages are not suitable, build from source on any supported OS.
 
 ```bash
 git clone https://github.com/abapify/openadt.git
@@ -95,7 +94,7 @@ cd openadt
 
 The shaded CLI jar is `apps/openadt-cli/target/openadt-*.jar` (version matches root `pom.xml`, currently `1.1.x`).
 
-From the repository root (dev build, not Scoop/winget):
+From the repository root (dev build, not Scoop):
 
 ```powershell
 cd openadt
@@ -146,14 +145,17 @@ chmod +x "$HOME/.local/bin/openadt"
 
 Ensure `$HOME/.local/bin` is on your `PATH`, then run `openadt --help`.
 
-## Install OpenADT (Scoop / winget / Homebrew)
+## Install OpenADT (Scoop / Homebrew)
 
-### Windows — Scoop (recommended)
+### Windows — Scoop
 
 Three steps: **install → setup → proxy + fetch**.
 
 ```powershell
-scoop bucket add openadt https://github.com/abapify/scoop-bucket.git
+# Scoop's `bucket add` does not parse `#branch` in the URL, so clone the
+# `scoop-bucket` branch first and add the local checkout as a bucket.
+git clone -b scoop-bucket --depth 1 https://github.com/abapify/openadt openadt-bucket
+scoop bucket add openadt .\openadt-bucket\packaging\scoop
 scoop install openadt
 openadt setup
 openadt proxy DEV
@@ -198,46 +200,31 @@ scoop uninstall openadt
 
 Scoop installs OpenADT and suggests JDK 21 (`java/openjdk21` bucket). SAP JCo, ADT plugins, Secure Login, and landscape data are not bundled.
 
-### Windows — winget
-
-Releases are published from the manual **Release** GitHub Actions workflow (choose `patch` / `minor` / `major` / prerelease bump, then the workflow tags `vX.Y.Z` and uploads assets).
-
-```powershell
-winget install --id OpenADT.OpenADT
-openadt --help
-```
-
-From this repository (after `bun run package:release`):
-
-```powershell
-winget install --manifest packaging\winget\manifests -e --id OpenADT.OpenADT
-```
-
-Update and uninstall:
-
-```powershell
-winget upgrade --id OpenADT.OpenADT
-winget uninstall --id OpenADT.OpenADT
-```
-
-Winget installs only OpenADT (`openadt.jar`, `openadt.cmd`, `openadt.ps1`, license). It does not install SAP JCo, ADT plugins, Secure Login, SAP GUI, CryptoLib, or landscape data.
-
 ### Linux and macOS — Homebrew
 
-From GitHub `main` (builds the distribution jar with Maven):
+Add the tap once:
+
+```bash
+brew tap abapify/openadt https://github.com/abapify/openadt.git
+brew install openadt
+openadt setup
+```
+
+Upgrade:
+
+```bash
+brew update
+brew upgrade openadt
+```
+
+From a git checkout (builds from `main`):
 
 ```bash
 brew install --HEAD --formula packaging/homebrew/openadt.rb
 openadt --help
 ```
 
-From a published release zip (after `v1.0.0` is on GitHub Releases):
-
-```bash
-brew install --formula packaging/homebrew/openadt.rb
-```
-
-See [packaging/README.md](../packaging/README.md) for maintainers (`package:release`, manifest validation).
+See [packaging/README.md](../packaging/README.md) for maintainers (`package:release`).
 
 ## First Setup
 
