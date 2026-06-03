@@ -21,7 +21,7 @@ Development builds from `main` or open pull requests are not supported release l
 - The `openadt` CLI (`setup`, `proxy`, `fetch`, and related commands)
 - Localhost proxy behavior, authentication modes, header handling, and credential redaction
 - Configuration parsing and validation in OpenADT
-- Packaging (winget, Homebrew) and install/bootstrap scripts maintained in this repository
+- Packaging (Scoop, Homebrew) and install/bootstrap scripts maintained in this repository
 - GitHub Actions workflows and release automation in this repository
 
 **Out of scope**

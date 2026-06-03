@@ -8,9 +8,16 @@ SAP ships ADT as Eclipse plugins and JCo destinations. OpenADT runs that stack h
 
 ## Install
 
-**Windows:** `winget install --id OpenADT.OpenADT`
+**Windows:** `scoop bucket add openadt https://github.com/abapify/openadt.git#scoop-bucket` then `scoop install openadt`
 
-**Linux / macOS:** `brew install --HEAD --formula packaging/homebrew/openadt.rb`
+**Linux / macOS:**
+
+```bash
+brew tap abapify/openadt https://github.com/abapify/openadt.git
+brew install openadt
+```
+
+Later: `brew update && brew upgrade openadt`
 
 Build from source: [docs/usage.md](docs/usage.md#install-openadt-today).
 

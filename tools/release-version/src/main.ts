@@ -1,11 +1,5 @@
-import {
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  writeFileSync,
-} from "node:fs";
-import { join, resolve } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 
 const root = resolve(import.meta.dir, "../../..");
@@ -231,44 +225,6 @@ function repairCliDependencyPluginVersion(): void {
   );
 }
 
-function listWingetVersionDirs(): string[] {
-  const base = join(root, "packaging/winget/manifests/o/OpenADT/OpenADT");
-  if (!existsSync(base)) {
-    return [];
-  }
-  return readdirSync(base, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .sort((a, b) => {
-      try {
-        return (
-          parseVersion(b).major - parseVersion(a).major ||
-          parseVersion(b).minor - parseVersion(a).minor ||
-          parseVersion(b).patch - parseVersion(a).patch
-        );
-      } catch {
-        return b.localeCompare(a);
-      }
-    });
-}
-
-function syncWingetManifests(version: string, templateVersion: string): void {
-  const base = join(root, "packaging/winget/manifests/o/OpenADT/OpenADT");
-  const templateDir = join(base, templateVersion);
-  const targetDir = join(base, version);
-  if (!existsSync(templateDir)) {
-    throw new Error(`Winget template folder missing: ${templateDir}`);
-  }
-  mkdirSync(targetDir, { recursive: true });
-  for (const file of readdirSync(templateDir)) {
-    const from = join(templateDir, file);
-    const to = join(targetDir, file.replaceAll(templateVersion, version));
-    let content = readFileSync(from, "utf8");
-    content = content.replaceAll(templateVersion, version);
-    writeFileSync(to, content);
-  }
-}
-
 function updateHomebrew(version: string): void {
   const formulaPath = join(root, "packaging/homebrew/openadt.rb");
   let formula = readFileSync(formulaPath, "utf8");
@@ -282,6 +238,13 @@ function updateHomebrew(version: string): void {
     `# Stable: prebuilt zip from GitHub Releases (sha256 updated by package:release on v${version}).`,
   );
   writeFileSync(formulaPath, formula);
+  syncHomebrewTapFormula(formulaPath);
+}
+
+function syncHomebrewTapFormula(formulaPath: string): void {
+  const tapPath = join(root, "Formula/openadt.rb");
+  mkdirSync(dirname(tapPath), { recursive: true });
+  writeFileSync(tapPath, readFileSync(formulaPath, "utf8"));
 }
 
 function updateScoop(version: string): void {
@@ -341,12 +304,6 @@ const nextVersion = formatVersion(
 
 writePomVersion(nextVersion);
 repairCliDependencyPluginVersion();
-
-const wingetVersions = listWingetVersionDirs();
-const wingetTemplate = wingetVersions.at(0) ?? "1.0.0";
-if (wingetTemplate !== nextVersion) {
-  syncWingetManifests(nextVersion, wingetTemplate);
-}
 
 updateHomebrew(nextVersion);
 updateScoop(nextVersion);

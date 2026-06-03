@@ -58,7 +58,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add pom.xml apps/*/pom.xml packaging/
+          git add pom.xml apps/*/pom.xml packaging/ Formula/
           if git diff --cached --quiet; then
             echo "No version changes to commit."
             exit 1
@@ -98,7 +98,7 @@ jobs:
           chmod +x ./mvnw
           ./mvnw -q -f pom.xml -pl apps/openadt-cli -am -Pdistribution -Dopenadt.distribution=true package -Dmaven.test.skip=true
 
-      - name: Package zip and refresh winget or homebrew checksums
+      - name: Package zip and refresh homebrew or scoop checksums
         env:
           OPENADT_PACKAGE_WIN_EXE: "1"
         run: bun run package:release -- --version=${{ needs.bump.outputs.version }}
@@ -108,7 +108,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add packaging/
+          git add packaging/ Formula/
           if ! git diff --cached --quiet; then
             git commit -m "chore(release): checksums for ${{ needs.bump.outputs.tag }}"
           fi

@@ -138,6 +138,13 @@ function updateHomebrewSha256(sha256: string): void {
   let ruby = readFileSync(formulaPath, "utf8");
   ruby = ruby.replace(/sha256 "[^"]+"/, `sha256 "${sha256.toLowerCase()}"`);
   writeFileSync(formulaPath, ruby);
+  syncHomebrewTapFormula(formulaPath);
+}
+
+function syncHomebrewTapFormula(formulaPath: string): void {
+  const tapPath = join(root, "Formula/openadt.rb");
+  mkdirSync(dirname(tapPath), { recursive: true });
+  cpSync(formulaPath, tapPath);
 }
 
 function updateScoopSha256(sha256: string): void {
@@ -149,26 +156,6 @@ function updateScoopSha256(sha256: string): void {
     `https://github.com/abapify/openadt/releases/download/v${version}/${zipName}`;
   manifest.architecture["64bit"].hash = sha256.toLowerCase();
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 4)}\n`);
-}
-
-function updateWingetInstaller(sha256: string): void {
-  const installerPath = join(
-    root,
-    "packaging/winget/manifests/o/OpenADT/OpenADT",
-    version,
-    "OpenADT.OpenADT.installer.yaml",
-  );
-  let yaml = readFileSync(installerPath, "utf8");
-  yaml = yaml.replace(/InstallerSha256:\s*.+/, `InstallerSha256: ${sha256}`);
-  yaml = yaml.replace(
-    /InstallerUrl:\s*.+/,
-    `InstallerUrl: https://github.com/abapify/openadt/releases/download/v${version}/${zipName}`,
-  );
-  yaml = yaml.replace(
-    /ReleaseDate:\s*.+/,
-    `ReleaseDate: ${new Date().toISOString().slice(0, 10)}`,
-  );
-  writeFileSync(installerPath, yaml);
 }
 
 rmSync(stageDir, { recursive: true, force: true });
@@ -207,7 +194,6 @@ zip.writeZip(zipPath);
 
 const sha256 = sha256File(zipPath);
 writeFileSync(`${zipPath}.sha256`, `${sha256}  ${zipName}\n`);
-updateWingetInstaller(sha256);
 updateHomebrewSha256(sha256);
 updateScoopSha256(sha256);
 

@@ -134,7 +134,7 @@ Resolver: `DestinationProfileResolver` merges profile fields into an effective `
 
 Manual profile writes go to `~/.openadt/destinations/manual.openadt.toml` via `openadt config destinations create`.
 
-**Installed vs dev build:** Scoop/winget releases ship a **released** JAR. Config with `default_profile` / `profiles` requires a build that includes destination profiles (PR branch or post-release). Symptom on old JAR:
+**Installed vs dev build:** Scoop releases ship a **released** JAR. Config with `default_profile` / `profiles` requires a build that includes destination profiles (PR branch or post-release). Symptom on old JAR:
 
 ```text
 Unrecognized field "default_profile" (class org.openadt.config.SystemProfile)
