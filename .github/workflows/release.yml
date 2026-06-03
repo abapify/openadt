@@ -141,6 +141,26 @@ jobs:
             -f event_type=openadt-release \
             -f "client_payload[version]=${RELEASE_VERSION}"
 
+      - name: Sync Homebrew tap formula
+        shell: bash
+        env:
+          OPENADT_HOMEBREW_TAP_TOKEN: ${{ secrets.OPENADT_HOMEBREW_TAP_TOKEN }}
+        run: bash tools/sync-homebrew-tap/sync.sh
+
+      - name: Trigger abapify/homebrew-openadt mirror
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.OPENADT_HOMEBREW_TAP_TOKEN }}
+          RELEASE_VERSION: ${{ needs.bump.outputs.version }}
+        run: |
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "Skipping homebrew-openadt dispatch (OPENADT_HOMEBREW_TAP_TOKEN not configured)."
+            exit 0
+          fi
+          gh api repos/abapify/homebrew-openadt/dispatches \
+            -f event_type=openadt-release \
+            -f "client_payload[version]=${RELEASE_VERSION}"
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3
         with:

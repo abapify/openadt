@@ -1,25 +1,24 @@
 #!/usr/bin/env bash
-# Sync packaging/scoop/openadt.json to abapify/scoop-bucket (standard Scoop bucket).
-# Requires OPENADT_SCOOP_BUCKET_TOKEN (PAT with contents:write on the bucket repo).
-# Optional: branch scoop-bucket on this monorepo when GITHUB_REPOSITORY is set (legacy).
+# Sync Formula/openadt.rb to abapify/homebrew-openadt (standard Homebrew tap).
+# Requires OPENADT_HOMEBREW_TAP_TOKEN (PAT with contents:write on the tap repo).
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-manifest="${root}/packaging/scoop/openadt.json"
+formula="${root}/Formula/openadt.rb"
 branch="main"
-external_repo="${OPENADT_SCOOP_BUCKET_REPO:-abapify/scoop-bucket}"
-legacy_branch="${OPENADT_SCOOP_BRANCH:-scoop-bucket}"
+external_repo="${OPENADT_HOMEBREW_TAP_REPO:-abapify/homebrew-openadt}"
+formula_path="Formula/openadt.rb"
 
-if [[ ! -f "${manifest}" ]]; then
-  echo "Missing ${manifest}" >&2
+if [[ ! -f "${formula}" ]]; then
+  echo "Missing ${formula}" >&2
   exit 1
 fi
 
-version="$(grep -m1 '"version"' "${manifest}" | sed 's/.*: "\(.*\)".*/\1/')"
+version="$(grep -m1 'STABLE = ' "${formula}" | sed 's/.*"\(.*\)".*/\1/')"
 
-bucket_token() {
-  if [[ -n "${OPENADT_SCOOP_BUCKET_TOKEN:-}" ]]; then
-    printf '%s' "${OPENADT_SCOOP_BUCKET_TOKEN}"
+tap_token() {
+  if [[ -n "${OPENADT_HOMEBREW_TAP_TOKEN:-}" ]]; then
+    printf '%s' "${OPENADT_HOMEBREW_TAP_TOKEN}"
   elif [[ -n "${GH_TOKEN:-}" ]]; then
     printf '%s' "${GH_TOKEN}"
   elif [[ -n "${GITHUB_TOKEN:-}" ]]; then
@@ -33,25 +32,25 @@ remote_exists() {
   git ls-remote --heads "$1" "$2" 2>/dev/null | grep -q .
 }
 
-manifest_base64() {
+formula_base64() {
   if base64 --help 2>&1 | grep -q -- '-w'; then
-    base64 -w0 "${manifest}"
+    base64 -w0 "${formula}"
   else
-    base64 <"${manifest}" | tr -d '\n'
+    base64 <"${formula}" | tr -d '\n'
   fi
 }
 
-push_manifest_via_gh_contents() {
+push_formula_via_gh_contents() {
   local repo_slug="$1"
   local token="$2"
   export GH_TOKEN="${token}"
   local sha=""
-  sha="$(gh api "repos/${repo_slug}/contents/openadt.json" --jq .sha 2>/dev/null || true)"
+  sha="$(gh api "repos/${repo_slug}/contents/${formula_path}" --jq .sha 2>/dev/null || true)"
   local content
-  content="$(manifest_base64)"
+  content="$(formula_base64)"
   local api_args=(
     --method PUT
-    "repos/${repo_slug}/contents/openadt.json"
+    "repos/${repo_slug}/contents/${formula_path}"
     -f "message=chore(release): openadt ${version}"
     -f "content=${content}"
   )
@@ -62,7 +61,7 @@ push_manifest_via_gh_contents() {
   echo "Updated ${repo_slug}@main via Contents API (openadt ${version})"
 }
 
-push_manifest_to_repo() {
+push_formula_to_repo() {
   local repo_slug="$1"
   local target_branch="$2"
   local token="$3"
@@ -82,9 +81,10 @@ push_manifest_to_repo() {
     git -C "${work}" remote add origin "${auth_url}"
   fi
 
-  cp "${manifest}" "${work}/openadt.json"
+  mkdir -p "${work}/Formula"
+  cp "${formula}" "${work}/${formula_path}"
   cd "${work}"
-  git add openadt.json
+  git add "${formula_path}"
 
   if git diff --cached --quiet; then
     echo "${repo_slug}@${target_branch} already up to date (${version})."
@@ -98,24 +98,15 @@ push_manifest_to_repo() {
   echo "Updated ${repo_slug}@${target_branch} with openadt ${version}"
 }
 
-token="$(bucket_token || true)"
-external_synced=0
-
-if [[ -n "${token}" ]]; then
-  if push_manifest_via_gh_contents "${external_repo}" "${token}" 2>/dev/null; then
-    external_synced=1
-  elif push_manifest_to_repo "${external_repo}" "${branch}" "${token}"; then
-    external_synced=1
-  fi
-else
-  echo "Skipping ${external_repo}: set OPENADT_SCOOP_BUCKET_TOKEN (or GH_TOKEN) with contents:write on ${external_repo}." >&2
-  echo "Users: scoop bucket add openadt https://github.com/${external_repo}" >&2
-fi
-
-if [[ -n "${GITHUB_REPOSITORY:-}" && -n "${token}" ]]; then
-  push_manifest_to_repo "${GITHUB_REPOSITORY}" "${legacy_branch}" "${GITHUB_TOKEN:-${token}}" || true
-fi
-
-if [[ "${external_synced}" -eq 0 ]]; then
+token="$(tap_token || true)"
+if [[ -z "${token}" ]]; then
+  echo "Skipping ${external_repo}: set OPENADT_HOMEBREW_TAP_TOKEN (or GH_TOKEN) with contents:write on ${external_repo}." >&2
+  echo "Users: brew tap abapify/openadt  (after the tap repo exists and is synced)" >&2
   exit 0
 fi
+
+if push_formula_via_gh_contents "${external_repo}" "${token}" 2>/dev/null; then
+  exit 0
+fi
+
+push_formula_to_repo "${external_repo}" "${branch}" "${token}"

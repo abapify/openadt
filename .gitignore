@@ -47,6 +47,8 @@ yarn.lock
 .devcontainer/openadt-config.toml
 .devcontainer/*.openadt.toml
 tmp/
+homebrew-openadt/
+scoop-bucket/
 opengrep.sarif
 packaging/dist/
 packaging/windows/launcher/bin/
