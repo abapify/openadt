@@ -5,10 +5,7 @@
 One-time bucket setup, then plain `scoop install openadt`:
 
 ```powershell
-# Scoop's `bucket add` does not parse `#branch` in the URL, so clone the
-# `scoop-bucket` branch first and add the local checkout as a bucket.
-git clone -b scoop-bucket --depth 1 https://github.com/abapify/openadt openadt-bucket
-scoop bucket add openadt .\openadt-bucket\packaging\scoop
+scoop bucket add openadt https://github.com/abapify/scoop-bucket
 scoop install openadt
 openadt --version
 ```
@@ -25,18 +22,18 @@ Alternative without adding a bucket (manifest URL):
 scoop install https://raw.githubusercontent.com/abapify/openadt/main/packaging/scoop/openadt.json
 ```
 
-Each release updates branch [`scoop-bucket`](https://github.com/abapify/openadt/tree/scoop-bucket) on this repo automatically.
+Each release updates [`abapify/scoop-bucket`](https://github.com/abapify/scoop-bucket) via org app [**abapify-bro**](abapify-bro-app.md). See `packaging/scoop/bucket-repo/README.md` for bucket-repo setup.
 
-Legacy [`abapify/scoop-bucket`](https://github.com/abapify/scoop-bucket) needs repo secret **`OPENADT_SCOOP_BUCKET_TOKEN`** (PAT with `contents:write` on that repo) plus workflow `packaging/scoop/scoop-bucket-mirror.yml` copied to `.github/workflows/` there. Release then triggers `repository_dispatch` to refresh `openadt.json`.
+Legacy monorepo bucket branch (Scoop does not parse `#branch` in URLs): clone then add local path — `git clone -b scoop-bucket --depth 1 https://github.com/abapify/openadt openadt-bucket` then `scoop bucket add openadt .\openadt-bucket\packaging\scoop` (branch [`scoop-bucket`](https://github.com/abapify/openadt/tree/scoop-bucket) on this repo, updated automatically in Release CI).
 
 Scoop installs OpenADT (`openadt.jar` + `openadt.exe`) and suggests JDK 21. SAP JCo, Secure Login, and landscape data are not bundled.
 
 ## Linux / macOS (Homebrew tap)
 
-Add the tap once, then use normal Homebrew commands:
+Add the tap once (standard name → [`abapify/homebrew-openadt`](https://github.com/abapify/homebrew-openadt)):
 
 ```bash
-brew tap abapify/openadt https://github.com/abapify/openadt.git
+brew tap abapify/openadt
 brew install openadt
 openadt --version
 ```
@@ -48,7 +45,11 @@ brew update
 brew upgrade openadt
 ```
 
-The tap reads `Formula/openadt.rb` on `main` (stable release zip from GitHub Releases). Maintainer source: `packaging/homebrew/openadt.rb` — kept in sync by `package:release`.
+One-time maintainer setup: create `abapify/homebrew-openadt`, copy `packaging/homebrew/homebrew-tap-mirror.yml` to `.github/workflows/sync-from-openadt.yml`, configure [**abapify-bro**](abapify-bro-app.md) on `openadt`, then `GH_TOKEN=$(gh auth token) bash tools/sync-homebrew-tap/sync.sh` to seed `Formula/openadt.rb`. See `packaging/homebrew/tap-repo/README.md`.
+
+Each release updates `Formula/openadt.rb` on `main` here and mirrors it to the tap repo. Maintainer source: `packaging/homebrew/openadt.rb` — kept in sync by `package:release`.
+
+Legacy monorepo tap (no separate repo): `brew tap abapify/openadt https://github.com/abapify/openadt.git`
 
 From a git checkout (builds from `main`):
 

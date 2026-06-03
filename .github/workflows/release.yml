@@ -120,26 +120,17 @@ jobs:
           git push origin HEAD:${{ github.ref_name }}
           git push origin "${{ needs.bump.outputs.tag }}"
 
-      - name: Sync scoop bucket manifests
-        shell: bash
+      - name: Create packaging sync token (GitHub App)
+        id: packaging-sync-token
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OPENADT_SCOOP_BUCKET_TOKEN: ${{ secrets.OPENADT_SCOOP_BUCKET_TOKEN }}
-        run: bash tools/sync-scoop-bucket/sync.sh
-
-      - name: Trigger abapify/scoop-bucket mirror
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.OPENADT_SCOOP_BUCKET_TOKEN }}
-          RELEASE_VERSION: ${{ needs.bump.outputs.version }}
-        run: |
-          if [ -z "${GH_TOKEN}" ]; then
-            echo "Skipping scoop-bucket dispatch (OPENADT_SCOOP_BUCKET_TOKEN not configured)."
-            exit 0
-          fi
-          gh api repos/abapify/scoop-bucket/dispatches \
-            -f event_type=openadt-release \
-            -f "client_payload[version]=${RELEASE_VERSION}"
+          ABAPIFY_BRO_APP_PRIVATE_KEY: ${{ secrets.ABAPIFY_BRO_APP_PRIVATE_KEY }}
+        if: vars.ABAPIFY_BRO_APP_CLIENT_ID != '' && env.ABAPIFY_BRO_APP_PRIVATE_KEY != ''
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.ABAPIFY_BRO_APP_CLIENT_ID }}
+          private-key: ${{ secrets.ABAPIFY_BRO_APP_PRIVATE_KEY }}
+          owner: abapify
+          repositories: scoop-bucket,homebrew-openadt
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3
@@ -150,3 +141,46 @@ jobs:
             packaging/dist/openadt-${{ needs.bump.outputs.version }}.zip
             packaging/dist/openadt-${{ needs.bump.outputs.version }}.zip.sha256
           generate_release_notes: true
+
+      - name: Sync scoop bucket manifests
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.packaging-sync-token.outputs.token }}
+          OPENADT_SCOOP_BUCKET_TOKEN: ${{ steps.packaging-sync-token.outputs.token || secrets.OPENADT_SCOOP_BUCKET_TOKEN }}
+        run: bash tools/sync-scoop-bucket/sync.sh
+
+      - name: Trigger abapify/scoop-bucket mirror
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.packaging-sync-token.outputs.token || secrets.OPENADT_SCOOP_BUCKET_TOKEN }}
+          RELEASE_VERSION: ${{ needs.bump.outputs.version }}
+        run: |
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "Skipping scoop-bucket dispatch (configure ABAPIFY_BRO app or OPENADT_SCOOP_BUCKET_TOKEN)."
+            exit 0
+          fi
+          gh api repos/abapify/scoop-bucket/dispatches \
+            -f event_type=openadt-release \
+            -f "client_payload[version]=${RELEASE_VERSION}"
+
+      - name: Sync Homebrew tap formula
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.packaging-sync-token.outputs.token }}
+          OPENADT_HOMEBREW_TAP_TOKEN: ${{ steps.packaging-sync-token.outputs.token || secrets.OPENADT_HOMEBREW_TAP_TOKEN }}
+        run: bash tools/sync-homebrew-tap/sync.sh
+
+      - name: Trigger abapify/homebrew-openadt mirror
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.packaging-sync-token.outputs.token || secrets.OPENADT_HOMEBREW_TAP_TOKEN }}
+          RELEASE_VERSION: ${{ needs.bump.outputs.version }}
+        run: |
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "Skipping homebrew-openadt dispatch (configure ABAPIFY_BRO app or OPENADT_HOMEBREW_TAP_TOKEN)."
+            exit 0
+          fi
+          gh api repos/abapify/homebrew-openadt/dispatches \
+            -f event_type=openadt-release \
+            -f "client_payload[version]=${RELEASE_VERSION}"

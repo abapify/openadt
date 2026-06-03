@@ -1,6 +1,6 @@
-# Copy to abapify/scoop-bucket as .github/workflows/sync-from-openadt.yml
+# Copy to abapify/homebrew-openadt as .github/workflows/sync-from-openadt.yml
 # Triggered by openadt Release workflow (repository_dispatch) or manually.
-name: Sync manifest from openadt
+name: Sync formula from openadt
 
 on:
   repository_dispatch:
@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Fetch manifest from openadt release tag
+      - name: Fetch Formula from openadt release tag
         env:
           RELEASE_VERSION: ${{ github.event.client_payload.version }}
         run: |
@@ -24,19 +24,20 @@ jobs:
           if [[ -n "${RELEASE_VERSION}" ]]; then
             ref="v${RELEASE_VERSION}"
           fi
+          mkdir -p Formula
           curl -fsSL \
-            "https://raw.githubusercontent.com/abapify/openadt/${ref}/packaging/scoop/openadt.json" \
-            -o openadt.json
+            "https://raw.githubusercontent.com/abapify/openadt/${ref}/Formula/openadt.rb" \
+            -o Formula/openadt.rb
 
       - name: Commit if changed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add openadt.json
+          git add Formula/openadt.rb
           if git diff --cached --quiet; then
             echo "Already up to date."
             exit 0
           fi
-          version="$(grep -m1 '"version"' openadt.json | sed 's/.*: "\(.*\)".*/\1/')"
+          version="$(grep -m1 'STABLE = ' Formula/openadt.rb | sed 's/.*"\(.*\)".*/\1/')"
           git commit -m "chore(release): openadt ${version}"
           git push origin HEAD:main

@@ -152,10 +152,7 @@ Ensure `$HOME/.local/bin` is on your `PATH`, then run `openadt --help`.
 Three steps: **install → setup → proxy + fetch**.
 
 ```powershell
-# Scoop's `bucket add` does not parse `#branch` in the URL, so clone the
-# `scoop-bucket` branch first and add the local checkout as a bucket.
-git clone -b scoop-bucket --depth 1 https://github.com/abapify/openadt openadt-bucket
-scoop bucket add openadt .\openadt-bucket\packaging\scoop
+scoop bucket add openadt https://github.com/abapify/scoop-bucket
 scoop install openadt
 openadt setup
 openadt proxy DEV
@@ -200,12 +197,14 @@ scoop uninstall openadt
 
 Scoop installs OpenADT and suggests JDK 21 (`java/openjdk21` bucket). SAP JCo, ADT plugins, Secure Login, and landscape data are not bundled.
 
+Legacy monorepo bucket branch: `git clone -b scoop-bucket --depth 1 https://github.com/abapify/openadt openadt-bucket` then `scoop bucket add openadt .\openadt-bucket\packaging\scoop`
+
 ### Linux and macOS — Homebrew
 
-Add the tap once:
+Add the tap once (uses [`abapify/homebrew-openadt`](https://github.com/abapify/homebrew-openadt)):
 
 ```bash
-brew tap abapify/openadt https://github.com/abapify/openadt.git
+brew tap abapify/openadt
 brew install openadt
 openadt setup
 ```

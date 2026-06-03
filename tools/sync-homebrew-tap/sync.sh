@@ -1,25 +1,24 @@
 #!/usr/bin/env bash
-# Sync packaging/scoop/openadt.json to abapify/scoop-bucket (standard Scoop bucket).
-# CI: installation token from org app abapify-bro (GH_TOKEN / OPENADT_SCOOP_BUCKET_TOKEN).
-# Legacy monorepo branch scoop-bucket uses GITHUB_TOKEN on the current repo only.
+# Sync Formula/openadt.rb to abapify/homebrew-openadt (standard Homebrew tap).
+# CI: installation token from org app abapify-bro (GH_TOKEN / OPENADT_HOMEBREW_TAP_TOKEN).
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-manifest="${root}/packaging/scoop/openadt.json"
+formula="${root}/Formula/openadt.rb"
 branch="main"
-external_repo="${OPENADT_SCOOP_BUCKET_REPO:-abapify/scoop-bucket}"
-legacy_branch="${OPENADT_SCOOP_BRANCH:-scoop-bucket}"
+external_repo="${OPENADT_HOMEBREW_TAP_REPO:-abapify/homebrew-openadt}"
+formula_path="Formula/openadt.rb"
 
-if [[ ! -f "${manifest}" ]]; then
-  echo "Missing ${manifest}" >&2
+if [[ ! -f "${formula}" ]]; then
+  echo "Missing ${formula}" >&2
   exit 1
 fi
 
-version="$(grep -m1 '"version"' "${manifest}" | sed 's/.*: "\(.*\)".*/\1/')"
+version="$(grep -m1 'STABLE = ' "${formula}" | sed 's/.*"\(.*\)".*/\1/')"
 
-external_bucket_token() {
-  if [[ -n "${OPENADT_SCOOP_BUCKET_TOKEN:-}" ]]; then
-    printf '%s' "${OPENADT_SCOOP_BUCKET_TOKEN}"
+tap_token() {
+  if [[ -n "${OPENADT_HOMEBREW_TAP_TOKEN:-}" ]]; then
+    printf '%s' "${OPENADT_HOMEBREW_TAP_TOKEN}"
   elif [[ -n "${GH_TOKEN:-}" ]]; then
     printf '%s' "${GH_TOKEN}"
   else
@@ -41,25 +40,25 @@ remote_exists() {
     2>/dev/null | grep -q .
 }
 
-manifest_base64() {
+formula_base64() {
   if base64 --help 2>&1 | grep -q -- '-w'; then
-    base64 -w0 "${manifest}"
+    base64 -w0 "${formula}"
   else
-    base64 <"${manifest}" | tr -d '\n'
+    base64 <"${formula}" | tr -d '\n'
   fi
 }
 
-push_manifest_via_gh_contents() {
+push_formula_via_gh_contents() {
   local repo_slug="$1"
   local token="$2"
   export GH_TOKEN="${token}"
   local sha=""
-  sha="$(gh api "repos/${repo_slug}/contents/openadt.json" --jq .sha 2>/dev/null || true)"
+  sha="$(gh api "repos/${repo_slug}/contents/${formula_path}" --jq .sha 2>/dev/null || true)"
   local content
-  content="$(manifest_base64)"
+  content="$(formula_base64)"
   local api_args=(
     --method PUT
-    "repos/${repo_slug}/contents/openadt.json"
+    "repos/${repo_slug}/contents/${formula_path}"
     -f "message=chore(release): openadt ${version}"
     -f "content=${content}"
   )
@@ -73,7 +72,7 @@ push_manifest_via_gh_contents() {
   return 1
 }
 
-push_manifest_to_repo() {
+push_formula_to_repo() {
   local repo_slug="$1"
   local target_branch="$2"
   local token="$3"
@@ -95,9 +94,10 @@ push_manifest_to_repo() {
     git -C "${work}" remote add origin "${clone_url}"
   fi
 
-  cp "${manifest}" "${work}/openadt.json"
+  mkdir -p "${work}/Formula"
+  cp "${formula}" "${work}/${formula_path}"
   cd "${work}"
-  git add openadt.json
+  git add "${formula_path}"
 
   if git diff --cached --quiet; then
     echo "${repo_slug}@${target_branch} already up to date (${version})."
@@ -111,26 +111,20 @@ push_manifest_to_repo() {
     echo "Updated ${repo_slug}@${target_branch} with openadt ${version}"
 }
 
-token="$(external_bucket_token || true)"
-external_synced=0
-
-if [[ -n "${token}" ]]; then
-  if push_manifest_via_gh_contents "${external_repo}" "${token}"; then
-    external_synced=1
-  elif push_manifest_to_repo "${external_repo}" "${branch}" "${token}"; then
-    external_synced=1
-  fi
-  if [[ "${external_synced}" -eq 0 ]]; then
-    echo "Failed to sync scoop manifest to ${external_repo}" >&2
-    exit 1
-  fi
-else
-  echo "Skipping ${external_repo}: configure abapify-bro or set OPENADT_SCOOP_BUCKET_TOKEN / GH_TOKEN." >&2
-  echo "Users: scoop bucket add openadt https://github.com/${external_repo}" >&2
+token="$(tap_token || true)"
+if [[ -z "${token}" ]]; then
+  echo "Skipping ${external_repo}: configure abapify-bro or set OPENADT_HOMEBREW_TAP_TOKEN / GH_TOKEN." >&2
+  echo "Users: brew tap abapify/openadt" >&2
+  exit 0
 fi
 
-if [[ -n "${GITHUB_REPOSITORY:-}" && -n "${GITHUB_TOKEN:-}" ]]; then
-  if ! push_manifest_to_repo "${GITHUB_REPOSITORY}" "${legacy_branch}" "${GITHUB_TOKEN}"; then
-    echo "Warning: failed to sync legacy branch ${legacy_branch} on ${GITHUB_REPOSITORY}" >&2
-  fi
+if push_formula_via_gh_contents "${external_repo}" "${token}"; then
+  exit 0
 fi
+
+if push_formula_to_repo "${external_repo}" "${branch}" "${token}"; then
+  exit 0
+fi
+
+echo "Failed to sync formula to ${external_repo}" >&2
+exit 1
