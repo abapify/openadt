@@ -1,5 +1,6 @@
 package org.openadt.sap.adt.services;
 
+import java.lang.reflect.Method;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -11,9 +12,11 @@ import org.openadt.sap.adt.sdk.SdkServiceResult;
 
 /**
  * Maps service id → handler class. Handler classes live in {@code handlers.*} and are loaded reflectively
- * so distribution builds without SAP types on the compile classpath still compile this registry.
+ * so distribution builds compile without SAP types in callers.
  */
 public final class SdkServiceRegistry {
+    private static final String CONTEXT = "org.openadt.sap.adt.services.SapAdtSessionContext";
+
     private static final Map<String, String> HANDLER_CLASSES = new LinkedHashMap<>();
 
     static {
@@ -38,36 +41,36 @@ public final class SdkServiceRegistry {
         return List.copyOf(new TreeSet<>(HANDLER_CLASSES.keySet()));
     }
 
-    public static SdkServiceResult invoke(String serviceId, SapAdtSessionContext context, SdkServiceArgs args)
-        throws Exception {
+    public static SdkServiceResult invoke(String serviceId, Object context, SdkServiceArgs args) throws Exception {
         String handlerClass = HANDLER_CLASSES.get(serviceId);
         if (handlerClass == null) {
             throw new IllegalArgumentException(
                 "Unknown SDK service '" + serviceId + "'. Known: " + String.join(", ", serviceIds())
             );
         }
-        SdkServiceHandler handler = loadHandler(handlerClass);
-        return handler.execute(context, args);
+        return invokeHandler(handlerClass, context, args);
     }
 
-    private static SdkServiceHandler loadHandler(String handlerClass) {
+    private static SdkServiceResult invokeHandler(String handlerClass, Object context, SdkServiceArgs args)
+        throws ReflectiveOperationException {
         if (!handlerClass.startsWith("org.openadt.sap.adt.services.handlers.")) {
             throw new SecurityException("Handler class must be from trusted package: " + handlerClass);
         }
         try {
-            Class<?> type = Class.forName(handlerClass);
-            Object instance = type.getConstructor().newInstance();
-            if (!(instance instanceof SdkServiceHandler sdkHandler)) {
-                throw new IllegalStateException(handlerClass + " does not implement SdkServiceHandler");
+            Class<?> handlerType = Class.forName(handlerClass);
+            Object handler = handlerType.getConstructor().newInstance();
+            Class<?> contextType = Class.forName(CONTEXT);
+            Method execute = handlerType.getMethod("execute", contextType, SdkServiceArgs.class);
+            Object result = execute.invoke(handler, context, args);
+            if (!(result instanceof SdkServiceResult serviceResult)) {
+                throw new IllegalStateException(handlerClass + " did not return SdkServiceResult");
             }
-            return sdkHandler;
+            return serviceResult;
         } catch (ClassNotFoundException error) {
             throw new OpenAdtException(
                 "SDK handler not available in this build: " + handlerClass,
                 error
             );
-        } catch (ReflectiveOperationException error) {
-            throw new OpenAdtException("Failed to load SDK handler " + handlerClass + ": " + error.getMessage(), error);
         }
     }
 }

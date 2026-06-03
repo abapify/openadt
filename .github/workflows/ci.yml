@@ -81,9 +81,6 @@ jobs:
           java-version: "21"
           check-latest: true
 
-      - name: Debug effective POM
-        run: ./mvnw help:effective-pom -pl apps/openadt-sap-adt -Pdistribution -Dopenadt.distribution=true | grep -A 30 "maven-compiler-plugin" | head -50
-
       - name: Maven verify (distribution, no SAP plugins required)
         run: chmod +x ./mvnw && ./mvnw -q verify -f pom.xml -Pdistribution -Dopenadt.distribution=true
 

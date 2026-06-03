@@ -1,7 +1,6 @@
 package org.openadt.cli;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -62,15 +61,10 @@ final class SdkResultOutput {
             Files.write(outFile, jsonBytes);
             CliLog.info("wrote " + jsonBytes.length + " bytes JSON to " + outFile.toAbsolutePath());
         }
-        if (outFile != null) {
-            if (full) {
-                CliLog.stdout().write(jsonBytes);
-                CliLog.stdout().flush();
-            }
-        } else {
-            CliLog.stdout().write(jsonBytes);
-            CliLog.stdout().flush();
-        }
+        if (jsonOutput || outFile == null || full) {
+            if (!jsonOutput && outFile == null) {
+                printTextSummary.run();
+            } else {
                 CliLog.stdout().write(jsonBytes);
                 CliLog.stdout().flush();
             }

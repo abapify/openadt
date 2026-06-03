@@ -66,11 +66,6 @@
         </profile>
         <profile>
             <id>distribution</id>
-            <activation>
-                <property>
-                    <name>openadt.distribution</name>
-                </property>
-            </activation>
             <properties>
                 <openadt.distribution>true</openadt.distribution>
             </properties>
@@ -90,10 +85,13 @@
                                 <exclude>org/openadt/sap/adt/sdk/SapSdkRuntime.java</exclude>
                                 <exclude>org/openadt/sap/adt/services/SapAdtSessionContext.java</exclude>
                                 <exclude>org/openadt/sap/adt/services/DiscoveryService.java</exclude>
-                                <exclude>org/openadt/sap/adt/services/LogonService.java</exclude>
                                 <exclude>org/openadt/sap/adt/services/SdkDiscoveryAccess.java</exclude>
+                                <exclude>org/openadt/sap/adt/services/SdkAdtDocumentFetcher.java</exclude>
+                                <exclude>org/openadt/sap/adt/services/SdkServiceHandler.java</exclude>
+                                <exclude>org/openadt/sap/adt/services/LogonService.java</exclude>
                                 <exclude>org/openadt/sap/adt/services/TransportService.java</exclude>
-                                <exclude>org/openadt/sap/adt/services/handlers/**</exclude>
+                                <exclude>org/openadt/sap/adt/services/handlers/DiscoveryDocumentHandler.java</exclude>
+                                <exclude>org/openadt/sap/adt/services/handlers/TransportListHandler.java</exclude>
                             </excludes>
                             <testExcludes>
                                 <testExclude>org/openadt/sap/adt/sdk/AdtSdkTransportClientTest.java</testExclude>

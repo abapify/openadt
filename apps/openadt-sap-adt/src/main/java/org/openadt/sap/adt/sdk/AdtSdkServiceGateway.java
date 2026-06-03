@@ -71,7 +71,7 @@ public final class AdtSdkServiceGateway {
         try {
             Object context = openContext(config, system);
             return (SdkServiceResult) Class.forName(REGISTRY)
-                .getMethod("invoke", String.class, Class.forName(CONTEXT), SdkServiceArgs.class)
+                .getMethod("invoke", String.class, Object.class, SdkServiceArgs.class)
                 .invoke(null, serviceId, context, args != null ? args : SdkServiceArgs.empty());
         } catch (ClassNotFoundException error) {
             throw sdkUnavailable(error);
