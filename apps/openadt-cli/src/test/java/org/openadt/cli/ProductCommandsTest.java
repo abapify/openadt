@@ -19,6 +19,8 @@ class ProductCommandsTest {
         String help = out.toString();
         assertTrue(help.contains("auth"));
         assertTrue(help.contains("discovery"));
+        assertTrue(help.contains("transports"));
+        assertFalse(help.contains("sdk"));
         assertFalse(help.lines().anyMatch(line -> line.trim().startsWith("adt ")));
     }
 

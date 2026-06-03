@@ -234,20 +234,6 @@ Exit code: `0` on HTTP 2xx, `1` on failure. Requires `transport=sdk` and `runtim
 
 ---
 
-### openadt sdk list | openadt sdk invoke \<service-id\> [\<SYSTEM\>]
-
-Invoke any registered SAP ADT SDK service by id. See [sdk-services.md](sdk-services.md).
-
-```bash
-openadt sdk list
-openadt sdk invoke transport.list --json
-openadt sdk invoke discovery.document --out tmp/discovery.json
-```
-
-Shared options with `discovery`: `--out`, `--json`, `--format`, `--full`, `--param KEY=VALUE`.
-
----
-
 ### openadt transports list [\<SYSTEM\>]
 
 List CTS transport requests via `IAdtTransportService.findTransports` (registered service `transport.list`).
