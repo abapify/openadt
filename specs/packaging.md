@@ -13,6 +13,7 @@ OpenADT ships as a portable ZIP (`openadt.jar` + launchers). SAP binaries are ne
   ```
 
   (updated every Release). Legacy [`abapify/scoop-bucket`](https://github.com/abapify/scoop-bucket) requires `OPENADT_SCOOP_BUCKET_TOKEN` on the openadt repo.
+
 - One-shot install: `scoop install https://raw.githubusercontent.com/abapify/openadt/main/packaging/scoop/openadt.json`
 - Maintainer: `bun run package:release -- --version=<semver>`
 
