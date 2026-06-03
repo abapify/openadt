@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Sync packaging/scoop/openadt.json to abapify/scoop-bucket (standard Scoop bucket).
-# Requires OPENADT_SCOOP_BUCKET_TOKEN (PAT with contents:write on the bucket repo).
+# CI: installation token from org app abapify-bro (GH_TOKEN). Local: gh auth token or OPENADT_SCOOP_BUCKET_TOKEN.
 # Optional: branch scoop-bucket on this monorepo when GITHUB_REPOSITORY is set (legacy).
 set -euo pipefail
 

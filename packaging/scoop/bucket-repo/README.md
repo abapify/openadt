@@ -13,11 +13,11 @@ Scoop has no Homebrew-style name shorthand for custom buckets; use the full Git 
 
 1. Ensure a public repo **`abapify/scoop-bucket`** exists (empty is fine).
 2. Copy [scoop-bucket-mirror.yml](../scoop-bucket-mirror.yml) to `.github/workflows/sync-from-openadt.yml` in that repo and push.
-3. On **`abapify/openadt`**, add secret **`OPENADT_SCOOP_BUCKET_TOKEN`**: fine-grained or classic PAT with `contents:write` on `scoop-bucket`.
-4. Seed the manifest once (from a machine with the secret):
+3. On **`abapify/openadt`**, configure org app [**abapify-bro**](../../abapify-bro-app.md) (recommended) or legacy PAT **`OPENADT_SCOOP_BUCKET_TOKEN`**.
+4. Seed the manifest once (from a machine with `gh auth` or a PAT):
 
    ```bash
-   OPENADT_SCOOP_BUCKET_TOKEN=<pat> bash tools/sync-scoop-bucket/sync.sh
+   GH_TOKEN=$(gh auth token) bash tools/sync-scoop-bucket/sync.sh
    ```
 
    Or run the mirror workflow manually on `scoop-bucket`.

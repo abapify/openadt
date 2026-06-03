@@ -22,7 +22,7 @@ Alternative without adding a bucket (manifest URL):
 scoop install https://raw.githubusercontent.com/abapify/openadt/main/packaging/scoop/openadt.json
 ```
 
-Each release updates [`abapify/scoop-bucket`](https://github.com/abapify/scoop-bucket) when secret **`OPENADT_SCOOP_BUCKET_TOKEN`** is set on this repo (PAT with `contents:write` on that repo). See `packaging/scoop/bucket-repo/README.md` for one-time maintainer setup (mirror workflow in the bucket repo).
+Each release updates [`abapify/scoop-bucket`](https://github.com/abapify/scoop-bucket) via org app [**abapify-bro**](abapify-bro-app.md). See `packaging/scoop/bucket-repo/README.md` for bucket-repo setup.
 
 Legacy monorepo bucket branch: `scoop bucket add openadt https://github.com/abapify/openadt.git#scoop-bucket` (branch [`scoop-bucket`](https://github.com/abapify/openadt/tree/scoop-bucket) on this repo, updated automatically in Release CI).
 
@@ -45,7 +45,7 @@ brew update
 brew upgrade openadt
 ```
 
-One-time maintainer setup: create `abapify/homebrew-openadt`, copy `packaging/homebrew/homebrew-tap-mirror.yml` to `.github/workflows/sync-from-openadt.yml`, set secret **`OPENADT_HOMEBREW_TAP_TOKEN`** on this repo, then run `OPENADT_HOMEBREW_TAP_TOKEN=<pat> bash tools/sync-homebrew-tap/sync.sh` to seed `Formula/openadt.rb`. See `packaging/homebrew/tap-repo/README.md`.
+One-time maintainer setup: create `abapify/homebrew-openadt`, copy `packaging/homebrew/homebrew-tap-mirror.yml` to `.github/workflows/sync-from-openadt.yml`, configure [**abapify-bro**](abapify-bro-app.md) on `openadt`, then `GH_TOKEN=$(gh auth token) bash tools/sync-homebrew-tap/sync.sh` to seed `Formula/openadt.rb`. See `packaging/homebrew/tap-repo/README.md`.
 
 Each release updates `Formula/openadt.rb` on `main` here and mirrors it to the tap repo. Maintainer source: `packaging/homebrew/openadt.rb` — kept in sync by `package:release`.
 

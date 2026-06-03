@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Sync Formula/openadt.rb to abapify/homebrew-openadt (standard Homebrew tap).
-# Requires OPENADT_HOMEBREW_TAP_TOKEN (PAT with contents:write on the tap repo).
+# CI: installation token from org app abapify-bro (GH_TOKEN). Local: gh auth token or OPENADT_HOMEBREW_TAP_TOKEN.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
