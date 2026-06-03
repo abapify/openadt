@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Sync Formula/openadt.rb to abapify/homebrew-openadt (standard Homebrew tap).
-# CI: installation token from org app abapify-bro (GH_TOKEN). Local: gh auth token or OPENADT_HOMEBREW_TAP_TOKEN.
+# CI: installation token from org app abapify-bro (GH_TOKEN / OPENADT_HOMEBREW_TAP_TOKEN).
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -21,15 +21,23 @@ tap_token() {
     printf '%s' "${OPENADT_HOMEBREW_TAP_TOKEN}"
   elif [[ -n "${GH_TOKEN:-}" ]]; then
     printf '%s' "${GH_TOKEN}"
-  elif [[ -n "${GITHUB_TOKEN:-}" ]]; then
-    printf '%s' "${GITHUB_TOKEN}"
   else
     return 1
   fi
 }
 
+git_bearer_config() {
+  local token="$1"
+  printf 'http.https://github.com/.extraheader=AUTHORIZATION: bearer %s' "${token}"
+}
+
 remote_exists() {
-  git ls-remote --heads "$1" "$2" 2>/dev/null | grep -q .
+  local repo_slug="$1"
+  local target_branch="$2"
+  local token="$3"
+  git -c "$(git_bearer_config "${token}")" \
+    ls-remote "https://github.com/${repo_slug}.git" "refs/heads/${target_branch}" \
+    2>/dev/null | grep -q .
 }
 
 formula_base64() {
@@ -57,15 +65,20 @@ push_formula_via_gh_contents() {
   if [[ -n "${sha}" ]]; then
     api_args+=(-f "sha=${sha}")
   fi
-  gh api "${api_args[@]}" >/dev/null
-  echo "Updated ${repo_slug}@main via Contents API (openadt ${version})"
+  if gh api "${api_args[@]}" >/dev/null; then
+    echo "Updated ${repo_slug}@main via Contents API (openadt ${version})"
+    return 0
+  fi
+  return 1
 }
 
 push_formula_to_repo() {
   local repo_slug="$1"
   local target_branch="$2"
   local token="$3"
-  local auth_url="https://x-access-token:${token}@github.com/${repo_slug}.git"
+  local clone_url="https://github.com/${repo_slug}.git"
+  local git_cfg
+  git_cfg="$(git_bearer_config "${token}")"
 
   work="$(mktemp -d)"
   cleanup() {
@@ -73,12 +86,12 @@ push_formula_to_repo() {
   }
   trap cleanup EXIT
 
-  if remote_exists "${auth_url}" "${target_branch}"; then
-    git clone --branch "${target_branch}" --depth 1 "${auth_url}" "${work}"
+  if remote_exists "${repo_slug}" "${target_branch}" "${token}"; then
+    git -c "${git_cfg}" clone --branch "${target_branch}" --depth 1 "${clone_url}" "${work}"
   else
     git init "${work}"
     git -C "${work}" checkout -b "${target_branch}"
-    git -C "${work}" remote add origin "${auth_url}"
+    git -C "${work}" remote add origin "${clone_url}"
   fi
 
   mkdir -p "${work}/Formula"
@@ -94,19 +107,24 @@ push_formula_to_repo() {
   git config user.name "${GIT_AUTHOR_NAME:-github-actions[bot]}"
   git config user.email "${GIT_AUTHOR_EMAIL:-41898282+github-actions[bot]@users.noreply.github.com}"
   git commit -m "chore(release): openadt ${version}"
-  git push origin "HEAD:${target_branch}"
-  echo "Updated ${repo_slug}@${target_branch} with openadt ${version}"
+  git -c "${git_cfg}" push "${clone_url}" "HEAD:${target_branch}" && \
+    echo "Updated ${repo_slug}@${target_branch} with openadt ${version}"
 }
 
 token="$(tap_token || true)"
 if [[ -z "${token}" ]]; then
-  echo "Skipping ${external_repo}: set OPENADT_HOMEBREW_TAP_TOKEN (or GH_TOKEN) with contents:write on ${external_repo}." >&2
-  echo "Users: brew tap abapify/openadt  (after the tap repo exists and is synced)" >&2
+  echo "Skipping ${external_repo}: configure abapify-bro or set OPENADT_HOMEBREW_TAP_TOKEN / GH_TOKEN." >&2
+  echo "Users: brew tap abapify/openadt" >&2
   exit 0
 fi
 
-if push_formula_via_gh_contents "${external_repo}" "${token}" 2>/dev/null; then
+if push_formula_via_gh_contents "${external_repo}" "${token}"; then
   exit 0
 fi
 
-push_formula_to_repo "${external_repo}" "${branch}" "${token}"
+if push_formula_to_repo "${external_repo}" "${branch}" "${token}"; then
+  exit 0
+fi
+
+echo "Failed to sync formula to ${external_repo}" >&2
+exit 1

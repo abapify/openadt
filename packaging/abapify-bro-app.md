@@ -4,11 +4,12 @@ Cross-repo sync from **openadt** Release to `abapify/scoop-bucket` and `abapify/
 
 ## App permissions (Repository permissions)
 
-| Permission   | Access                                                  |
-| ------------ | ------------------------------------------------------- |
-| **Contents** | Read and write                                          |
-| **Metadata** | Read                                                    |
-| **Actions**  | Read and write (repository_dispatch → mirror workflows) |
+| Permission   | Access         |
+| ------------ | -------------- |
+| **Contents** | Read and write |
+| **Metadata** | Read           |
+
+`repository_dispatch` and Contents API updates use **Contents** only; **Actions** write is not required.
 
 Webhook: **not required** (inactive is fine).
 

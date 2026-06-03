@@ -122,13 +122,25 @@ jobs:
 
       - name: Create packaging sync token (GitHub App)
         id: packaging-sync-token
-        if: vars.ABAPIFY_BRO_APP_CLIENT_ID != ''
+        env:
+          ABAPIFY_BRO_APP_PRIVATE_KEY: ${{ secrets.ABAPIFY_BRO_APP_PRIVATE_KEY }}
+        if: vars.ABAPIFY_BRO_APP_CLIENT_ID != '' && env.ABAPIFY_BRO_APP_PRIVATE_KEY != ''
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           client-id: ${{ vars.ABAPIFY_BRO_APP_CLIENT_ID }}
           private-key: ${{ secrets.ABAPIFY_BRO_APP_PRIVATE_KEY }}
           owner: abapify
           repositories: scoop-bucket,homebrew-openadt
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3
+        with:
+          tag_name: ${{ needs.bump.outputs.tag }}
+          name: ${{ needs.bump.outputs.tag }}
+          files: |
+            packaging/dist/openadt-${{ needs.bump.outputs.version }}.zip
+            packaging/dist/openadt-${{ needs.bump.outputs.version }}.zip.sha256
+          generate_release_notes: true
 
       - name: Sync scoop bucket manifests
         shell: bash
@@ -172,13 +184,3 @@ jobs:
           gh api repos/abapify/homebrew-openadt/dispatches \
             -f event_type=openadt-release \
             -f "client_payload[version]=${RELEASE_VERSION}"
-
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3
-        with:
-          tag_name: ${{ needs.bump.outputs.tag }}
-          name: ${{ needs.bump.outputs.tag }}
-          files: |
-            packaging/dist/openadt-${{ needs.bump.outputs.version }}.zip
-            packaging/dist/openadt-${{ needs.bump.outputs.version }}.zip.sha256
-          generate_release_notes: true

@@ -24,7 +24,7 @@ scoop install https://raw.githubusercontent.com/abapify/openadt/main/packaging/s
 
 Each release updates [`abapify/scoop-bucket`](https://github.com/abapify/scoop-bucket) via org app [**abapify-bro**](abapify-bro-app.md). See `packaging/scoop/bucket-repo/README.md` for bucket-repo setup.
 
-Legacy monorepo bucket branch: `scoop bucket add openadt https://github.com/abapify/openadt.git#scoop-bucket` (branch [`scoop-bucket`](https://github.com/abapify/openadt/tree/scoop-bucket) on this repo, updated automatically in Release CI).
+Legacy monorepo bucket branch (Scoop does not parse `#branch` in URLs): clone then add local path — `git clone -b scoop-bucket --depth 1 https://github.com/abapify/openadt openadt-bucket` then `scoop bucket add openadt .\openadt-bucket\packaging\scoop` (branch [`scoop-bucket`](https://github.com/abapify/openadt/tree/scoop-bucket) on this repo, updated automatically in Release CI).
 
 Scoop installs OpenADT (`openadt.jar` + `openadt.exe`) and suggests JDK 21. SAP JCo, Secure Login, and landscape data are not bundled.
 

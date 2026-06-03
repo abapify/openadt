@@ -13,7 +13,7 @@ Homebrew resolves `abapify/openadt` to this repository (`homebrew-openadt`).
 
 1. Create a public repo **`abapify/homebrew-openadt`** (empty is fine).
 2. Copy [homebrew-tap-mirror.yml](../homebrew-tap-mirror.yml) to `.github/workflows/sync-from-openadt.yml` in that repo and push.
-3. On **`abapify/openadt`**, configure org app [**abapify-bro**](../../abapify-bro-app.md) (recommended) or legacy PAT secret **`OPENADT_HOMEBREW_TAP_TOKEN`**.
+3. On **`abapify/openadt`**, configure org app [**abapify-bro**](../../abapify-bro-app.md) (recommended) or legacy PAT secret **`OPENADT_HOMEBREW_TAP_TOKEN`** with `contents:write` on **`abapify/homebrew-openadt`**.
 4. Seed the formula once (from a machine with `gh auth` or a PAT):
 
    ```bash

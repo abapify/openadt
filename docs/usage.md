@@ -197,7 +197,7 @@ scoop uninstall openadt
 
 Scoop installs OpenADT and suggests JDK 21 (`java/openjdk21` bucket). SAP JCo, ADT plugins, Secure Login, and landscape data are not bundled.
 
-Legacy monorepo bucket branch: `scoop bucket add openadt https://github.com/abapify/openadt.git#scoop-bucket`
+Legacy monorepo bucket branch: `git clone -b scoop-bucket --depth 1 https://github.com/abapify/openadt openadt-bucket` then `scoop bucket add openadt .\openadt-bucket\packaging\scoop`
 
 ### Linux and macOS — Homebrew
 

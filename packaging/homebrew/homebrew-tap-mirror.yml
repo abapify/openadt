@@ -16,11 +16,17 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Fetch Formula from openadt main
+      - name: Fetch Formula from openadt release tag
+        env:
+          RELEASE_VERSION: ${{ github.event.client_payload.version }}
         run: |
+          ref="main"
+          if [[ -n "${RELEASE_VERSION}" ]]; then
+            ref="v${RELEASE_VERSION}"
+          fi
           mkdir -p Formula
           curl -fsSL \
-            "https://raw.githubusercontent.com/abapify/openadt/main/Formula/openadt.rb" \
+            "https://raw.githubusercontent.com/abapify/openadt/${ref}/Formula/openadt.rb" \
             -o Formula/openadt.rb
 
       - name: Commit if changed

@@ -16,10 +16,16 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Fetch manifest from openadt main
+      - name: Fetch manifest from openadt release tag
+        env:
+          RELEASE_VERSION: ${{ github.event.client_payload.version }}
         run: |
+          ref="main"
+          if [[ -n "${RELEASE_VERSION}" ]]; then
+            ref="v${RELEASE_VERSION}"
+          fi
           curl -fsSL \
-            "https://raw.githubusercontent.com/abapify/openadt/main/packaging/scoop/openadt.json" \
+            "https://raw.githubusercontent.com/abapify/openadt/${ref}/packaging/scoop/openadt.json" \
             -o openadt.json
 
       - name: Commit if changed
