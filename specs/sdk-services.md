@@ -33,10 +33,8 @@ Distribution builds exclude `handlers/**` and SAP-touching services; the registr
 Requires `auth login` (or explicit system alias) and SDK transport (`runtime.adt_plugins_dir`).
 
 ```bash
-openadt sdk list
-openadt sdk invoke transport.list [--json] [--param key=value]
-openadt transports list [--user USER] [--trfunction FUNC]
-openadt discovery   # alias for discovery.document
+openadt discovery [--json] [--out <path>]
+openadt transports list [--user USER] [--trfunction FUNC] [--json] [--out <path>]
 ```
 
 Shared flags: `--out`, `--json`, `--format`, `--full`, `--param KEY=VALUE`.

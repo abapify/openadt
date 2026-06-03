@@ -16,7 +16,6 @@ import picocli.CommandLine.Command;
         FetchCommand.class,
         AuthCommand.class,
         DiscoveryCommand.class,
-        SdkCommand.class,
         TransportsCommand.class,
         CommandLine.HelpCommand.class
     }

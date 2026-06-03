@@ -121,7 +121,6 @@ function useFatJar(profile: string | undefined, args: string[]): boolean {
   if (
     subcommand === "auth" ||
     subcommand === "discovery" ||
-    subcommand === "sdk" ||
     subcommand === "transports"
   ) {
     return false;
