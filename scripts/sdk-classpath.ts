@@ -161,13 +161,28 @@ function listSapBundles(dir: string, dirKind: "sap-lib" | "p2"): string[] {
 export type SapBundleDir = { path: string; kind: "sap-lib" | "p2" };
 
 export function buildSdkClasspathEntries(options: {
+  /** @deprecated prefer {@link classesDirs} */
   classesDir?: string;
+  classesDirs?: string[];
+  /** Maven dependency jars (e.g. org.json) when using module target/classes in dev */
+  runtimeJars?: string[];
   appJar: string;
   sapDirs: SapBundleDir[];
 }): string[] {
   const entries: string[] = [];
-  if (options.classesDir && existsSync(options.classesDir)) {
-    entries.push(options.classesDir);
+  const classDirs = [
+    ...(options.classesDirs ?? []),
+    ...(options.classesDir ? [options.classesDir] : []),
+  ];
+  for (const dir of classDirs) {
+    if (existsSync(dir)) {
+      entries.push(dir);
+    }
+  }
+  for (const jar of options.runtimeJars ?? []) {
+    if (existsSync(jar)) {
+      entries.push(jar);
+    }
   }
   entries.push(options.appJar);
 

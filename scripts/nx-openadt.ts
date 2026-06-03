@@ -1,13 +1,14 @@
 /**
- * Dev entry for `nx run openadt-cli:run -- <openadt args>`.
+ * Dev Java entry for `nx run openadt-cli:run` (invoked after cached `compile` + `ensure-dev-jar`).
  * - `--profile=sso` / `--profile=http` → slim fat jar (`java -jar`)
- * - `adt`, `fetch`, `proxy` (and default SNC profiles) → full ADT classpath like openadt-sdk.ps1
+ * - `auth`, `discovery`, `fetch`, `proxy` (default SNC) → SDK classpath from each app's target/classes + fat jar deps
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { spawnJavaWithClasspath } from "./java-argfile.ts";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { loadDevRuntimeJars } from "./dev-runtime-classpath.ts";
 import {
   buildSdkClasspathEntries,
   hasMinimalSdkBundles,
@@ -17,6 +18,8 @@ import {
 
 const repoRoot = join(import.meta.dir, "..");
 const cliDir = join(repoRoot, "apps", "openadt-cli");
+const configDir = join(repoRoot, "apps", "openadt-config");
+const bootstrapDir = join(repoRoot, "apps", "openadt-bootstrap");
 const sapAdtDir = join(repoRoot, "apps", "openadt-sap-adt");
 const targetDir = join(cliDir, "target");
 const sapLibDir = join(targetDir, "sap-lib");
@@ -115,7 +118,12 @@ function firstSubcommand(args: string[]): string | undefined {
 /** HTTP browser SSO / plain HTTP transport — fat jar is enough. */
 function useFatJar(profile: string | undefined, args: string[]): boolean {
   const subcommand = firstSubcommand(args);
-  if (subcommand === "adt") {
+  if (
+    subcommand === "auth" ||
+    subcommand === "discovery" ||
+    subcommand === "sdk" ||
+    subcommand === "transports"
+  ) {
     return false;
   }
   if (profile === undefined) {
@@ -132,17 +140,24 @@ function sapBundleDirs() {
   });
 }
 
+/** Compiled module output ahead of the packaged jar (jar may lag behind workspace sources). */
+function devModuleClassDirs(): string[] {
+  return [
+    join(configDir, "target", "classes"),
+    join(bootstrapDir, "target", "classes"),
+    join(sapAdtDir, "target", "classes"),
+    join(cliDir, "target", "classes"),
+  ];
+}
+
 function buildSdkClasspath(jar: string): string {
   const sapDirs = sapBundleDirs();
-  const sapAdtClasses = join(sapAdtDir, "target", "classes");
   let entries = buildSdkClasspathEntries({
-    classesDir: join(cliDir, "target", "classes"),
+    classesDirs: devModuleClassDirs(),
+    runtimeJars: loadDevRuntimeJars(),
     appJar: jar,
     sapDirs,
   });
-  if (existsSync(sapAdtClasses)) {
-    entries = [sapAdtClasses, ...entries];
-  }
   if (sapDirs[0]?.kind === "sap-lib") {
     entries = supplementFromP2(entries, p2Dir);
   }

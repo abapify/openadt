@@ -1,6 +1,13 @@
 package org.openadt.cli;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.io.TempDir;
+import org.openadt.config.SessionContext;
 import picocli.CommandLine;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -24,9 +31,16 @@ class FetchCommandProfileTest {
     }
 
     @Test
-    void fetchWithoutSystemShowsUsage() {
+    void fetchWithoutSystemFailsWhenNoSessionContext(@TempDir Path temp) throws IOException {
+        String fromEnv = System.getenv(SessionContext.SYSTEM_ENV);
+        Assumptions.assumeTrue(
+            fromEnv == null || fromEnv.isBlank(),
+            "OPENADT_SYSTEM must be unset for this test"
+        );
+        Path config = temp.resolve("config.toml");
+        Files.writeString(config, "[runtime]\n");
         CommandLine cmd = new CommandLine(new FetchCommand());
-        int exitCode = cmd.execute("/sap/bc/adt/core/discovery");
+        int exitCode = cmd.execute("-c", config.toAbsolutePath().toString(), "/sap/bc/adt/core/discovery");
         assertEquals(1, exitCode);
     }
 

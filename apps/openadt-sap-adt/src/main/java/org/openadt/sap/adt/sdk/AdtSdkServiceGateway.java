@@ -12,6 +12,7 @@ public final class AdtSdkServiceGateway {
     private static final String DISCOVERY = "org.openadt.sap.adt.services.DiscoveryService";
     private static final String LOGON = "org.openadt.sap.adt.services.LogonService";
     private static final String CONTEXT = "org.openadt.sap.adt.services.SapAdtSessionContext";
+    private static final String REGISTRY = "org.openadt.sap.adt.services.SdkServiceRegistry";
 
     private AdtSdkServiceGateway() {
     }
@@ -61,6 +62,79 @@ public final class AdtSdkServiceGateway {
         }
     }
 
+    public static SdkServiceResult invokeService(
+        String serviceId,
+        OpenAdtConfig config,
+        SystemProfile system,
+        SdkServiceArgs args
+    ) {
+        try {
+            Object context = openContext(config, system);
+            return (SdkServiceResult) Class.forName(REGISTRY)
+                .getMethod("invoke", String.class, Object.class, SdkServiceArgs.class)
+                .invoke(null, serviceId, context, args != null ? args : SdkServiceArgs.empty());
+        } catch (ClassNotFoundException error) {
+            throw sdkUnavailable(error);
+        } catch (InvocationTargetException error) {
+            Throwable cause = error.getCause();
+            if (cause instanceof Exception exception) {
+                throwAsRuntime(exception);
+            }
+            throw new IllegalStateException(cause != null ? cause.getMessage() : error.getMessage(), cause);
+        } catch (ReflectiveOperationException error) {
+            throw new IllegalStateException("ADT SDK service failed: " + error.getMessage(), error);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public static java.util.List<String> listSdkServices() {
+        try {
+            return (java.util.List<String>) Class.forName(REGISTRY).getMethod("serviceIds").invoke(null);
+        } catch (ClassNotFoundException error) {
+            throw sdkUnavailable(error);
+        } catch (ReflectiveOperationException error) {
+            throw new IllegalStateException("ADT SDK service list failed: " + error.getMessage(), error);
+        }
+    }
+
+    public static AdtDiscoveryDocument fetchDiscoveryDocument(OpenAdtConfig config, SystemProfile system) {
+        try {
+            Object context = openContext(config, system);
+            Object service = Class.forName(DISCOVERY).getConstructor().newInstance();
+            return (AdtDiscoveryDocument) Class.forName(DISCOVERY)
+                .getMethod("fetchDiscoveryDocument", Class.forName(CONTEXT))
+                .invoke(service, context);
+        } catch (ClassNotFoundException error) {
+            throw sdkUnavailable(error);
+        } catch (InvocationTargetException error) {
+            Throwable cause = error.getCause();
+            if (cause instanceof RuntimeException runtime) {
+                throw runtime;
+            }
+            throw new IllegalStateException(cause != null ? cause.getMessage() : error.getMessage(), cause);
+        } catch (ReflectiveOperationException error) {
+            throw new IllegalStateException("ADT SDK discovery document failed: " + error.getMessage(), error);
+        }
+    }
+
+    public static java.util.List<String> logout(OpenAdtConfig config, SystemProfile destination) {
+        try {
+            return (java.util.List<String>) Class.forName("org.openadt.sap.adt.services.AuthSessionSupport")
+                .getMethod("logout", OpenAdtConfig.class, SystemProfile.class)
+                .invoke(null, config, destination);
+        } catch (ClassNotFoundException error) {
+            throw sdkUnavailable(error);
+        } catch (InvocationTargetException error) {
+            Throwable cause = error.getCause();
+            if (cause instanceof RuntimeException runtime) {
+                throw runtime;
+            }
+            throw new IllegalStateException(cause != null ? cause.getMessage() : error.getMessage(), cause);
+        } catch (ReflectiveOperationException error) {
+            throw new IllegalStateException("ADT auth logout failed: " + error.getMessage(), error);
+        }
+    }
+
     public static AdtLogonStatusReport logonStatus(OpenAdtConfig config, SystemProfile system) {
         try {
             Object context = openContext(config, system);
@@ -85,6 +159,13 @@ public final class AdtSdkServiceGateway {
         return Class.forName(CONTEXT)
             .getMethod("open", OpenAdtConfig.class, SystemProfile.class)
             .invoke(null, config, system);
+    }
+
+    private static void throwAsRuntime(Exception error) {
+        if (error instanceof RuntimeException runtime) {
+            throw runtime;
+        }
+        throw new IllegalStateException(error.getMessage(), error);
     }
 
     private static IllegalStateException sdkUnavailable(ClassNotFoundException error) {

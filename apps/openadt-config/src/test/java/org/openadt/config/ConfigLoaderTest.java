@@ -44,6 +44,20 @@ class ConfigLoaderTest {
     }
 
     @Test
+    void sessionFragmentOverlay(@TempDir Path tempDir) throws IOException {
+        Path configFile = tempDir.resolve("config.toml");
+        Files.writeString(configFile, "version = 1\n");
+        ConfigLoader loader = new ConfigLoader();
+        loader.saveSessionContext(configFile, "DEV");
+        OpenAdtConfig config = loader.load(configFile);
+        assertNotNull(config.getSession());
+        assertEquals("DEV", config.getSession().getSystem());
+        loader.clearSessionContext(configFile);
+        config = loader.load(configFile);
+        assertTrue(config.getSession() == null || config.getSession().getSystem() == null);
+    }
+
+    @Test
     void testMissingFileReturnsEmpty(@TempDir Path tempDir) throws IOException {
         Path configFile = tempDir.resolve("nonexistent.toml");
         ConfigLoader loader = new ConfigLoader();

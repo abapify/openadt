@@ -10,8 +10,8 @@ description: SAP ADT SDK API decision tree for OpenADT discover/logon and future
 | Need | Use | Avoid |
 |------|-----|-------|
 | Arbitrary ADT URI (debug, agents) | `openadt fetch` / `openadt proxy` + `IStatelessSystemSession.sendRequest` | Reimplementing HTTP in product code |
-| Check SSO/SNC logon | `openadt adt logon` / `logon-status` → `IAdtLogonService` | Raw `/sap/bc/adt/discovery` only for transport test |
-| ADT discovery document / collection member | `openadt adt discover` → `IAdtDiscovery` | Parsing Atom/XML by hand in CLI |
+| Check SSO/SNC logon | `openadt auth login` / `auth status` → `IAdtLogonService` | Raw `/sap/bc/adt/discovery` only for transport test |
+| ADT discovery document | `openadt discovery` → `IAdtDiscovery.getStatus` + `IStatelessSystemSession` GET `RESOURCE_URI` | Raw HTTP bypassing SDK; hand-parsed CLI |
 | Object / project APIs | Phase 2 — research `com.sap.adt.tools.core` | Blocking discover/logon on tools.core |
 
 ## Factory entry points (3.58.x)
@@ -25,7 +25,7 @@ description: SAP ADT SDK API decision tree for OpenADT discover/logon and future
 Package `org.openadt.sap.adt.services`:
 
 1. `SapAdtSessionContext.open(config, system)` — `SapSdkRuntime.prepare` + `SapDestinationResolver`
-2. `LogonService` / `DiscoveryService` — thin SDK wrappers
+2. `LogonService` / `DiscoveryService` / `SdkDiscoveryAccess` / `SdkAdtDocumentFetcher` — thin SDK wrappers
 3. CLI/MCP call `AdtSdkServiceGateway` (reflection) so `-Pdistribution` CI compiles without SAP JARs
 
 ## Spec

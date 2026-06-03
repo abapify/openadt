@@ -10,12 +10,12 @@
     "compile": {
       "executor": "nx:run-commands",
       "dependsOn": [
-        "openadt-config:package",
-        "openadt-sap-adt:package",
-        "openadt-bootstrap:package"
+        "openadt-config:compile",
+        "openadt-sap-adt:compile",
+        "openadt-bootstrap:compile"
       ],
       "options": {
-        "command": "node scripts/mvnw-runner.mjs -q compile -pl apps/openadt-cli -am -Pdistribution -Dopenadt.distribution=true -f pom.xml",
+        "command": "node scripts/mvnw-runner.mjs -q compile -pl apps/openadt-cli -am -Pdistribution -Dopenadt.distribution=true -f pom.xml && bun run scripts/dev-runtime-classpath.ts",
         "cwd": "{workspaceRoot}"
       },
       "cache": true,
@@ -43,19 +43,27 @@
       "inputs": ["javaMonorepoSources"],
       "outputs": ["{projectRoot}/target"]
     },
-    "run": {
+    "ensure-dev-jar": {
       "executor": "nx:run-commands",
-      "dependsOn": ["package"],
       "cache": false,
       "options": {
-        "command": "bun run ../../scripts/nx-openadt.ts",
-        "cwd": "apps/openadt-cli",
+        "command": "bun run scripts/ensure-dev-jar.ts",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "run": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["compile", "ensure-dev-jar"],
+      "cache": false,
+      "options": {
+        "command": "bun run scripts/nx-openadt.ts",
+        "cwd": "{workspaceRoot}",
         "forwardAllArgs": true
       }
     },
     "run-sdk": {
       "executor": "nx:run-commands",
-      "dependsOn": ["package"],
+      "dependsOn": ["compile", "ensure-dev-jar"],
       "cache": false,
       "options": {
         "command": "powershell -NoProfile -ExecutionPolicy Bypass -File ../../scripts/openadt-sdk.ps1",

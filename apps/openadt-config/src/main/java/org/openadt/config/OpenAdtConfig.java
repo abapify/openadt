@@ -9,6 +9,7 @@ public class OpenAdtConfig {
     @JsonProperty("secure_login")
     private SecureLoginConfig secureLogin;
     private ProxyConfig proxy;
+    private SessionConfig session;
     private List<SystemProfile> systems;
 
     public int getVersion() { return version; }
@@ -19,6 +20,8 @@ public class OpenAdtConfig {
     public void setSecureLogin(SecureLoginConfig secureLogin) { this.secureLogin = secureLogin; }
     public ProxyConfig getProxy() { return proxy; }
     public void setProxy(ProxyConfig proxy) { this.proxy = proxy; }
+    public SessionConfig getSession() { return session; }
+    public void setSession(SessionConfig session) { this.session = session; }
     public List<SystemProfile> getSystems() { return systems; }
     public void setSystems(List<SystemProfile> systems) { this.systems = systems; }
 

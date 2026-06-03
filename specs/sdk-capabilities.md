@@ -12,18 +12,19 @@ Public API names from SAP ADT SDK 3.58.x (`com.sap.adt.core.apidoc`). OpenADT us
 
 ## Logon
 
-| API                      | Methods                                                             | OpenADT                                                            |
-| ------------------------ | ------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| `IAdtLogonService`       | `isLoggedOn(destinationId)`, `ensureLoggedOn(data, token, monitor)` | `openadt adt logon`, `openadt adt logon-status` via `LogonService` |
-| `AdtLogonServiceFactory` | `createLogonService()`                                              | Same                                                               |
+| API                      | Methods                                                             | OpenADT                                                        |
+| ------------------------ | ------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `IAdtLogonService`       | `isLoggedOn(destinationId)`, `ensureLoggedOn(data, token, monitor)` | `openadt auth login`, `openadt auth status` via `LogonService` |
+| `AdtLogonServiceFactory` | `createLogonService()`                                              | Same                                                           |
 
 ## Discovery
 
-| API                             | Methods                                                                    | OpenADT                                            |
-| ------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------- |
-| `IAdtDiscovery`                 | `getStatus(monitor)`, `getCollectionMember(collection, category, monitor)` | `openadt adt discover` via `DiscoveryService`      |
-| `AdtDiscoveryFactory`           | `createDiscovery(destinationId, RESOURCE_URI)`                             | Uses `RESOURCE_URI` constant                       |
-| `IAdtDiscoveryCollectionMember` | `getUri()`, `getAcceptedContentTypes()`, …                                 | Optional `--collection` / `--category` on discover |
+| API                             | Methods                                                                    | OpenADT                                                                       |
+| ------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `IAdtDiscovery`                 | `getStatus(monitor)`, `getCollectionMember(collection, category, monitor)` | `DiscoveryService.discover`; `fetchDiscoveryDocument` calls `getStatus` first |
+| `AdtDiscoveryFactory`           | `createDiscovery(destinationId, RESOURCE_URI)`                             | `SdkDiscoveryAccess`; document GET uses `RESOURCE_URI` path via session       |
+| `IStatelessSystemSession`       | `sendRequest(monitor, request)`                                            | `SdkAdtDocumentFetcher` — discovery document bytes (same as `fetch`)          |
+| `IAdtDiscoveryCollectionMember` | `getUri()`, `getAcceptedContentTypes()`, …                                 | Optional `--collection` / `--category` on discover                            |
 
 ## Low-level HTTP (existing product path)
 

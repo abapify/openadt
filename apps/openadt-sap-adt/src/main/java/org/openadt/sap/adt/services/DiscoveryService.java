@@ -1,6 +1,5 @@
 package org.openadt.sap.adt.services;
 
-import com.sap.adt.compatibility.discovery.AdtDiscoveryFactory;
 import com.sap.adt.compatibility.discovery.IAdtDiscovery;
 import com.sap.adt.compatibility.discovery.IAdtDiscoveryCollectionMember;
 import org.eclipse.core.runtime.IProgressMonitor;
@@ -12,40 +11,49 @@ import java.util.List;
 
 import org.openadt.config.CliLog;
 import org.openadt.config.OpenAdtException;
+import org.openadt.sap.adt.sdk.AdtDiscoveryDocument;
 import org.openadt.sap.adt.sdk.AdtDiscoveryReport;
 
 /**
- * SDK ADT discovery via {@link IAdtDiscovery} (not raw HTTP).
+ * ADT discovery: {@link IAdtDiscovery} for status and collection members; document bytes via
+ * {@code IStatelessSystemSession.sendRequest} on {@code AdtDiscoveryFactory.RESOURCE_URI}
+ * (same SDK stack as {@code openadt fetch}).
  */
 public final class DiscoveryService {
-    public AdtDiscoveryReport discover(SapAdtSessionContext context, String collectionUri, String categoryTerm) {
-        LogonService logonService = new LogonService();
-        if (!logonService.status(context).loggedOn()) {
-            logonService.logon(context);
-        }
-        String destinationId = context.destinationId();
-        IProgressMonitor monitor = new NullProgressMonitor();
-        CliLog.sdk("AdtDiscoveryFactory.createDiscovery(" + destinationId + ", RESOURCE_URI)");
-        IAdtDiscovery discovery = AdtDiscoveryFactory.createDiscovery(destinationId, AdtDiscoveryFactory.RESOURCE_URI);
-        if (discovery == null) {
-            return new AdtDiscoveryReport(
+
+    /**
+     * Validates {@link IAdtDiscovery#getStatus()} then returns the discovery Atom/XML document
+     * from the SDK session. {@link IAdtDiscovery} does not expose the raw document API.
+     */
+    public AdtDiscoveryDocument fetchDiscoveryDocument(SapAdtSessionContext context) {
+        IAdtDiscovery discovery = SdkDiscoveryAccess.requireDiscovery(context);
+        IStatus status = SdkDiscoveryAccess.readStatus(discovery);
+        if (status != null && !status.isOK()) {
+            String message = status.getMessage() != null ? status.getMessage() : status.toString();
+            return new AdtDiscoveryDocument(
                 false,
-                "Failed to create discovery service for destination: " + destinationId,
-                destinationId,
+                0,
+                message,
+                context.destinationId(),
                 context.fromEclipse(),
-                collectionUri,
-                categoryTerm,
                 null,
-                List.of()
+                new byte[0]
             );
         }
-        IStatus status = readDiscoveryStatus(discovery, monitor);
+        String path = SdkDiscoveryAccess.resourcePath();
+        CliLog.sdk("IAdtDiscovery OK; fetching RESOURCE_URI document via SDK session");
+        return SdkAdtDocumentFetcher.fetchGet(context, path);
+    }
+
+    public AdtDiscoveryReport discover(SapAdtSessionContext context, String collectionUri, String categoryTerm) {
+        IAdtDiscovery discovery = SdkDiscoveryAccess.requireDiscovery(context);
+        IStatus status = SdkDiscoveryAccess.readStatus(discovery);
         if (status != null && !status.isOK()) {
             String message = status.getMessage() != null ? status.getMessage() : status.toString();
             return new AdtDiscoveryReport(
                 false,
                 message,
-                destinationId,
+                context.destinationId(),
                 context.fromEclipse(),
                 collectionUri,
                 categoryTerm,
@@ -57,7 +65,7 @@ public final class DiscoveryService {
             return new AdtDiscoveryReport(
                 true,
                 "discovery OK",
-                destinationId,
+                context.destinationId(),
                 context.fromEclipse(),
                 null,
                 null,
@@ -65,7 +73,8 @@ public final class DiscoveryService {
                 List.of()
             );
         }
-        CliLog.sdk("discovery.getCollectionMember(" + collectionUri + ", " + categoryTerm + ")");
+        IProgressMonitor monitor = new NullProgressMonitor();
+        CliLog.sdk("IAdtDiscovery.getCollectionMember(" + collectionUri + ", " + categoryTerm + ")");
         IAdtDiscoveryCollectionMember member = discovery.getCollectionMember(collectionUri, categoryTerm, monitor);
         if (member == null) {
             throw new OpenAdtException("Discovery returned no member for collection=" + collectionUri
@@ -78,24 +87,12 @@ public final class DiscoveryService {
         return new AdtDiscoveryReport(
             true,
             "discovery OK",
-            destinationId,
+            context.destinationId(),
             context.fromEclipse(),
             collectionUri,
             categoryTerm,
             memberUri,
             accepted
         );
-    }
-
-    /**
-     * Some ADT plugin versions expose {@link IAdtDiscovery} without {@code getStatus}; skip when absent.
-     */
-    private static IStatus readDiscoveryStatus(IAdtDiscovery discovery, IProgressMonitor monitor) {
-        try {
-            return discovery.getStatus(monitor);
-        } catch (AbstractMethodError | NoSuchMethodError error) {
-            CliLog.sdk("IAdtDiscovery.getStatus unavailable, continuing: " + error.getMessage());
-            return null;
-        }
     }
 }

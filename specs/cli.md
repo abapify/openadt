@@ -162,66 +162,117 @@ Devcontainer note:
 
 ---
 
-### openadt adt discover \<SYSTEM\>
+### openadt auth login \<SYSTEM\>
 
-Load the ADT discovery document via the SAP ADT SDK (`IAdtDiscovery`), not raw HTTP body.
+Select an authentication profile, persist it as `default_profile` for the destination (unless `--no-save`), set the **active system context** for later commands, and verify SDK logon. `fetch`, `proxy`, and `discovery` omit `<SYSTEM>` after login when using the saved context (or `OPENADT_SYSTEM`).
 
 ```bash
-openadt adt discover DEV
-openadt adt discover DEV --profile snc --format json
+openadt auth login DEV
+openadt auth login DEV --profile snc
+openadt auth login DEV --no-save
 ```
 
 Options:
 
-- `--profile <name>` — Authentication profile (same as `fetch`)
+- `--profile <name>` — Profile to use (`snc`, `sso`, …). When omitted and several profiles exist, OpenADT prompts on a TTY or exits with a list of profile names.
+- `--no-save` — Verify logon only; do not update `default_profile` (session context is still saved).
 - `--config, -c <path>` — Config file path
-- `--format json` or `--json` — JSON output (`ok`, `destinationId`, `fromEclipse`, …)
-- `--collection`, `--category` — Optional `getCollectionMember` lookup
+- `--format json` or `--json` — JSON output
 
-Exit code: `0` on success, `1` on failure. Requires `transport=sdk` and `runtime.adt_plugins_dir`. On Windows releases, the launcher uses the same SDK classpath as `fetch`/`proxy` (not the lite jar alone).
+Exit code: `0` on success, `1` on failure. Requires SDK transport (`runtime.adt_plugins_dir`).
+
+**Note:** SDK logon state lives in the current JVM only. For a warm session across commands, keep `openadt proxy` running.
 
 ---
 
-### openadt adt logon \<SYSTEM\>
+### openadt auth logout [\<SYSTEM\>]
 
-Establish SDK logon (`IAdtLogonService.ensureLoggedOn`) for diagnostics.
+Clear persisted HTTP SSO ticket cache for the destination (all named profiles when present). Clears session context when logging out the active system. Does not stop a running `openadt proxy`.
 
 ```bash
-openadt adt logon DEV
-openadt adt logon DEV --profile sso --format json
+openadt auth logout
+openadt auth logout DEV
 ```
 
-Options: same as `adt discover`.
-
-Exit code: `0` on success, `1` on failure.
+Exit code: `0` on success.
 
 ---
 
-### openadt adt logon-status \<SYSTEM\>
+### openadt auth status [\<SYSTEM\>]
 
-Report whether the SDK considers the destination logged on (`IAdtLogonService.isLoggedOn`).
+Show `default_profile`, effective profile, session context, and SDK `isLoggedOn` in **this** CLI process.
 
 ```bash
-openadt adt logon-status DEV
-openadt adt logon-status DEV --format json
+openadt auth status
+openadt auth status DEV --profile sso --format json
 ```
 
-Exit code: `0` if logged on, `1` if not logged on or on error.
-
-See [sdk-capabilities.md](sdk-capabilities.md).
+Exit code: `0` if logged on in this JVM, `1` if not.
 
 ---
 
-### openadt proxy \<SYSTEM\>
+### openadt discovery [\<SYSTEM\>]
+
+Fetch the full ADT discovery Atom/XML document via the **native SDK transport** (`GET /sap/bc/adt/discovery`). Use this to prove the SDK stack works.
+
+```bash
+openadt discovery
+openadt discovery --out DEV.discovery.json
+openadt discovery --json --out DEV.discovery.json
+openadt discovery DEV --profile snc --out tmp/discovery.xml
+```
+
+Options:
+
+- `--profile <name>` — Authentication profile (default: `default_profile`)
+- `--out, -o <path>` — Write discovery body: with `--json` or a `.json` path, converts Atom/XML to JSON with the same tree shape (elements, `@attribute`, arrays for repeats); otherwise writes raw Atom/XML
+- `--full` — Also print the full body to stdout (JSON when `--json`, else raw XML)
+- `--format json` or `--json` — Full discovery document body as JSON on stdout when `--out` is omitted; with `--out`, JSON is written only to the file
+- `--config, -c <path>` — Config file path
+
+Exit code: `0` on HTTP 2xx, `1` on failure. Requires `transport=sdk` and `runtime.adt_plugins_dir`. `<SYSTEM>` is optional when session context is set (see [config.md](config.md)). Implemented as registered service `discovery.document` ([sdk-services.md](sdk-services.md)).
+
+---
+
+### openadt sdk list | openadt sdk invoke \<service-id\> [\<SYSTEM\>]
+
+Invoke any registered SAP ADT SDK service by id. See [sdk-services.md](sdk-services.md).
+
+```bash
+openadt sdk list
+openadt sdk invoke transport.list --json
+openadt sdk invoke discovery.document --out tmp/discovery.json
+```
+
+Shared options with `discovery`: `--out`, `--json`, `--format`, `--full`, `--param KEY=VALUE`.
+
+---
+
+### openadt transports list [\<SYSTEM\>]
+
+List CTS transport requests via `IAdtTransportService.findTransports` (registered service `transport.list`).
+
+```bash
+openadt transports list
+openadt transports list --trfunction W
+openadt transports list --user DEVELOPER --trfunction K
+openadt transports list --json --out tmp/transports.json
+```
+
+Options: `--user`, `--trfunction` (default `K` workbench; `W` customizing, `T` copies, `*` all), plus shared `--json`, `--out`, `--param`.
+
+---
+
+### openadt proxy [\<SYSTEM\>]
 
 Start the local ADT proxy server for a system.
 
 ```bash
-openadt proxy DEV
-openadt proxy DEV --profile snc
+openadt proxy
+openadt proxy --profile snc
 openadt proxy DEV --listen 127.0.0.1:8080
-openadt proxy DEV --local-auth basic
-openadt proxy DEV --local-username openadt --local-password <password>
+openadt proxy --local-auth basic
+openadt proxy --local-username openadt --local-password <password>
 ```
 
 Default listen address: `127.0.0.1:8079` (or `proxy.listen` from config).
@@ -230,7 +281,7 @@ While the proxy is running, `openadt fetch` for the same system and profile reus
 
 Arguments:
 
-- `SYSTEM` — System alias to proxy (optional; defaults to first configured system)
+- `SYSTEM` — System alias (optional; uses session context from `auth login` or `OPENADT_SYSTEM`)
 
 Options:
 
@@ -253,22 +304,22 @@ Behavior:
 
 ---
 
-### openadt fetch \<SYSTEM\> \<URL-OR-PATH\>
+### openadt fetch [\<SYSTEM\>] \<URL-OR-PATH\>
 
 Fetch a single ADT resource via the configured ADT transport.
 
 ```bash
-openadt fetch DEV /sap/bc/adt/core/http/systeminformation --pretty
+openadt fetch /sap/bc/adt/core/http/systeminformation --pretty
 openadt fetch DEV /sap/bc/adt/core/http/systeminformation --profile sso --pretty
-openadt fetch DEV /sap/bc/adt/core/discovery --profile snc --pretty
-openadt fetch DEV /sap/bc/adt/core/http/systeminformation --pretty --raw
-openadt fetch DEV /sap/bc/adt/example --method POST --body @request.xml --header "Content-Type: application/xml"
+openadt fetch /sap/bc/adt/core/discovery --profile snc --pretty
+openadt fetch /sap/bc/adt/core/http/systeminformation --pretty --raw
+openadt fetch /sap/bc/adt/example --method POST --body @request.xml --header "Content-Type: application/xml"
 openadt fetch --base-url https://abap.example.invalid --client 100 --language EN --path /sap/bc/adt/core/http/systeminformation --accept application/vnd.sap.adt.core.http.systeminformation.v1+json
 ```
 
 Arguments:
 
-- `SYSTEM` — System alias
+- `SYSTEM` — System alias (optional when session context is set; omit when the first argument is an ADT path)
 - `URL-OR-PATH` — ADT path or full URL; if full URL is supplied, only path and query are used
 
 Options:
@@ -298,7 +349,7 @@ Options:
 
 Behavior:
 
-- When `openadt proxy <SYSTEM>` is running for the same profile, `fetch` reuses it over loopback (fast path)
+- When `openadt proxy` is running for the same profile, `fetch` reuses it over loopback (fast path)
 - Without a running proxy, `fetch` starts a cold SDK/JCo session (slow first call)
 - `--body @file` reads request bytes from a file
 - `--output <file>` writes response body bytes
@@ -365,4 +416,5 @@ To avoid browser SSO entirely: set `OPENADT_MYSAPSSO2` or `OPENADT_COOKIE_FILE`,
 
 Local SDK dev runner (not required in production installs):
 
-- `scripts/openadt-sdk.ps1` — builds classpath from `apps/openadt-cli/target/sap-lib` with canonical JCo jar name and core JCo before `jco.eclipse`
+- `./openadt` / `bun run openadt` — Nx `openadt-cli:run` (cached `compile` + dev classpath from `apps/*/target/classes`; fat jar only for Maven deps, built once via `ensure-dev-jar`)
+- `scripts/openadt-sdk.ps1` — same classpath layout without Nx; run `nx run openadt-cli:compile` first after pulling changes
