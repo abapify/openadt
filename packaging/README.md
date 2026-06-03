@@ -5,7 +5,10 @@
 One-time bucket setup, then plain `scoop install openadt`:
 
 ```powershell
-scoop bucket add openadt https://github.com/abapify/openadt.git#scoop-bucket
+# Scoop's `bucket add` does not parse `#branch` in the URL, so clone the
+# `scoop-bucket` branch first and add the local checkout as a bucket.
+git clone -b scoop-bucket --depth 1 https://github.com/abapify/openadt openadt-bucket
+scoop bucket add openadt .\openadt-bucket\packaging\scoop
 scoop install openadt
 openadt --version
 ```

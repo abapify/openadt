@@ -3,7 +3,8 @@ class Openadt < Formula
   homepage "https://github.com/abapify/openadt"
   license "Apache-2.0"
 
-  # Stable: prebuilt zip from GitHub Releases (sha256 updated by package:release on v1.0.1).
+  # Stable: prebuilt zip from GitHub Releases.
+  # STABLE and sha256 are refreshed by `bun run package:release`.
   STABLE = "1.2.6"
   url "https://github.com/abapify/openadt/releases/download/v#{STABLE}/openadt-#{STABLE}.zip"
   sha256 "8d55d502db3f430ddf72601e9884e1d37741070e3bc10990b67679e68143f6b3"
@@ -12,24 +13,39 @@ class Openadt < Formula
   head "https://github.com/abapify/openadt.git", branch: "main"
 
   depends_on "openjdk@21"
-  depends_on "maven" => :build
+
+  head do
+    depends_on "maven" => :build
+  end
 
   def install
+    # openjdk@21 is keg-only; make it the active JDK for this build/install
+    # (and for the wrapper script below) without pinning the Cellar path.
+    ENV["JAVA_HOME"] = Formula["openjdk@21"].opt_prefix
+    ENV.prepend_path "PATH", Formula["openjdk@21"].opt_bin
+
     if build.stable?
       libexec.install "openadt-#{version}/openadt.jar" => "openadt.jar"
     else
-      cd "apps/openadt-cli" do
-        system Formula["maven"].bin/"mvn", "-q", "-Pdistribution", "-Dopenadt.distribution=true", "package", "-DskipTests"
-        built_jar = Dir["target/openadt-*.jar"]
-          .find { |path| !path.end_with?("-sources.jar", "-javadoc.jar") }
-        odie "Could not find built OpenADT jar in target/" if built_jar.nil?
-        libexec.install built_jar => "openadt.jar"
-      end
+      # HEAD build is a multi-module Maven reactor; build from the repo root
+      # so sibling modules (openadt-config, openadt-sap-adt, openadt-bootstrap)
+      # are resolved. Building from inside apps/openadt-cli would fail on a
+      # clean checkout.
+      system "mvn", "-q", "-f", "pom.xml",
+             "-pl", "apps/openadt-cli", "-am",
+             "-Pdistribution", "-Dopenadt.distribution=true",
+             "package", "-DskipTests"
+      built_jar = Dir["apps/openadt-cli/target/openadt-*.jar"]
+        .find { |path| !path.end_with?("-sources.jar", "-javadoc.jar") }
+      odie "Could not find built OpenADT jar in apps/openadt-cli/target/" if built_jar.nil?
+      libexec.install built_jar => "openadt.jar"
     end
+
     (bin/"openadt").write <<~SH
       #!/bin/bash
-      exec "#{Formula["openjdk@21"].bin}/java" -jar "#{libexec}/openadt.jar" "$@"
+      exec "#{Formula["openjdk@21"].opt_bin}/java" -jar "#{libexec}/openadt.jar" "$@"
     SH
+    chmod 0755, bin/"openadt"
   end
 
   test do

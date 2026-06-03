@@ -4,7 +4,15 @@ OpenADT ships as a portable ZIP (`openadt.jar` + launchers). SAP binaries are ne
 
 ## Windows
 
-- **Scoop** (recommended): `scoop bucket add openadt https://github.com/abapify/openadt.git#scoop-bucket` then `scoop install openadt` (updated every Release). Legacy [`abapify/scoop-bucket`](https://github.com/abapify/scoop-bucket) requires `OPENADT_SCOOP_BUCKET_TOKEN` on the openadt repo.
+- **Scoop** (recommended): Scoop's `bucket add` does not parse `#branch` in the URL, so clone the `scoop-bucket` branch first and add the local checkout as a bucket:
+
+  ```powershell
+  git clone -b scoop-bucket --depth 1 https://github.com/abapify/openadt openadt-bucket
+  scoop bucket add openadt .\openadt-bucket\packaging\scoop
+  scoop install openadt
+  ```
+
+  (updated every Release). Legacy [`abapify/scoop-bucket`](https://github.com/abapify/scoop-bucket) requires `OPENADT_SCOOP_BUCKET_TOKEN` on the openadt repo.
 - One-shot install: `scoop install https://raw.githubusercontent.com/abapify/openadt/main/packaging/scoop/openadt.json`
 - Maintainer: `bun run package:release -- --version=<semver>`
 

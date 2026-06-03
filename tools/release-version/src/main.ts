@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 
 const root = resolve(import.meta.dir, "../../..");
@@ -233,18 +233,11 @@ function updateHomebrew(version: string): void {
     /sha256 "[^"]+"/,
     'sha256 "PLACEHOLDER_RUN_PACKAGE_RELEASE"',
   );
-  formula = formula.replace(
-    /# Stable: prebuilt zip from GitHub Releases \(sha256 updated by `bun run package:release`\)\./,
-    `# Stable: prebuilt zip from GitHub Releases (sha256 updated by package:release on v${version}).`,
-  );
   writeFileSync(formulaPath, formula);
-  syncHomebrewTapFormula(formulaPath);
-}
-
-function syncHomebrewTapFormula(formulaPath: string): void {
-  const tapPath = join(root, "Formula/openadt.rb");
-  mkdirSync(dirname(tapPath), { recursive: true });
-  writeFileSync(tapPath, readFileSync(formulaPath, "utf8"));
+  // Do NOT sync Formula/openadt.rb here: the bump commit would land a
+  // PLACEHOLDER sha256 on `main` and break `brew install openadt` until
+  // the publish step refreshes it. package-release syncs the tap formula
+  // after the real sha256 is known (see tools/package-release/src/main.ts).
 }
 
 function updateScoop(version: string): void {
