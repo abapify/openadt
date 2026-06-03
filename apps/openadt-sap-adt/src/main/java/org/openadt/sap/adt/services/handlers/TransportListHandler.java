@@ -4,6 +4,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.openadt.config.OpenAdtException;
 import org.openadt.sap.adt.sdk.AdtTransportRequestRow;
 import org.openadt.sap.adt.sdk.SdkJsonResult;
 import org.openadt.sap.adt.sdk.SdkServiceArgs;
@@ -17,22 +18,26 @@ import org.openadt.sap.adt.services.TransportService;
  */
 public final class TransportListHandler implements SdkServiceHandler {
     @Override
-    public SdkServiceResult execute(SapAdtSessionContext context, SdkServiceArgs args) throws Exception {
-        String user = resolveUser(context, args);
-        String trFunction = args.getOrDefault("trfunction", TransportService.DEFAULT_TRFUNCTION);
-        List<AdtTransportRequestRow> transports = new TransportService().findTransports(context, user, trFunction);
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("user", user);
-        payload.put("trfunction", trFunction);
-        payload.put("count", transports.size());
-        payload.put("transports", transports);
-        return new SdkJsonResult(
-            true,
-            "transport list OK (" + transports.size() + " entries)",
-            context.destinationId(),
-            context.fromEclipse(),
-            payload
-        );
+    public SdkServiceResult execute(SapAdtSessionContext context, SdkServiceArgs args) {
+        try {
+            String user = resolveUser(context, args);
+            String trFunction = args.getOrDefault("trfunction", TransportService.DEFAULT_TRFUNCTION);
+            List<AdtTransportRequestRow> transports = new TransportService().findTransports(context, user, trFunction);
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("user", user);
+            payload.put("trfunction", trFunction);
+            payload.put("count", transports.size());
+            payload.put("transports", transports);
+            return new SdkJsonResult(
+                true,
+                "transport list OK (" + transports.size() + " entries)",
+                context.destinationId(),
+                context.fromEclipse(),
+                payload
+            );
+        } catch (Exception error) {
+            throw new OpenAdtException("transport list failed: " + error.getMessage(), error);
+        }
     }
 
     private static String resolveUser(SapAdtSessionContext context, SdkServiceArgs args) {

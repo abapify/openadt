@@ -1,5 +1,6 @@
 package org.openadt.sap.adt.services;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -36,7 +37,7 @@ public final class TransportService {
 
     private static AdtTransportRequestRow toRow(IAdtTransportRequest request) {
         Date lastChanged = request.getLastChanged();
-        String changed = lastChanged != null ? lastChanged.getTime().toString() : null;
+        String changed = lastChanged != null ? Instant.ofEpochMilli(lastChanged.getTime()).toString() : null;
         String uri = request.getUri() != null ? request.getUri().toString() : null;
         return new AdtTransportRequestRow(
             request.getRequestNumber(),

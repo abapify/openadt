@@ -90,8 +90,8 @@ abstract class SdkServiceCommandSupport extends AdtCommandSupport implements Cal
             }
             return;
         }
-        if (result instanceof SdkJsonResult json) {
-            SdkResultOutput.printTransportListSummary(json);
+        if (result instanceof SdkJsonResult jsonResult) {
+            SdkResultOutput.printTransportListSummary(jsonResult);
         }
     }
 

@@ -41,14 +41,18 @@ public final class SdkServiceRegistry {
         return List.copyOf(new TreeSet<>(HANDLER_CLASSES.keySet()));
     }
 
-    public static SdkServiceResult invoke(String serviceId, Object context, SdkServiceArgs args) throws Exception {
+    public static SdkServiceResult invoke(String serviceId, Object context, SdkServiceArgs args) {
         String handlerClass = HANDLER_CLASSES.get(serviceId);
         if (handlerClass == null) {
             throw new IllegalArgumentException(
                 "Unknown SDK service '" + serviceId + "'. Known: " + String.join(", ", serviceIds())
             );
         }
-        return invokeHandler(handlerClass, context, args);
+        try {
+            return invokeHandler(handlerClass, context, args);
+        } catch (ReflectiveOperationException error) {
+            throw new OpenAdtException("SDK service invocation failed: " + error.getMessage(), error);
+        }
     }
 
     private static SdkServiceResult invokeHandler(String handlerClass, Object context, SdkServiceArgs args)
