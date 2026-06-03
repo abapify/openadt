@@ -6,7 +6,7 @@ class Openadt < Formula
   # Stable: prebuilt zip from GitHub Releases (sha256 updated by package:release on v1.0.1).
   STABLE = "1.2.5"
   url "https://github.com/abapify/openadt/releases/download/v#{STABLE}/openadt-#{STABLE}.zip"
-  sha256 "PLACEHOLDER_RUN_PACKAGE_RELEASE"
+  sha256 "75666e9afc030712860671df10a9f686bfeba50f68399cbaa19c1e6edcf9aa0a"
   version STABLE
 
   head "https://github.com/abapify/openadt.git", branch: "main"
