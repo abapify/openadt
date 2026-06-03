@@ -1,6 +1,3 @@
-# DO NOT EDIT DIRECTLY.
-# This file is regenerated from packaging/homebrew/openadt.rb by
-# `bun run package:release` on every release. Any local edits will be lost.
 class Openadt < Formula
   desc "Local bridge for SAP ADT traffic"
   homepage "https://github.com/abapify/openadt"
@@ -8,9 +5,9 @@ class Openadt < Formula
 
   # Stable: prebuilt zip from GitHub Releases.
   # STABLE and sha256 are refreshed by `bun run package:release`.
-  STABLE = "1.2.6"
+  STABLE = "1.2.7"
   url "https://github.com/abapify/openadt/releases/download/v#{STABLE}/openadt-#{STABLE}.zip"
-  sha256 "8d55d502db3f430ddf72601e9884e1d37741070e3bc10990b67679e68143f6b3"
+  sha256 "98f884a700ca38c054dd298021959da0d3d0d378b174d58052bfe8b2ff3fe95a"
   version STABLE
 
   head "https://github.com/abapify/openadt.git", branch: "main"
