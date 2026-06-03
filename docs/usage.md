@@ -31,13 +31,12 @@ A basic or password-based SAP destination in config is a valid choice when your 
 
 ## Install Build Tools
 
-### Windows (`winget`)
+### Windows (Scoop)
 
 ```powershell
-winget install --id EclipseAdoptium.Temurin.21.JDK --source winget
-winget install --id Apache.Maven --source winget
-winget install --id Git.Git --source winget
-winget install --id Oven-sh.Bun --source winget
+scoop install git maven bun
+scoop bucket add java
+scoop install openjdk21
 ```
 
 Verify:
