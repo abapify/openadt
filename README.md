@@ -22,11 +22,11 @@
 
 SAP ships ADT as Eclipse plugins on **JCo destinations** and corporate SSO (SNC, Secure Login). That works in the IDE; scripts, curl, and VS Code extensions do not get the same stack for free.
 
-| Goal                                 | With OpenADT                                |
-| ------------------------------------ | ------------------------------------------- |
-| Call `/sap/bc/adt/...` from a script | `openadt fetch DEV /sap/bc/adt/discovery`   |
-| Give a tool a simple HTTP endpoint   | `openadt proxy DEV --listen 127.0.0.1:8080` |
-| Let an agent use ADT safely          | MCP over `fetch` ([preview](#mcp-preview))  |
+| Goal                                 | With OpenADT                                              |
+| ------------------------------------ | --------------------------------------------------------- |
+| Call `/sap/bc/adt/...` from a script | `openadt fetch DEV /sap/bc/adt/discovery`                 |
+| Give a tool a simple HTTP endpoint   | `openadt proxy DEV --listen 127.0.0.1:8080`               |
+| Let an agent use ADT safely          | SAP ADT MCP via `openadt mcp serve` ([MCP](#sap-adt-mcp)) |
 
 OpenADT is a **thin wrapper around `com.sap.adt.*`** — not a reimplemented ADT HTTP client. You supply licensed JCo and ADT plugins; `openadt config bootstrap` wires them once.
 
@@ -127,18 +127,19 @@ CLI spec: [specs/cli.md](specs/cli.md).
 
 Proxy behavior (header stripping, local vs SAP credentials): [specs/proxy.md](specs/proxy.md)
 
-| Client                                   | OpenADT                      |
-| ---------------------------------------- | ---------------------------- |
-| ABAP FS ADT connection                   | Proxy + local Basic          |
-| ABAP FS MCP (`localhost:4847`)           | Separate; VS Code stays open |
-| Other MCP/HTTP tools with ADT Basic auth | Same proxy pattern           |
+| Client                                   | OpenADT                                |
+| ---------------------------------------- | -------------------------------------- |
+| ABAP FS ADT connection                   | Proxy + local Basic                    |
+| ABAP FS MCP (`localhost:4847`)           | Separate; VS Code stays open           |
+| SAP ADT MCP (`openadt mcp serve`)        | Official SAP tools; extension required |
+| Other MCP/HTTP tools with ADT Basic auth | Same proxy pattern                     |
 
-## MCP preview
+## SAP ADT MCP
 
-Experimental stdio MCP (`adt_fetch`, `adt_discover`) for Cursor, Claude, Copilot, etc.
+`openadt mcp serve` starts the **official SAP ADT MCP** from the SAP ADT VS Code extension (HTTP `http://localhost:2236/mcp`, Bearer token). OpenADT does not duplicate SAP MCP tools.
 
 - [specs/mcp.md](specs/mcp.md)
-- [tools/mcp-bridge/](tools/mcp-bridge/)
+- [tools/sap-adt-mcp-launcher/](tools/sap-adt-mcp-launcher/)
 
 ## What OpenADT is not
 

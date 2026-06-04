@@ -25,7 +25,7 @@ See [apps/ARCHITECTURE.md](../../apps/ARCHITECTURE.md).
 ### SDK diagnostics (new)
 
 - `openadt adt discover|logon|logon-status` — typed SAP APIs via `org.openadt.sap.adt.services`
-- MCP bridge ([tools/mcp-bridge](../../tools/mcp-bridge/)): `adt_discover`, `adt_logon`
+- SAP ADT MCP launcher ([tools/sap-adt-mcp-launcher](../../tools/sap-adt-mcp-launcher/)): `openadt mcp serve`
 
 ### Docs and guardrails
 

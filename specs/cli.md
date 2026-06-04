@@ -290,6 +290,36 @@ Behavior:
 
 ---
 
+### openadt mcp
+
+Launch the **official SAP ADT MCP** HTTP server (requires SAP ADT VS Code extension). OpenADT does not register MCP tools — see [mcp.md](mcp.md).
+
+```bash
+openadt mcp serve
+openadt mcp serve --port 2236 --json
+openadt mcp serve --show-token
+openadt mcp serve --verbose
+openadt mcp status
+openadt mcp status --port 2236 --token <bearer>
+openadt mcp print-config
+```
+
+Subcommands:
+
+| Subcommand     | Description                                       |
+| -------------- | ------------------------------------------------- |
+| `serve`        | Start `adt-lsc`, LSP init, MCP HTTP, hold process |
+| `status`       | Probe `http://localhost:<port>/mcp`               |
+| `print-config` | Emit Cursor `mcpServers` JSON snippet             |
+
+`serve` options: `--port` (default `2236`), `--workspace`, `--import-from=auto|adtls|gui|openadt|none` (default `auto`), `--no-gui`, `--destination`, `--json`, `--show-token`.
+
+Exit codes: `0` OK · `1` extension not found · `2` `adt-lsc`/LSP failed · `3` `startMCPServer` failed · `4` port in use.
+
+Dev routing: `scripts/nx-openadt.ts` invokes `tools/sap-adt-mcp-launcher/` without loading the Java SDK classpath.
+
+---
+
 ### openadt fetch [\<SYSTEM\>] \<URL-OR-PATH\>
 
 Fetch a single ADT resource via the configured ADT transport.

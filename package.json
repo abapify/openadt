@@ -7,7 +7,7 @@
     "package:release": "bun tools/package-release/src/main.ts",
     "release:version": "bun tools/release-version/src/main.ts",
     "format:write": "nx format:write",
-    "openadt": "nx run openadt-cli:run --output-style=stream --",
+    "openadt": "bun run scripts/openadt-dev-entry.ts",
     "openadt:build": "nx package openadt-cli --output-style=stream",
     "openadt:test": "nx test openadt-cli --output-style=stream",
     "prepare": "husky",

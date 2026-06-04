@@ -1,8 +1,0 @@
-{
-  "name": "@openadt/mcp-bridge",
-  "private": true,
-  "type": "module",
-  "bin": {
-    "openadt-mcp": "./src/main.ts"
-  }
-}

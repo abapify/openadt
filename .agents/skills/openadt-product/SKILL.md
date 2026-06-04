@@ -1,6 +1,6 @@
 ---
 name: openadt-product
-description: OpenADT product layer — fetch, proxy, transport choice (SDK default), MCP stub. Use when implementing or debugging ADT requests.
+description: OpenADT product layer — fetch, proxy, transport choice (SDK default), SAP ADT MCP launcher. Use when implementing or debugging ADT requests.
 ---
 
 # OpenADT Product Layer
@@ -27,10 +27,11 @@ Do not reimplement ADT HTTP in the SDK path.
 | Proxy server | `org.openadt.product.proxy` (`apps/openadt-cli`) |
 | Config | `org.openadt.config` |
 | Bootstrap | `org.openadt.bootstrap` |
+| SAP ADT MCP launcher | `tools/sap-adt-mcp-launcher/` |
 
-## MCP (experimental)
+## MCP (SAP official)
 
-`tools/mcp-bridge/` — stdio tool `adt_fetch` → `openadt fetch`. Spec: `specs/mcp.md`.
+`openadt mcp serve` — Bun launcher spawns `adt-lsc` from `sapse.adt-vscode`, LSP pipe, `adtLs/mcp/startMCPServer`. HTTP MCP for Cursor; **no** OpenADT MCP tools. Spec: `specs/mcp.md`.
 
 ## Verify
 
