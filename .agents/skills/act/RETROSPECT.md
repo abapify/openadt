@@ -9,7 +9,7 @@ Append-only durable learnings from `/act` P6 evaluation. One entry per session w
 
 - **What happened:**
 - **Root cause:**
-- **Prevention:** (which file was updated: SKILL / review.instructions / codacy review.md)
+- **Prevention:** (which file was updated: SKILL / REVIEW.md / codacy review.md)
 - **Cycle signal:** none | reopened thread | same rule re-flagged | repeated /act without new fixes
 ```
 
@@ -26,7 +26,7 @@ Append-only durable learnings from `/act` P6 evaluation. One entry per session w
 
 - **What happened:** Agent queried GitHub Code Scanning / invented counts instead of Codacy or PR review threads; claimed “7 issues fixed” without matching API evidence.
 - **Root cause:** Codacy, Code Scanning, Code Quality (Copilot review), and Dependabot treated as one bucket.
-- **Prevention:** [`.github/instructions/review.instructions.md`](../../../.github/instructions/review.instructions.md) disambiguation table; P6 requires naming the source before claiming fix counts.
+- **Prevention:** [REVIEW.md](../../../REVIEW.md) tool table; P6 requires naming the source before claiming fix counts.
 - **Cycle signal:** none
 
 ## 2026-05-24 — PR #12 — Semgrep suppressions — whole-file exclusion rejected

@@ -12,7 +12,7 @@ Answer in your closing summary or append to [RETROSPECT.md](RETROSPECT.md):
 - [ ] Did we use whole-file semgrep exclusions instead of line-specific suppressions?
 - [ ] Did we edit PR title/body without explicit user request?
 
-If **any** box is “yes”: write **what / root cause / prevention** and update the relevant durable sink(s) (see routing table in [review.instructions.md](../../../.github/instructions/review.instructions.md)).
+If **any** box is “yes”: write **what / root cause / prevention** and update the sink in [REVIEW.md](../../../REVIEW.md).
 
 ## 2. Cycle detection (required every /act)
 
@@ -23,7 +23,7 @@ If **any** box is “yes”: write **what / root cause / prevention** and update
 ## 3. Durable knowledge (optional unless retrospective triggered)
 
 - [ ] Workflow/process lesson → [SKILL.md](SKILL.md) (and RETROSPECT.md if recurring)
-- [ ] API/tool confusion → [review.instructions.md](../../../.github/instructions/review.instructions.md)
+- [ ] API/tool confusion → [REVIEW.md](../../../REVIEW.md)
 - [ ] Codacy/domain false positive → [review.md](../../../.codacy/instructions/review.md)
 
 ## 4. Agent memory reminder (optional)

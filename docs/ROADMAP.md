@@ -27,13 +27,13 @@ Summary: [docs/plans/2026-openadt-sdk-refactor.md](plans/2026-openadt-sdk-refact
 
 ## Next
 
-| Theme                               | Spec / doc                                                  |
-| ----------------------------------- | ----------------------------------------------------------- |
-| Merge and release `v1.1.x`          | [packaging/README.md](../packaging/README.md)               |
-| Live SAP validation of ADT commands | [docs/usage.md](usage.md)                                   |
-| Typed SDK tools (RIS, object refs)  | [specs/sdk-capabilities.md](../specs/sdk-capabilities.md)   |
-| MCP expansion                       | [specs/mcp.md](../specs/mcp.md)                             |
-| Dead code hygiene                   | `mvn -Pdeadcode` (when plugin available), optional depclean |
+| Theme                               | Spec / doc                                                          |
+| ----------------------------------- | ------------------------------------------------------------------- |
+| Merge and release `v1.1.x`          | [packaging/README.md](../packaging/README.md)                       |
+| Live SAP validation of ADT commands | [docs/usage.md](usage.md) · [docs/contributing.md](contributing.md) |
+| Typed SDK tools (RIS, object refs)  | [specs/sdk-capabilities.md](../specs/sdk-capabilities.md)           |
+| MCP expansion                       | [specs/mcp.md](../specs/mcp.md)                                     |
+| Dead code hygiene                   | `mvn -Pdeadcode` (when plugin available), optional depclean         |
 
 ## Explicitly later
 

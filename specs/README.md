@@ -1,6 +1,6 @@
 # Specifications (SDD)
 
-Behavior contracts for OpenADT. **Change specs before or with code** when CLI, proxy, config, or setup behavior changes.
+Behavior contracts for OpenADT. **SDD enforcement:** [DESIGN.md](../DESIGN.md). **Change specs before or with code** when CLI, proxy, config, or setup behavior changes.
 
 ## Index
 

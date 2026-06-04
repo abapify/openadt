@@ -7,7 +7,7 @@ description: Spec-driven development for OpenADT — spec, test, code, verify-sp
 
 ## Order
 
-1. **Spec** — update `specs/*.md` (and [vision.md](../../specs/vision.md) if product scope changes).
+1. **Spec** — [DESIGN.md](../../DESIGN.md) → update `specs/*.md` (and [vision.md](../../specs/vision.md) if product scope changes).
 2. **Test** — failing test first for behavior changes (config, proxy, detectors, transport).
 3. **Code** — implement in the package from [apps/ARCHITECTURE.md](../../apps/ARCHITECTURE.md).
 4. **Package docs** — new leaf package: add `package-info.java`, a row in the module `README.md`, and (if needed) `apps/ARCHITECTURE.md` Package → spec table; `bun scripts/verify-package-docs.ts` must pass.

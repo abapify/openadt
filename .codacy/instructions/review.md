@@ -1,16 +1,10 @@
-# OpenADT — Codacy AI Reviewer instructions
+# Codacy reviewer — OpenADT
 
-## Purpose
+Repo review matrix: [REVIEW.md](../../REVIEW.md). Agents: [AGENTS.md](../../AGENTS.md).
 
-OpenADT is a CLI and local proxy for SAP ADT development. It can obtain ADT sessions via JCo/SNC or browser SSO (`--profile sso`) using a localhost callback and optional loopback Secure Login hub TLS pinning.
+## Architecture (short)
 
-## Architecture
-
-- `apps/openadt-cli/` — Picocli + shaded fat jar (`product.proxy`).
-- `apps/openadt-sap-adt/` — `org.openadt.sap.adt.*` (SDK default) + `product.fetch`.
-- `apps/openadt-config/` — TOML config.
-- `apps/openadt-bootstrap/` — setup detectors (`org.openadt.bootstrap`).
-- `specs/` — behavior contracts; change specs when CLI behavior changes.
+`openadt-cli` (Picocli, proxy) · `openadt-sap-adt` (SDK + fetch) · `openadt-config` · `openadt-bootstrap` · `specs/`
 
 ## Security review context (read before flagging SSRF / local bind issues)
 
