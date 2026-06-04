@@ -2,6 +2,14 @@
 
 Thank you for helping improve OpenADT.
 
+| Guide                                        | Audience                                                         |
+| -------------------------------------------- | ---------------------------------------------------------------- |
+| [docs/usage.md](docs/usage.md)               | **Installed CLI** — Scoop/Homebrew, SAP config, fetch/proxy      |
+| [docs/contributing.md](docs/contributing.md) | **Git clone** — build tools, Maven, tests, devcontainer, WSL dev |
+| [DESIGN.md](DESIGN.md)                       | **SDD enforcement** — spec gate, architecture, verify            |
+| [AGENTS.md](AGENTS.md)                       | AI agents, skills, doc map                                       |
+| [REVIEW.md](REVIEW.md)                       | PR review tools (Codacy vs GitHub, `/act`)                       |
+
 ## Before you code
 
 1. Read [specs/vision.md](specs/vision.md) and the spec for your area ([specs/README.md](specs/README.md)).
@@ -9,6 +17,8 @@ Thank you for helping improve OpenADT.
 3. Never commit SAP JCo jars, `sapcrypto`, or Secure Login binaries.
 
 ## Development setup
+
+See [docs/contributing.md#build-from-source](docs/contributing.md#build-from-source):
 
 ```bash
 bun install --frozen-lockfile
@@ -18,7 +28,7 @@ bun run openadt:test
 
 ## Pull requests
 
-- One logical change per PR when possible (docs/guardrails → packages → modules → MCP).
+- One logical change per PR when possible.
 - Update specs when behavior changes.
 - Run before push:
 
@@ -34,7 +44,6 @@ bun run openadt:test
 ### Dead code and dependencies
 
 - Profile `-Pdeadcode` runs UCDetector when the Maven plugin resolves (see `tmp/dead-code-report.txt` if unavailable).
-- Optional future: [depclean-maven-plugin](https://github.com/ASSERT-KTH/depclean) on the parent POM for unused dependency hints — not a merge gate.
 - Do not include real landscape data, credentials, or `~/.openadt/` dumps.
 
 ## Spec-driven development

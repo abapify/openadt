@@ -2,37 +2,10 @@
 applyTo: ".github/**,specs/**,apps/**,.agents/**,tools/**,packaging/**"
 ---
 
-# PR follow-up (`/act`)
+# `/act`
 
-Read **[`.agents/skills/act/SKILL.md`](../../.agents/skills/act/SKILL.md)** before changing code.
+Follow **[`.agents/skills/act/SKILL.md`](../../.agents/skills/act/SKILL.md)**. Review tool matrix: **[REVIEW.md](../../REVIEW.md)**.
 
-These are **path-specific repository instructions** for GitHub Copilot ([docs](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/add-custom-instructions/add-repository-instructions#creating-path-specific-custom-instructions)). They apply together with [`.github/copilot-instructions.md`](../copilot-instructions.md).
-
-## PR metadata
-
-- **Never** change the pull request **title** or **description** unless the user explicitly asks.
-- **Never** use the PR body as an agent task list or “open_threads=0” status board.
-
-## Review threads (mandatory)
-
-- **`/act` ≠ resolve-only.** Fix review feedback in `apps/`, `tools/`, `specs/`, etc.
-- **Every thread** needs a substantive **in-thread reply** (commit SHA or reason to decline) **before** resolve.
-- Resolve script is **P4, last** — never the first step.
-- One top-level PR comment does **not** substitute for per-thread replies.
-
-```bash
-bash .agents/skills/act/resolve-open-threads.sh abapify openadt <PR_NUMBER>
-```
-
-## Evaluation (P6)
-
-After P4 resolve, run [`.agents/skills/act/EVALUATE.md`](../../.agents/skills/act/EVALUATE.md) before claiming merge-ready.
-
-- Retrospect on mistakes (wrong API, resolve-only, bad suppressions).
-- Update **one** durable sink per finding — see [review.instructions.md](review.instructions.md).
-- **Cycle guard:** reopened threads, same rule flagged 2+ times, or repeated `/act` with no new commits → **do not merge**; escalate.
-
-## Hygiene
-
-- **`bunx nx format:write`** on touched `tools/**/*.ts` before commit.
-- **Copilot SWE only:** [`.github/copilot-instructions.md`](../copilot-instructions.md) (MCP, firewall).
+- Never edit PR title/body unless asked.
+- Fix in `apps/`, `specs/`, `tools/`, `packaging/` — not resolve-only.
+- `bunx nx format:write` on touched `tools/**/*.ts` before commit.

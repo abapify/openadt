@@ -103,24 +103,16 @@ Resolve outdated threads too, but only after the underlying comment was handled 
 
 ## Evaluation (P6 — after P4, before merge-ready)
 
-Follow [EVALUATE.md](EVALUATE.md). Summary:
+Follow [EVALUATE.md](EVALUATE.md). Durable sinks: [REVIEW.md](../../../REVIEW.md).
 
-1. **Retrospective** — if anything went wrong (wrong API, resolve-only, bad suppressions, premature merge pressure): what / root cause / prevention in closing summary; append to [RETROSPECT.md](RETROSPECT.md) when the pattern may recur.
-2. **One sink per finding** — route durable updates to a **single** primary file:
-
-   | Finding type | Primary sink |
-   |--------------|--------------|
-   | `/act` workflow (resolve-only, merge too early) | This skill + optional RETROSPECT.md |
-   | API/tool confusion (Codacy vs GitHub) | [`.github/instructions/review.instructions.md`](../../../.github/instructions/review.instructions.md) |
-   | Codacy/domain false positive | [`.codacy/instructions/review.md`](../../../.codacy/instructions/review.md) |
-
-3. **Cycle guard** — if any signal fires, **do not merge**; escalate to the user with evidence:
+1. **Retrospective** — if anything went wrong: brief summary; append pattern to [RETROSPECT.md](RETROSPECT.md) when it may recur.
+2. **Cycle guard** — if any signal fires, **do not merge**; escalate to the user with evidence:
 
    - A review thread was **reopened** after an earlier resolve on this PR.
    - The **same rule/alert** (Codacy, Semgrep, Code Scanning) was flagged **2+ times** after a fix commit — verify fix on current HEAD before another merge attempt.
    - **2+ `/act` runs** on the same PR with **no new product commits** since the last run — report an `/act` cycle; do not resolve-only again.
 
-4. **Fix counts** — never claim “N issues fixed” without naming the **source system** and showing it was queried on **current HEAD** (see review.instructions.md).
+4. **Fix counts** — name source system and query on **current HEAD** ([REVIEW.md](../../../REVIEW.md)).
 
 ## Merge-ready
 
@@ -141,17 +133,6 @@ Say **merge-ready** only when:
 5. CI on HEAD  
 6. **P6:** cycle signals (none / blocked — list)  
 7. Left  
-
-## Memory reminder template
-
-When P6 finds a lesson the **user** should carry across agents (personal tooling prefs, org-specific review sources), suggest they add to Cursor user rules or Copilot instructions — **do not commit secrets or real landscape data**:
-
-```markdown
-## OpenADT /act reminders
-- On abapify/openadt PRs: triage Codacy via [Codacy UI/MCP], not `gh api …/code-scanning`.
-- `/act` = code fix + per-thread reply before resolve; never merge until P6 cycle check passes.
-- Semgrep false positives: line-specific `// nosemgrep: <rule-id>` only — see `.codacy/instructions/review.md`.
-```
 
 ## Idempotency
 
