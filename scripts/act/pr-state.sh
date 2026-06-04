@@ -6,9 +6,11 @@
 #
 # Usage: pr-state.sh OWNER REPO PR_NUMBER
 # Output: key=value lines (HEAD_SHA, HEAD_REF, MERGEABLE, MERGE_STATE,
-#         OPEN_THREADS, CI_REQUIRED_PENDING) followed by a 5-column TSV table
+#         OPEN_THREADS, CI_REQUIRED_PENDING) followed by a 4-column TSV table
 #         of open threads:
-#           id<TAB>author<TAB>path<TAB>line<TAB>body[:120]\n
+#           id<TAB>author<TAB>path:line<TAB>body[:120]
+#         (newlines and tabs in the body are collapsed to spaces so each row
+#         stays on a single line; pagination uses pageInfo.hasNextPage.)
 set -euo pipefail
 
 OWNER="${1:?owner}"
@@ -121,5 +123,5 @@ jq -r '
   | select(.isResolved == false)
   | . as $t
   | ($t.comments.nodes[0] // {}) as $c
-  | "\($t.id)\t\($c.author.login // "-")\t\($c.path // "-")\t\($c.line // "-" | tostring)\t\($c.body // "" | gsub("[\n\t]"; " ") | .[0:120])"
-' <<<"$threads_json_all" | sed 's/^/  /'
+  | "\($t.id)\t\($c.author.login // "-")\t\([$c.path // "-", ($c.line // "-" | tostring)] | join(":"))\t\($c.body // "" | gsub("[\n\t]"; " ") | .[0:120])"
+' <<<"$threads_json_all"

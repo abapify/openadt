@@ -82,7 +82,7 @@ if (check !== null) {
     break;
   }
   if (best) {
-    process.stdout.write(`${best.name} @ specs/cli.md:${best.spec_line}\n`);
+    process.stdout.write(`${best.name} @ ${specPath}:${best.spec_line}\n`);
     process.exit(0);
   }
   process.stdout.write(

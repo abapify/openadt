@@ -154,10 +154,12 @@ ad-hoc `gh` calls. They collapse the typical 30+ tool calls per `/act` into ~10.
 | **Post N thread replies**    | `bash scripts/act/reply-threads.sh --file replies.tsv`    | N × `gh api graphql addPullRequestReview…` |
 | **Resolve open threads (P4)**| `bash .agents/skills/act/resolve-open-threads.sh OWNER REPO PR` | unchanged                             |
 
-**`replies.tsv` format** (one row per thread):
+**`replies.tsv` format** (one row per thread). TAB separates the thread ID
+from the body; newlines and tabs in the body must be escaped as `\n` and
+`\t` (the script decodes them before POST):
 
 ```tsv
-<thread_id>	<reply body, may contain tabs and newlines>
+<thread_id>	<reply body on a single line; \n for newlines, \t for tabs>
 ```
 
 **Gotcha:** `gh api graphql` accepts `-f query=...` + `-F var=val` together, but
