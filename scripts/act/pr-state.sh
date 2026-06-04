@@ -101,14 +101,14 @@ open_count="$(jq '[.[] | select(.isResolved==false)] | length' <<<"$threads_json
 
 # Required CI status: any check whose bucket is not 'pass' (i.e. it was NOT a
 # success) and whose state is not SKIPPED or NEUTRAL. Excludes AI reviewers by name.
-ci_required_pending="$(echo "$checks_json" | jq -r '
+ci_required_pending="$(jq -r '
   [
     .[]
     | select(.bucket != "pass")
     | select(.state != "SKIPPED" and .state != "NEUTRAL")
     | select(.name | test("(?i)(cubic|code\\s*rabbit|amazon\\s*q|qodo|chatgpt\\s*codex|gemini|kilo)"; "x") | not)
   ] | length
-')"
+' <<<"$checks_json")"
 
 echo "HEAD_SHA=$head_sha"
 echo "HEAD_REF=$head_ref"
