@@ -25,8 +25,9 @@ class Openadt < Formula
     ENV.prepend_path "PATH", Formula["openjdk@21"].opt_bin
 
     if build.stable?
-      jar = ["openadt-#{version}/openadt.jar", "openadt.jar"].find { |path| File.file?(path) }
-      odie "Could not find openadt.jar in release zip" if jar.nil?
+      candidates = ["openadt-#{version}/openadt.jar", "openadt.jar"]
+      jar = candidates.find { |path| File.file?(path) }
+      odie "Could not find openadt.jar in release zip (tried: #{candidates.join(', ')})" if jar.nil?
       libexec.install jar => "openadt.jar"
     else
       # HEAD build is a multi-module Maven reactor; build from the repo root

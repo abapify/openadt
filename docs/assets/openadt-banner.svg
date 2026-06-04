@@ -17,5 +17,5 @@
   <text x="72" y="198" font-family="Segoe UI, system-ui, -apple-system, sans-serif" font-size="16" fill="#64748b">Official SAP ADT SDK + JCo - same logon stack as Eclipse ADT</text>
   <circle cx="1080" cy="140" r="72" fill="#1e293b" opacity="0.9"/>
   <path d="M1048 140 L1104 108 L1104 172 Z" fill="url(#accent)" opacity="0.85"/>
-  <text x="1080" y="228" font-family="Segoe UI, system-ui, sans-serif" font-size="13" fill="#475569" text-anchor="middle">fetch | proxy | MCP</text>
+  <text x="1080" y="228" font-family="Segoe UI, system-ui, sans-serif" font-size="13" fill="#475569" text-anchor="middle">fetch &#183; proxy &#183; MCP</text>
 </svg>
