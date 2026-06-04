@@ -1,69 +1,62 @@
-# OpenADT Agent Guidelines
+# OpenADT — agents
 
-## Product north star
+**SDD is mandatory:** read **[DESIGN.md](DESIGN.md)** (enforcement gate) before any behavior or spec change. Product: `openadt fetch`, `openadt proxy` ([specs/vision.md](specs/vision.md)).
 
-OpenADT is a **thin Java wrapper around the official SAP ADT SDK** for **`openadt fetch`** and **`openadt proxy`**. MCP is next ([specs/mcp.md](specs/mcp.md)). Bootstrap/setup only writes config; it is not the product.
+## Documentation map
 
-Read [specs/vision.md](specs/vision.md) before broad changes.
+| Doc                                                                | Purpose                                                        |
+| ------------------------------------------------------------------ | -------------------------------------------------------------- |
+| [DESIGN.md](DESIGN.md)                                             | **SDD enforcement** — spec gate, architecture, verify workflow |
+| [specs/README.md](specs/README.md)                                 | Spec index + `verify-spec-sync`                                |
+| [README.md](README.md)                                             | User-facing overview                                           |
+| [docs/usage.md](docs/usage.md)                                     | Installed CLI (Scoop/Homebrew)                                 |
+| [docs/contributing.md](docs/contributing.md)                       | Clone, build, test, devcontainer                               |
+| [docs/integrations/abap-fs.md](docs/integrations/abap-fs.md)       | ABAP FS + `openadt proxy`                                      |
+| [CONTRIBUTING.md](CONTRIBUTING.md)                                 | PR checklist (short)                                           |
+| [REVIEW.md](REVIEW.md)                                             | PR review tools, `/act` sinks                                  |
+| [SECURITY.md](SECURITY.md)                                         | Vulnerability reporting                                        |
+| [apps/ARCHITECTURE.md](apps/ARCHITECTURE.md)                       | Maven modules, Java packages                                   |
+| [.github/copilot-instructions.md](.github/copilot-instructions.md) | GitHub Copilot (repo-wide)                                     |
 
-## Package map
+## Skills (load by task)
 
-| Area                      | Package                           |
-| ------------------------- | --------------------------------- |
-| SDK client                | `org.openadt.sap.adt.sdk`         |
-| Destinations              | `org.openadt.sap.adt.destination` |
-| JCo / Secure Login        | `org.openadt.sap.adt.bootstrap`   |
-| HTTP / REST-RFC fallback  | `org.openadt.sap.adt.fallback.*`  |
-| Fetch glue                | `org.openadt.product.fetch`       |
-| Proxy server (CLI module) | `org.openadt.product.proxy`       |
-| Config                    | `org.openadt.config`              |
-| Setup detectors           | `org.openadt.bootstrap`           |
-| Picocli                   | `org.openadt.cli`                 |
+| Skill                               | Path                                                                                                                   | When                         |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| `act`                               | [.agents/skills/act/SKILL.md](.agents/skills/act/SKILL.md)                                                             | `/act` on a PR               |
+| `openadt-product`                   | [.agents/skills/openadt-product/SKILL.md](.agents/skills/openadt-product/SKILL.md)                                     | fetch, proxy, transport, MCP |
+| `openadt-sdd`                       | [.agents/skills/openadt-sdd/SKILL.md](.agents/skills/openadt-sdd/SKILL.md)                                             | spec → test → code           |
+| `openadt-sap-sdk-apis`              | [.agents/skills/openadt-sap-sdk-apis/SKILL.md](.agents/skills/openadt-sap-sdk-apis/SKILL.md)                           | SDK discover / logon         |
+| `openadt-local-sap-runtime`         | [.agents/skills/openadt-local-sap-runtime/SKILL.md](.agents/skills/openadt-local-sap-runtime/SKILL.md)                 | JCo, SNC, HTTP SSO, failures |
+| `openadt-devcontainer-host-runtime` | [.agents/skills/openadt-devcontainer-host-runtime/SKILL.md](.agents/skills/openadt-devcontainer-host-runtime/SKILL.md) | WSL / devcontainer vs host   |
 
-Maven modules: [apps/ARCHITECTURE.md](apps/ARCHITECTURE.md).
+`/act` helpers: [EVALUATE.md](.agents/skills/act/EVALUATE.md), [RETROSPECT.md](.agents/skills/act/RETROSPECT.md), `act/resolve-open-threads.sh`.
+
+Index: [.agents/skills/README.md](.agents/skills/README.md).
+
+## Packages
+
+| Area                     | Package                                                  |
+| ------------------------ | -------------------------------------------------------- |
+| SDK client               | `org.openadt.sap.adt.sdk`                                |
+| Destinations             | `org.openadt.sap.adt.destination`                        |
+| JCo / Secure Login       | `org.openadt.sap.adt.bootstrap`                          |
+| HTTP / REST-RFC fallback | `org.openadt.sap.adt.fallback.*`                         |
+| Fetch / proxy            | `org.openadt.product.fetch`, `org.openadt.product.proxy` |
+| Config / setup           | `org.openadt.config`, `org.openadt.bootstrap`            |
+| CLI                      | `org.openadt.cli`                                        |
 
 ## Rules
 
-1. Read specs/ before broad implementation changes ([specs/README.md](specs/README.md)).
-2. Prefer TDD for config, proxy auth, header redaction, detectors.
-3. SAP/JCo integration tests: `@Tag("integration")`, skipped by default.
-4. Never commit SAP JCo jars, sapcrypto, or Secure Login files. Do not download SAP ADT/JCo into CI, Docker images, or release zips — users supply licensed installs (`~/.p2`, SAP Support Portal archives).
-5. **Never commit private SAP landscape data** — use fictional fixtures only: `DEV`, `DEVELOPER`, `dev-ms.example.com`, `DEV_100_developer_en`, `PUBLIC`, `p:CN=SAPServiceDEV`, fake UUIDs.
-6. Redact secrets in logs.
-7. Update specs/ when command behavior changes.
-8. Scratch under `tmp/` (gitignored).
-9. **Host OS owns JCo natives.** If `fetch`/`proxy` fails with `no sapjco3 in java.library.path`, compare `runtime.jco_native_dir` in `~/.openadt/local.openadt.toml` to the OS running Java (Windows: `sapjco3.dll`; Linux: `libsapjco3.so`). A path under `.devcontainer/dist/jco` from container bootstrap is wrong on a Windows host — run `openadt setup` (or `setup --check`) on that host before retrying. See `openadt-devcontainer-host-runtime`.
+1. **SDD** — [DESIGN.md](DESIGN.md) → update `specs/*.md` with behavior changes (no undocumented product behavior).
+2. **Fixtures only** in git: `DEV`, `dev-ms.example.com`. No SAP jars, no real landscape.
+3. **Host OS owns JCo natives** — see `openadt-devcontainer-host-runtime` skill.
+4. **`tmp/`** for scratch; redact secrets in logs.
 
-## PR checklist
+## Verify (before PR)
 
-- `bun scripts/verify-spec-sync.ts`
-- `bun scripts/verify-package-docs.ts`
-- `mvnw -q verify -Pdistribution` (repo root)
-- `bun run openadt:test`
-- Spec updates when behavior changes
-
-## Specs
-
-- [specs/vision.md](specs/vision.md) — product vision
-- [specs/cli.md](specs/cli.md) — CLI
-- [specs/config.md](specs/config.md) — config TOML
-- [specs/proxy.md](specs/proxy.md) — proxy
-- [specs/setup.md](specs/setup.md) — detectors
-- [specs/mcp.md](specs/mcp.md) — MCP (draft)
-
-## Skills
-
-| Skill                               | Trigger                             |
-| ----------------------------------- | ----------------------------------- |
-| `act`                               | `/act` on a PR                      |
-| `openadt-product`                   | fetch, proxy, MCP, transport choice |
-| `openadt-sdd`                       | spec → test → code                  |
-| `openadt-sap-sdk-apis`              | SAP SDK discover/logon/fetch APIs   |
-| `openadt-local-sap-runtime`         | SDK/JCo/SNC validation              |
-| `openadt-devcontainer-host-runtime` | devcontainer / WSL vs host          |
-
-Index: [.agents/skills/README.md](.agents/skills/README.md). Copilot: [.github/copilot-instructions.md](.github/copilot-instructions.md).
-
-## Cloud agents (`@codex /act`, `@claude /act`)
-
-Follow [.agents/skills/act/SKILL.md](.agents/skills/act/SKILL.md): fix in product code, reply in each thread, then resolve. Do not edit PR title/description unless asked.
+```bash
+bun scripts/verify-spec-sync.ts
+bun scripts/verify-package-docs.ts
+./mvnw -q verify -Pdistribution
+bun run openadt:test
+```

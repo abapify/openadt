@@ -4,7 +4,7 @@
 
 # OpenADT
 
-**Run SAP ABAP Development Tools (ADT) from the terminal — with the same SDK and logon stack as Eclipse.**
+**SAP ADT from the terminal — same SDK and logon stack as Eclipse.**
 
 [![Latest release](https://img.shields.io/github/v/release/abapify/openadt?label=release&sort=semver)](https://github.com/abapify/openadt/releases)
 [![License](https://img.shields.io/github/license/abapify/openadt)](LICENSE)
@@ -12,7 +12,7 @@
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux%20%7C%20macOS-blue)](#install)
 [![Java](https://img.shields.io/badge/Java-17%2B-orange)](apps/ARCHITECTURE.md)
 
-[Quick start](#quick-start) · [Install](#install) · [ABAP FS + OpenADT](#abap-fs-and-other-adt-clients--openadt) · [Usage guide](docs/usage.md) · [Specs](specs/) · [Report issue](https://github.com/abapify/openadt/issues)
+[Why](#why-openadt-exists) · [Install](#install) · [Quick start](#quick-start) · [ABAP FS](#vs-code-abap-fs-and-other-adt-clients) · [Documentation](#documentation)
 
 </div>
 
@@ -20,34 +20,30 @@
 
 ## Why OpenADT exists
 
-SAP ships ADT as **Eclipse plugins** on top of **JCo destinations** and corporate SSO (SNC, Secure Login, tickets). That stack works in the IDE, but it is awkward for everything else:
+SAP ships ADT as Eclipse plugins on **JCo destinations** and corporate SSO (SNC, Secure Login). That works in the IDE; scripts, curl, and VS Code extensions do not get the same stack for free.
 
-| You want to…                                        | Without OpenADT                                                     | With OpenADT                                                                |
-| --------------------------------------------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| Hit `/sap/bc/adt/...` from a script or CI job       | Reimplement auth, cookies, CSRF, SNC — or copy fragile curl recipes | `openadt fetch DEV /sap/bc/adt/discovery`                                   |
-| Point a local tool at SAP (extension, test harness) | Teach it SAP logon protocols                                        | `openadt proxy DEV --listen 127.0.0.1:8080` and use plain HTTP to localhost |
-| Let an AI agent read ADT APIs safely                | Give the model raw landscape credentials or custom HTTP hacks       | MCP bridge over `fetch` ([preview](#mcp-preview))                           |
+| Goal                                 | With OpenADT                                |
+| ------------------------------------ | ------------------------------------------- |
+| Call `/sap/bc/adt/...` from a script | `openadt fetch DEV /sap/bc/adt/discovery`   |
+| Give a tool a simple HTTP endpoint   | `openadt proxy DEV --listen 127.0.0.1:8080` |
+| Let an agent use ADT safely          | MCP over `fetch` ([preview](#mcp-preview))  |
 
-**OpenADT is not another ADT HTTP client.** It is a thin **Java wrapper around the official `com.sap.adt.*` SDK** so `fetch` and `proxy` behave like Eclipse ADT when `runtime.adt_plugins_dir` is configured — including destination selection and SNC SSO where your machine already has JCo and crypto libraries.
-
-OpenADT does **not** bundle SAP software. You install licensed JCo, ADT plugins, and landscape config from SAP or your organization; OpenADT detects and wires them once via `openadt config bootstrap`.
-
----
+OpenADT is a **thin wrapper around `com.sap.adt.*`** — not a reimplemented ADT HTTP client. You supply licensed JCo and ADT plugins; `openadt config bootstrap` wires them once.
 
 ## How it fits in your stack
 
 ```mermaid
 flowchart LR
   subgraph local["Your machine"]
-    CLI["Scripts / curl / IDE plugin"]
+    CLI["Scripts / curl / VS Code"]
     OA["openadt fetch / proxy"]
     CFG["~/.openadt/config.toml"]
   end
-  subgraph sapstack["Same stack as Eclipse ADT"]
-    SDK["SAP ADT SDK com.sap.adt.*"]
-    JCO["SAP JCo + SNC / SSO"]
+  subgraph sapstack["Eclipse-parity stack"]
+    SDK["SAP ADT SDK"]
+    JCO["JCo + SNC / SSO"]
   end
-  SAP["SAP ABAP system /sap/bc/adt/..."]
+  SAP["SAP ABAP"]
 
   CLI --> OA
   OA --> CFG
@@ -56,188 +52,114 @@ flowchart LR
   JCO --> SAP
 ```
 
-- **`openadt fetch`** — one ADT request from the terminal (JSON-friendly output for automation).
-- **`openadt proxy`** — localhost HTTP reverse bridge; callers speak HTTP to `127.0.0.1`, OpenADT speaks ADT to SAP.
-- **`openadt config bootstrap`** — detect systems and runtime paths, write config (no rescan on every request).
-
----
-
-## Quick start
-
-After [install](#install), on a machine that already has SAP ADT/Eclipse or staged JCo (see [usage guide](docs/usage.md)):
-
-```bash
-openadt config bootstrap    # detect landscape → ~/.openadt/config.toml
-openadt proxy DEV --listen 127.0.0.1:8080
-openadt fetch DEV /sap/bc/adt/discovery --pretty
-```
-
-Use fictional aliases in docs and tests (`DEV`, `DEVELOPER`, `dev-ms.example.com`). Your real `~/.openadt/config.toml` stays local and is not part of this repo.
-
----
-
 ## Install
 
-<table>
-<tr>
-<th>Windows (Scoop)</th>
-<th>Linux / macOS (Homebrew)</th>
-</tr>
-<tr>
-<td>
+Supported on **Windows**, **Linux**, and **macOS**. OpenADT does not bundle SAP software. Run `fetch` / `proxy` on the OS that owns your JCo natives ([platform notes](docs/usage.md#supported-platforms)).
+
+### Windows — Scoop
 
 ```powershell
 scoop bucket add openadt https://github.com/abapify/scoop-bucket
 scoop install openadt
 ```
 
-One-shot (no bucket):
+Without adding a bucket:
 
 ```powershell
 scoop install https://raw.githubusercontent.com/abapify/openadt/main/packaging/scoop/openadt.json
 ```
 
-</td>
-<td>
+### Linux and macOS — Homebrew
 
 ```bash
 brew tap abapify/openadt
 brew install openadt
-brew update && brew upgrade openadt   # later
 ```
 
-</td>
-</tr>
-</table>
+Upgrade later: `brew update && brew upgrade openadt`
 
-Build from source or corporate mirrors: [docs/usage.md#install-openadt-today](docs/usage.md#install-openadt-today) · [specs/packaging.md](specs/packaging.md).
+### Build from source
 
----
+Contributors cloning the repo: [docs/contributing.md](docs/contributing.md).
 
-## Commands at a glance
+Packaging and release channels: [specs/packaging.md](specs/packaging.md).
 
-| Command                               | Purpose                                                                      |
-| ------------------------------------- | ---------------------------------------------------------------------------- |
-| `openadt fetch`                       | Single ADT HTTP call through the SDK (or explicit fallback transport)        |
-| `openadt proxy`                       | Localhost bridge for tools that only speak HTTP                              |
-| `openadt config` / `config bootstrap` | Show or generate merged TOML config                                          |
-| `openadt setup`                       | Legacy entry point; prefer `config bootstrap` + [setup spec](specs/setup.md) |
+## Quick start
 
-Full CLI contract: [specs/cli.md](specs/cli.md).
+On the host where JCo/ADT are installed:
 
----
+```bash
+openadt config bootstrap
+openadt config build          # required for default SDK transport
+openadt proxy DEV --listen 127.0.0.1:8080
+openadt fetch DEV /sap/bc/adt/discovery --pretty
+```
 
-## Transport modes
+Docs use fictional system aliases (`DEV`, `dev-ms.example.com`). Your `~/.openadt/config.toml` stays on your machine only.
 
-Default is **SDK** (Eclipse-parity). Fallbacks are opt-in:
+## Commands
 
-| `adt.transport`     | When to use                                                             |
-| ------------------- | ----------------------------------------------------------------------- |
-| `sdk` (**default**) | `runtime.adt_plugins_dir` set — preferred                               |
-| `http`              | Explicit opt-in; browser SSO / `MYSAPSSO2` ticket HTTP without full SDK |
-| `rest-rfc`          | JCo present but no ADT plugin pool                                      |
+| Command                    | Purpose                                              |
+| -------------------------- | ---------------------------------------------------- |
+| `openadt fetch`            | One ADT request (SDK or explicit fallback transport) |
+| `openadt proxy`            | Localhost HTTP bridge to SAP ADT                     |
+| `openadt config bootstrap` | Detect landscape and write config                    |
+| `openadt config build`     | Build SDK runtime jar for `fetch` / `proxy`          |
+| `openadt setup`            | Legacy; prefer `config bootstrap`                    |
 
-Details: [specs/cli.md](specs/cli.md) · [specs/config.md](specs/config.md).
+CLI spec: [specs/cli.md](specs/cli.md).
 
----
+### Transport modes
+
+| `adt.transport` | When                              |
+| --------------- | --------------------------------- |
+| `sdk` (default) | `runtime.adt_plugins_dir` set     |
+| `http`          | Opt-in; ticket / browser SSO HTTP |
+| `rest-rfc`      | JCo without ADT plugin pool       |
+
+[specs/config.md](specs/config.md) · [specs/cli.md](specs/cli.md)
+
+## VS Code (ABAP FS) and other ADT clients
+
+[ABAP FS](https://marcellourbani.github.io/vscode_abap_remote_fs/) and similar tools expect an ADT **URL + HTTP Basic auth**. On SNC/SSO landscapes, do not store a SAP password in VS Code: run **`openadt proxy`** with **local** Basic auth and set ABAP FS `url` to `http://127.0.0.1:8080`.
+
+**Step-by-step for Windows, Linux, and macOS:** [docs/integrations/abap-fs.md](docs/integrations/abap-fs.md)
+
+Proxy behavior (header stripping, local vs SAP credentials): [specs/proxy.md](specs/proxy.md)
+
+| Client                                   | OpenADT                      |
+| ---------------------------------------- | ---------------------------- |
+| ABAP FS ADT connection                   | Proxy + local Basic          |
+| ABAP FS MCP (`localhost:4847`)           | Separate; VS Code stays open |
+| Other MCP/HTTP tools with ADT Basic auth | Same proxy pattern           |
 
 ## MCP preview
 
-Experimental **stdio MCP** so agents (Cursor, Claude, Copilot, etc.) can call ADT via `adt_fetch` / `adt_discover` without reimplementing SAP logon.
+Experimental stdio MCP (`adt_fetch`, `adt_discover`) for Cursor, Claude, Copilot, etc.
 
-- Spec: [specs/mcp.md](specs/mcp.md)
-- Bridge: [tools/mcp-bridge/](tools/mcp-bridge/)
-
----
-
-## ABAP FS and other ADT clients + OpenADT
-
-[**ABAP FS**](https://marcellourbani.github.io/vscode_abap_remote_fs/) (ABAP remote filesystem for VS Code) and similar tools talk to SAP over **ADT HTTP**. They normally expect a **base URL**, **SAP client**, and often **HTTP Basic auth** in the connection profile. On corporate landscapes with **SNC / Secure Login / SSO**, storing a SAP password in the editor is the wrong model — OpenADT handles SAP logon once; the tool only speaks to **localhost**.
-
-```mermaid
-flowchart LR
-  Client["ABAP FS or ADT HTTP client"]
-  Proxy["openadt proxy\nlocal Basic auth"]
-  SAP["SAP /sap/bc/adt/..."]
-
-  Client -->|"http://127.0.0.1:8080"| Proxy
-  Proxy -->|"SDK + JCo / SNC"| SAP
-```
-
-### 1. Start OpenADT with local Basic auth
-
-After `openadt config bootstrap` (and `openadt config build` when using SDK transport), run the proxy on loopback. The username/password here **only protect the local listener** — they are **not** your SAP user (see [specs/proxy.md](specs/proxy.md)).
-
-```bash
-export OPENADT_PROXY_PASSWORD="choose-a-local-secret"
-openadt proxy DEV --listen 127.0.0.1:8080 --local-auth basic --local-username openadt
-```
-
-Keep this terminal open while VS Code or MCP clients are connected.
-
-### 2. Point ABAP FS at the proxy
-
-In VS Code, use [**ABAP FS: Connection Manager**](https://marcellourbani.github.io/vscode_abap_remote_fs/) (or `abapfs.remote` in settings) and set the **ADT base URL** to the proxy root — **no** `/sap/bc/adt` suffix; the extension adds ADT paths under that host.
-
-Example `settings.json` fragment (use fictional hostnames in samples; your real config stays local):
-
-```json
-{
-  "abapfs.remote": {
-    "DEV": {
-      "url": "http://127.0.0.1:8080",
-      "username": "openadt",
-      "password": "choose-a-local-secret",
-      "client": "100",
-      "language": "EN"
-    }
-  }
-}
-```
-
-Use the same **local** username/password as `--local-username` / `OPENADT_PROXY_PASSWORD`. OpenADT strips incoming `Authorization` and SAP session headers before forwarding, then logs on to SAP with your configured SDK/SNC profile.
-
-Verify from another terminal:
-
-```bash
-curl -u openadt:choose-a-local-secret http://127.0.0.1:8080/sap/bc/adt/discovery
-```
-
-### 3. ABAP FS MCP vs OpenADT
-
-ABAP FS also ships an [**in-editor MCP server**](https://marcellourbani.github.io/vscode_abap_remote_fs/) (`abapfs.mcpServer`, default port `4847`) with optional **Bearer `apiKey`** — that secures access **to the MCP server inside VS Code**, not SAP itself. VS Code must stay open and connected to SAP.
-
-| Integration                                                              | Role of OpenADT                                                                           |
-| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| **ABAP FS ADT connection** (browse/activate/debug in VS Code)            | Point `url` at `openadt proxy`; SAP auth via OpenADT                                      |
-| **ABAP FS MCP** (`http://localhost:4847/mcp`)                            | No OpenADT in the path; use when you want ABAP FS tools inside VS Code                    |
-| **Other MCP or HTTP clients** that require Basic auth to an ADT base URL | Same pattern: ADT URL → `http://127.0.0.1:<port>` + local Basic → running `openadt proxy` |
-
-For proxy flags, profiles (`--profile snc`), and troubleshooting, see [docs/usage.md#start-the-local-proxy](docs/usage.md#start-the-local-proxy).
-
----
+- [specs/mcp.md](specs/mcp.md)
+- [tools/mcp-bridge/](tools/mcp-bridge/)
 
 ## What OpenADT is not
 
-- A replacement for Eclipse ADT or SAP GUI
-- A landscape scanner on every request (bootstrap writes config once)
-- A redistribution of SAP JCo, ADT plugins, or Secure Login — **you** supply licensed installs
+- Not an Eclipse ADT or SAP GUI replacement
+- Not a per-request landscape scanner
+- Not a redistribution of SAP JCo, ADT plugins, or Secure Login
 
-Product vision and package map: [specs/vision.md](specs/vision.md) · [apps/ARCHITECTURE.md](apps/ARCHITECTURE.md).
-
----
+[specs/vision.md](specs/vision.md) · [apps/ARCHITECTURE.md](apps/ARCHITECTURE.md)
 
 ## Documentation
 
-| Topic                                       | Link                           |
-| ------------------------------------------- | ------------------------------ |
-| Install, WSL, devcontainer, troubleshooting | [docs/usage.md](docs/usage.md) |
-| Behavior specs                              | [specs/](specs/)               |
-| Contributing / agents                       | [AGENTS.md](AGENTS.md)         |
-| Security                                    | [SECURITY.md](SECURITY.md)     |
-
----
+| Topic                   | Link                                                                                 |
+| ----------------------- | ------------------------------------------------------------------------------------ |
+| Using installed OpenADT | [docs/usage.md](docs/usage.md)                                                       |
+| Developing (git clone)  | [docs/contributing.md](docs/contributing.md)                                         |
+| ABAP FS integration     | [docs/integrations/abap-fs.md](docs/integrations/abap-fs.md)                         |
+| Proxy                   | [specs/proxy.md](specs/proxy.md)                                                     |
+| Packaging               | [specs/packaging.md](specs/packaging.md)                                             |
+| SDD (specs)             | [DESIGN.md](DESIGN.md) enforcement · [specs/](specs/)                                |
+| PR / review (agents)    | [REVIEW.md](REVIEW.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [AGENTS.md](AGENTS.md) |
 
 ## License
 
-[Apache License 2.0](LICENSE) — Copyright contributors. SAP, ABAP, and ADT are trademarks of their respective owners; this project is not affiliated with SAP SE.
+[Apache License 2.0](LICENSE). SAP trademarks belong to their respective owners; this project is not affiliated with SAP SE.

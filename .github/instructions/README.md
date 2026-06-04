@@ -1,11 +1,10 @@
-# GitHub Copilot path-specific instructions
+# Copilot path instructions
 
-Per [GitHub repository custom instructions](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/add-custom-instructions/add-repository-instructions):
+| File                                                     | Scope                                      |
+| -------------------------------------------------------- | ------------------------------------------ |
+| [../copilot-instructions.md](../copilot-instructions.md) | Repo-wide                                  |
+| [act.instructions.md](act.instructions.md)               | `/act`                                     |
+| [review.instructions.md](review.instructions.md)         | Review APIs → [REVIEW.md](../../REVIEW.md) |
+| [java.instructions.md](java.instructions.md)             | Java modules                               |
 
-| File                                                     | Scope                                                                                    |
-| -------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| [../copilot-instructions.md](../copilot-instructions.md) | Repository-wide (always loaded on GitHub)                                                |
-| [act.instructions.md](act.instructions.md)               | `apps/`, `specs/`, `tools/`, `.agents/`, `.github/`, `packaging/` — **`/act` workflow**  |
-| [review.instructions.md](review.instructions.md)         | Same paths + `.codacy/` — **review APIs** (Codacy vs GitHub Code Scanning vs Dependabot) |
-
-Copilot code review uses instructions from the **base branch** of the PR. Merge instruction updates to `main` before expecting them on open PRs.
+Agents: [AGENTS.md](../../AGENTS.md) · [REVIEW.md](../../REVIEW.md).
