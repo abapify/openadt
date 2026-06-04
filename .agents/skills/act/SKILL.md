@@ -142,6 +142,32 @@ If feedback is already fixed on HEAD and threads are closed → short “already
 
 `bunx nx format:write` on touched `tools/**/*.ts` before commit.
 
+## Token-rationalized workflow
+
+Use the helpers under [`scripts/act/`](../../../scripts/act/) instead of issuing
+ad-hoc `gh` calls. They collapse the typical 30+ tool calls per `/act` into ~10.
+
+| Step                         | Use                                                       | Replaces                                    |
+| ---------------------------- | --------------------------------------------------------- | ------------------------------------------- |
+| **PR state + open threads**  | `bash scripts/act/pr-state.sh OWNER REPO PR`              | `gh pr view --json ...` ×4 + `gh pr checks` |
+| **Verify a CLI claim**       | `bun scripts/derive-cli-surface.ts --check "openadt X"`   | `grep` across `apps/**.java` + reads        |
+| **Post N thread replies**    | `bash scripts/act/reply-threads.sh --file replies.tsv`    | N × `gh api graphql addPullRequestReview…` |
+| **Resolve open threads (P4)**| `bash .agents/skills/act/resolve-open-threads.sh OWNER REPO PR` | unchanged                             |
+
+**`replies.tsv` format** (one row per thread):
+
+```tsv
+<thread_id>	<reply body, may contain tabs and newlines>
+```
+
+**Gotcha:** `gh api graphql` accepts `-f query=...` + `-F var=val` together, but
+**not** `--input FILE` (which discards `-F`). Use `-f` for the query and `-F`
+or `-f` for variables.
+
+If `MERGEABLE=UNKNOWN` in `pr-state.sh` output, the GraphQL `mergeable` field
+is cached. Re-query with `gh pr view PR --json mergeStateStatus` (REST) to
+refresh.
+
 ## Runtime extras
 
 - **Copilot SWE:** [`.github/copilot-instructions.md`](../../../.github/copilot-instructions.md)

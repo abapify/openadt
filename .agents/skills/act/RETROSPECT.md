@@ -35,3 +35,14 @@ Append-only durable learnings from `/act` P6 evaluation. One entry per session w
 - **Root cause:** Did not read [`.codacy/instructions/review.md`](../../../.codacy/instructions/review.md) — repo policy is line-specific `// nosemgrep: <rule-id>` only.
 - **Prevention:** Domain false positives live in `.codacy/instructions/review.md`; do not edit `.semgrep.yml` to exclude whole production files.
 - **Cycle signal:** same rule re-flagged
+
+## 2026-06-04 — PR #38 — token-rationalism in /act
+
+- **What happened:** A single `/act` on PR #38 (9 open threads, all docs) used ~30 tool calls and ~2.9k recoverable tokens: 6 separate `gh pr view` / `gh pr checks` calls, 2 failed `gh api graphql` attempts (`--input` + `-F` collision), 9 individual reply mutations, 9 individual resolve mutations, plus 3 Java-source greps just to confirm `openadt auth login` exists in the CLI.
+- **Root cause:** No shared helpers; agents re-derive PR state, CLI surface, and thread plumbing from scratch every run.
+- **Prevention:**
+  - [`scripts/act/pr-state.sh`](../../../scripts/act/pr-state.sh) — one call: HEAD SHA, mergeability, open threads table, required CI pending count.
+  - [`scripts/act/reply-threads.sh`](../../../scripts/act/reply-threads.sh) — batch N replies into one aliased GraphQL mutation from a TSV file.
+  - [`scripts/derive-cli-surface.ts`](../../../scripts/derive-cli-surface.ts) — one-shot CLI surface index from `specs/cli.md` (`--check "openadt auth login"`).
+  - [SKILL.md Token-rationalized workflow section](SKILL.md#token-rationalized-workflow) — points at the helpers and documents the `gh api graphql` `-F` gotcha.
+- **Cycle signal:** none
