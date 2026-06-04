@@ -11,7 +11,7 @@
       "executor": "nx:run-commands",
       "dependsOn": ["openadt-config:compile"],
       "options": {
-        "command": "node scripts/mvnw-runner.mjs -q compile -pl apps/openadt-sap-adt -am -f pom.xml",
+        "command": "node scripts/mvnw-runner.mjs -q install -pl apps/openadt-sap-adt -Pdistribution -Dopenadt.distribution=true -DskipTests -f pom.xml",
         "cwd": "{workspaceRoot}"
       },
       "cache": true,
@@ -22,7 +22,7 @@
       "executor": "nx:run-commands",
       "dependsOn": ["compile"],
       "options": {
-        "command": "node scripts/mvnw-runner.mjs -q test -pl apps/openadt-sap-adt -am -f pom.xml",
+        "command": "node scripts/mvnw-runner.mjs -q test -pl apps/openadt-sap-adt -Pdistribution -Dopenadt.distribution=true -f pom.xml && node scripts/mvnw-runner.mjs install -pl apps/openadt-sap-adt -Pdistribution -Dopenadt.distribution=true -DskipTests -f pom.xml",
         "cwd": "{workspaceRoot}"
       },
       "cache": true,
@@ -33,7 +33,7 @@
       "executor": "nx:run-commands",
       "dependsOn": ["compile", "openadt-config:package"],
       "options": {
-        "command": "node scripts/mvnw-runner.mjs -q package -pl apps/openadt-sap-adt -am -DskipTests -f pom.xml",
+        "command": "node scripts/mvnw-runner.mjs -q package -pl apps/openadt-sap-adt -Pdistribution -Dopenadt.distribution=true -DskipTests -f pom.xml",
         "cwd": "{workspaceRoot}"
       },
       "cache": true,

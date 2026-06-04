@@ -15,7 +15,7 @@
         "openadt-bootstrap:compile"
       ],
       "options": {
-        "command": "node scripts/mvnw-runner.mjs -q compile -pl apps/openadt-cli -am -Pdistribution -Dopenadt.distribution=true -f pom.xml && bun run scripts/dev-runtime-classpath.ts",
+        "command": "node scripts/mvnw-runner.mjs -q install -pl apps/openadt-cli -Pdistribution -Dopenadt.distribution=true -DskipTests -f pom.xml && bun run scripts/dev-runtime-classpath.ts",
         "cwd": "{workspaceRoot}"
       },
       "cache": true,
@@ -26,7 +26,7 @@
       "executor": "nx:run-commands",
       "dependsOn": ["package"],
       "options": {
-        "command": "node scripts/mvnw-runner.mjs -q test -pl apps/openadt-cli -am -Pdistribution -Dopenadt.distribution=true -f pom.xml",
+        "command": "node scripts/mvnw-runner.mjs -q test -pl apps/openadt-cli -Pdistribution -Dopenadt.distribution=true -f pom.xml",
         "cwd": "{workspaceRoot}"
       },
       "cache": true,
@@ -36,7 +36,7 @@
     "package": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "node scripts/mvnw-runner.mjs -q package -pl apps/openadt-cli -am -Pdistribution -Dopenadt.distribution=true -DskipTests -f pom.xml",
+        "command": "node scripts/mvnw-runner.mjs -q package -pl apps/openadt-cli -Pdistribution -Dopenadt.distribution=true -DskipTests -f pom.xml",
         "cwd": "{workspaceRoot}"
       },
       "cache": true,
