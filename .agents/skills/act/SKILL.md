@@ -167,8 +167,13 @@ from the body; newlines and tabs in the body must be escaped as `\n` and
 or `-f` for variables.
 
 If `MERGEABLE=UNKNOWN` in `pr-state.sh` output, the GraphQL `mergeable` field
-is cached. Re-query with `gh pr view PR --json mergeStateStatus` (REST) to
-refresh.
+is cached (computed asynchronously by GitHub's merge-queue worker; see
+gh-cli #9583). Note that `mergeable` (merge conflict status:
+`MERGEABLE`/`CONFLICTING`) and `mergeStateStatus` (overall merge button
+state: `CLEAN`/`BLOCKED`/`DIRTY`/etc.) are **separate** GraphQL fields and
+must not be conflated. The script already reads `mergeStateStatus` from
+`gh pr view --json` (which itself uses GraphQL) on every run, so a stale
+`mergeable` value does not block `/act` decisions.
 
 ## Runtime extras
 

@@ -25,30 +25,49 @@ gh auth status >/dev/null 2>&1 || { echo "error: gh not authenticated" >&2; exit
 # Page through reviewThreads (default 100 per page) to avoid silent truncation.
 # `gh api graphql --paginate` does not work for arbitrary connections, so loop
 # manually using `pageInfo.endCursor`.
+#
+# The GraphQL query needs an `after: $after` clause on every call after the
+# first. We build it as one literal string with the cursor spliced in
+# (escaping any quotes in the cursor).
 threads_json_all='[]'
 cursor=""
 has_next=true
 while [[ "$has_next" == "true" ]]; do
-  after_arg=""
-  [[ -n "$cursor" ]] && after_arg="(after: \"$cursor\")"
-  page_query="query(\$o:String!,\$r:String!,\$pr:Int!,\$n:Int!,$([ -n "$cursor" ] && echo '$after:String' || true)) {
-    repository(owner:\$o, name:\$r) {
-      pullRequest(number:\$pr) {
-        headRefOid
-        headRefName
-        mergeable
-        state
-        url
-        reviewThreads(first:\$n$([ -n "$cursor" ] && echo ', after:$after' || true)) {
-          pageInfo { hasNextPage endCursor }
-          nodes {
-            id isResolved isOutdated
-            comments(first:1) { nodes { author { login } path line body } }
-          }
+  if [[ -z "$cursor" ]]; then
+    # shellcheck disable=SC2016  # GraphQL $-prefixed variables are literal.
+    var_decls='$o:String!,$r:String!,$pr:Int!,$n:Int!'
+    after_clause=""
+  else
+    # Escape backslashes and double-quotes in the cursor for embedding in a
+    # double-quoted string (GraphQL accepts only double-quoted cursors).
+    esc_cursor="${cursor//\\/\\\\}"
+    esc_cursor="${esc_cursor//\"/\\\"}"
+    # shellcheck disable=SC2016  # GraphQL $-prefixed variables are literal.
+    var_decls='$o:String!,$r:String!,$pr:Int!,$n:Int!,$after:String'
+    after_clause=", after: \"$esc_cursor\""
+  fi
+
+  page_query=$(cat <<EOF
+query($var_decls) {
+  repository(owner: \$o, name: \$r) {
+    pullRequest(number: \$pr) {
+      headRefOid
+      headRefName
+      mergeable
+      state
+      url
+      reviewThreads(first: \$n$after_clause) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          id isResolved isOutdated
+          comments(first: 1) { nodes { author { login } path line body } }
         }
       }
     }
-  }"
+  }
+}
+EOF
+)
 
   args=( -f query="$page_query" -f o="$OWNER" -f r="$REPO" -F pr="$PR" -F n=100 )
   [[ -n "$cursor" ]] && args+=( -F "after=$cursor" )

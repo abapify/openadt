@@ -26,6 +26,14 @@ while [[ "${1:-}" == --* ]]; do
   esac
 done
 
+# Validate --batch-size: must be a positive integer. Non-positive values would
+# cause a division-by-zero in the dry-run chunk count or a non-advancing loop
+# at runtime. Reject non-integer / non-positive input.
+if ! [[ "$BATCH_SIZE" =~ ^[1-9][0-9]*$ ]]; then
+  echo "error: --batch-size must be a positive integer (got: $BATCH_SIZE)" >&2
+  exit 2
+fi
+
 for bin in gh jq; do
   command -v "$bin" >/dev/null 2>&1 || { echo "error: $bin required" >&2; exit 1; }
 done
