@@ -48,7 +48,7 @@ Use **JDK 17 or 21**. Newer JDK versions may break test-time bytecode instrument
 ```bash
 git clone https://github.com/abapify/openadt.git
 cd openadt
-bun install --frozen-lockfile
+bun install
 ./mvnw -q verify -f pom.xml -Pdistribution
 ```
 
@@ -69,14 +69,14 @@ Shaded CLI jar: `apps/openadt-cli/target/openadt-*.jar` (version matches root `p
 
 ```bash
 chmod +x openadt
-./openadt setup
+./openadt config bootstrap
 ```
 
 **SDK classpath from `target/` (Windows):**
 
 ```powershell
-.\scripts\openadt-sdk.ps1 adt discover DEV
-.\scripts\openadt-sdk.ps1 adt logon DEV
+.\scripts\openadt-sdk.ps1 discovery DEV
+.\scripts\openadt-sdk.ps1 auth login DEV
 ```
 
 <a id="local-jar-install"></a>

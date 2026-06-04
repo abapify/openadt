@@ -50,7 +50,7 @@ Spec: [specs/config.md](../../../specs/config.md), [specs/cli.md](../../../specs
 
 ```bash
 openadt config
-openadt adt logon DEV
+openadt auth login DEV
 openadt fetch DEV /sap/bc/adt/core/http/systeminformation --json
 ```
 

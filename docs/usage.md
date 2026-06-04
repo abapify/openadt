@@ -110,7 +110,7 @@ openadt fetch DEV /sap/bc/adt/core/http/systeminformation --json
 Check without writing:
 
 ```bash
-openadt setup --check
+openadt config bootstrap --check
 openadt config
 ```
 
@@ -142,6 +142,8 @@ includes = [
 Example destination (fictional values):
 
 ```toml
+version = 1
+
 [destinations.DEV]
 alias = "DEV"
 system_id = "DEV"
@@ -175,14 +177,14 @@ openadt fetch DEV /sap/bc/adt/core/http/systeminformation --json --fail
 
 Redact logs before sharing. With a running proxy for the same system, `fetch` reuses the warm session unless you pass `--direct`.
 
-### SDK diagnostics (`openadt adt`)
+### SDK diagnostics (`openadt auth` / `openadt discovery`)
 
 Requires `transport = "sdk"` and `openadt config build`:
 
 ```bash
-openadt adt logon DEV
-openadt adt discover DEV --format json
-openadt adt logon-status DEV --format json
+openadt auth login DEV
+openadt discovery DEV --format json
+openadt auth status DEV --format json
 ```
 
 See [specs/cli.md](../specs/cli.md) and [specs/sdk-capabilities.md](../specs/sdk-capabilities.md).
@@ -250,7 +252,7 @@ Contributors using devcontainers: [contributing.md#devcontainer](contributing.md
 | `GSS-API: No credentials`         | SNC material missing on host         | Secure Login on Windows or Linux `SECUDIR`                        |
 | Proxy vs fetch differ             | Different config/transport           | Compare `openadt config`, alias, `adt.transport`                  |
 | `adt discover` ClassNotFoundError | SDK runtime not built                | `openadt config build`                                            |
-| Discovery empty                   | Not logged on                        | `openadt adt logon DEV` first                                     |
+| Discovery empty                   | Not logged on                        | `openadt auth login DEV` first                                    |
 
 <a id="security"></a>
 
