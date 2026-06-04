@@ -42,8 +42,11 @@ Lookup paths:
 
 - **Windows**: `%APPDATA%\SAP\Common\SAPUILandscape.xml`
 - **macOS**: `~/Library/Application Support/SAP/Common/SAPUILandscape.xml`
+- **macOS (SAP GUI for Java)**: `~/Library/Preferences/SAP/SAPGUILandscape.xml`
 - **WSL**: `/mnt/c/Users/<user>/AppData/Roaming/SAP/Common/SAPUILandscape.xml`
 - **WSL**: `/mnt/c/Users/<user>/AppData/Roaming/SAP/LogonServerConfigCache/*.xml`
+
+When the landscape file contains `<Include url="...">` tags pointing to external landscapes (common with centrally-managed SAP GUI deployments), the detector logs an informational message. Full system details (including message server hostnames) may require opening SAP GUI once to cache the landscape locally, or manual configuration of the `mshost` field.
 
 For classic `<System>` entries, extracts:
 

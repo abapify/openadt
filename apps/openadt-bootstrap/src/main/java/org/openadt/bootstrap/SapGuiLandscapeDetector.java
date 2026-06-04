@@ -52,9 +52,23 @@ public class SapGuiLandscapeDetector implements SystemDetector {
             List<SystemProfile> systems = new ArrayList<>();
             parseClassicSystems(document, systems);
             parseLoadBalancedSystems(document, systems);
+            detectExternalLandscapeUrls(document, path);
             return systems;
         } catch (ParserConfigurationException | SAXException e) {
             throw new IOException("Failed to parse SAP GUI landscape: " + path, e);
+        }
+    }
+
+    private void detectExternalLandscapeUrls(Document document, Path sourcePath) {
+        NodeList includeNodes = document.getElementsByTagName("Include");
+        for (int i = 0; i < includeNodes.getLength(); i++) {
+            Element include = (Element) includeNodes.item(i);
+            String url = blankToNull(include.getAttribute("url"));
+            if (url != null) {
+                System.err.println("INFO: External SAP landscape URL detected: " + url);
+                System.err.println("INFO: Some system details (message server hostnames) may be in the external landscape.");
+                System.err.println("INFO: Open SAP GUI once to cache the full landscape, or provide message server manually.");
+            }
         }
     }
 

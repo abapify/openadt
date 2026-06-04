@@ -36,6 +36,8 @@ final class SetupPathLocator {
             }
         } else if (os.contains("mac")) {
             paths.add(Path.of(home, "Library", "Application Support", "SAP", SAP_COMMON, SAPUI_LANDSCAPE));
+            // SAP GUI for Java stores landscape in Preferences with different filename
+            paths.add(Path.of(home, "Library", "Preferences", "SAP", "SAPGUILandscape.xml"));
         }
 
         for (Path windowsHome : windowsUserHomes()) {
@@ -103,6 +105,23 @@ final class SetupPathLocator {
 
     static List<Path> jcoJarRoots() {
         List<Path> paths = new ArrayList<>();
+        String os = System.getProperty(OS_NAME_PROPERTY, "").toLowerCase(Locale.ROOT);
+        String home = System.getProperty(USER_HOME_PROPERTY, "");
+
+        // macOS and Linux: check user's home directory for Eclipse p2 pool
+        if (!home.isBlank() && (os.contains("mac") || os.contains("nix") || os.contains("nux"))) {
+            paths.add(Path.of(home, ".p2", "pool", "plugins"));
+        }
+
+        // macOS: Eclipse.app bundle installations
+        if (os.contains("mac")) {
+            paths.add(Path.of("/Applications", "Eclipse.app", "Contents", "Eclipse", "plugins"));
+            paths.add(Path.of("/Applications", "SAP Business Application Studio.app", "Contents", "Eclipse", "plugins"));
+            if (!home.isBlank()) {
+                paths.add(Path.of(home, "Applications", "Eclipse.app", "Contents", "Eclipse", "plugins"));
+            }
+        }
+
         for (Path windowsHome : windowsUserHomes()) {
             paths.add(windowsHome.resolve(".p2/pool/plugins"));
         }
@@ -113,6 +132,20 @@ final class SetupPathLocator {
 
     static List<Path> jcoNativeSearchRoots() {
         List<Path> paths = new ArrayList<>();
+        String os = System.getProperty(OS_NAME_PROPERTY, "").toLowerCase(Locale.ROOT);
+        String home = System.getProperty(USER_HOME_PROPERTY, "");
+
+        // macOS-specific paths for JCo native libraries
+        if (os.contains("mac") && !home.isBlank()) {
+            paths.add(Path.of(home, "lib"));
+            paths.add(Path.of(home, ".p2"));
+            paths.add(Path.of("/usr", "local", "lib"));
+            paths.add(Path.of("/Library", "Java", "Extensions"));
+            // Eclipse.app OSGi bundle cache (where JCo native lib is extracted)
+            paths.add(Path.of("/Applications", "Eclipse.app", "Contents", "Eclipse", "configuration", "org.eclipse.osgi"));
+            paths.add(Path.of(home, "Applications", "Eclipse.app", "Contents", "Eclipse", "configuration", "org.eclipse.osgi"));
+        }
+
         for (Path windowsHome : windowsUserHomes()) {
             paths.add(windowsHome.resolve("Documents"));
             paths.add(windowsHome.resolve("AppData/Local"));
@@ -144,6 +177,16 @@ final class SetupPathLocator {
 
     static List<Path> sapcryptoCandidates() {
         List<Path> paths = new ArrayList<>();
+        String os = System.getProperty(OS_NAME_PROPERTY, "").toLowerCase(Locale.ROOT);
+        String home = System.getProperty(USER_HOME_PROPERTY, "");
+
+        // macOS-specific paths for SAP Crypto
+        if (os.contains("mac") && !home.isBlank()) {
+            paths.add(Path.of(home, "lib", "libsapcrypto.dylib"));
+            paths.add(Path.of("/usr", "local", "lib", "libsapcrypto.dylib"));
+            paths.add(Path.of("/Library", "Frameworks", "sapcrypto.framework", "Versions", "Current", "libsapcrypto.dylib"));
+        }
+
         for (Path programFilesRoot : windowsProgramFilesRoots()) {
             paths.add(programFilesRoot.resolve("SAP/FrontEnd/SecureLogin/lib/sapcrypto.dll"));
         }
