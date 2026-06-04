@@ -16,10 +16,12 @@ set -euo pipefail
 
 FILE="./replies.tsv"
 DRY_RUN=false
+BATCH_SIZE=6
 while [[ "${1:-}" == --* ]]; do
   case "$1" in
-    --file)    FILE="$2"; shift 2 ;;
-    --dry-run) DRY_RUN=true; shift ;;
+    --file)        FILE="$2"; shift 2 ;;
+    --dry-run)     DRY_RUN=true; shift ;;
+    --batch-size)  BATCH_SIZE="$2"; shift 2 ;;
     *) echo "unknown flag: $1" >&2; exit 2 ;;
   esac
 done
@@ -37,18 +39,20 @@ gh auth status >/dev/null 2>&1 || { echo "error: gh not authenticated" >&2; exit
 # the TSV unambiguous and the file readable.
 threads=()
 bodies=()
-i=0
+i=0            # success-row counter (index into threads/bodies)
+lineno=0       # actual TSV file line number (for warnings)
 TAB=$'\t'
 while IFS= read -r line || [[ -n "$line" ]]; do
+  lineno=$((lineno + 1))
   [[ -z "$line" ]] && continue
   # Strip a leading tab (would mean empty thread id).
   if [[ "$line" != *"$TAB"* ]]; then
-    echo "warn: line $((i+1)) has no tab separator, skipping" >&2
+    echo "warn: line $lineno has no tab separator, skipping" >&2
     continue
   fi
   tid="${line%%"$TAB"*}"
   body="${line#*"$TAB"}"
-  [[ -z "$tid" ]] && { echo "warn: empty thread id on line $((i+1))" >&2; continue; }
+  [[ -z "$tid" ]] && { echo "warn: empty thread id on line $lineno" >&2; continue; }
   # Decode \n (and \t) escapes in the body.
   body="${body//\\n/$'\n'}"
   body="${body//\\t/	}"
@@ -90,16 +94,49 @@ for ((idx=0; idx<count; idx++)); do
 done
 
 if [[ "$DRY_RUN" == true ]]; then
-  echo "would post $count replies via one mutation (${#aliases[@]} aliases)"
-  echo "first 240 chars of mutation:"
-  echo "  ${mutation:0:240}..."
+  chunks=$(( (count + BATCH_SIZE - 1) / BATCH_SIZE ))
+  echo "would post $count replies in $chunks batch(es) of up to $BATCH_SIZE"
   exit 0
 fi
 
-result="$(gh api graphql "${gh_args[@]}" 2>&1)" || { echo "$result" >&2; exit 1; }
-if echo "$result" | jq -e '.errors' >/dev/null 2>&1; then
-  echo "$result" | jq -c '.errors' >&2; exit 1
-fi
+# Run in chunks of BATCH_SIZE to stay under GitHub's GraphQL query
+# complexity limit (RESOURCE_LIMITS_EXCEEDED starts around 7-8 mutations per
+# query depending on payload size).
+posted=0
+for ((start=0; start<count; start+=BATCH_SIZE)); do
+  end=$(( start + BATCH_SIZE ))
+  [[ $end -gt $count ]] && end=$count
 
-ok="$(echo "$result" | jq '[.. | objects | select(has("comment")) | .comment.id] | length')"
-echo "posted=$ok requested=$count"
+  chunk_aliases=()
+  for ((i=start; i<end; i++)); do chunk_aliases+=("r$i"); done
+
+  chunk_alias_blocks=""
+  for a in "${chunk_aliases[@]}"; do
+    chunk_alias_blocks+="  $a: addPullRequestReviewThreadReply(input:{pullRequestReviewThreadId: \$tid_$a, body: \$body_$a}) { comment { id } }
+"
+  done
+  chunk_var_decls=""
+  for a in "${chunk_aliases[@]}"; do
+    chunk_var_decls+="\$tid_$a:ID!,\$body_$a:String!,"
+  done
+  chunk_var_decls="${chunk_var_decls%,}"
+  chunk_mutation="mutation($chunk_var_decls) {
+$chunk_alias_blocks}"
+
+  chunk_args=(-f "query=$chunk_mutation")
+  for ((i=start; i<end; i++)); do
+    a="r$i"
+    chunk_args+=(-f "tid_$a=${threads[i]}" -f "body_$a=${bodies[i]}")
+  done
+
+  result="$(gh api graphql "${chunk_args[@]}" 2>&1)" || { echo "$result" >&2; exit 1; }
+  if echo "$result" | jq -e '.errors' >/dev/null 2>&1; then
+    echo "batch [$start..$((end-1))] error:" >&2
+    echo "$result" | jq -c '.errors' >&2; exit 1
+  fi
+  ok="$(echo "$result" | jq '[.. | objects | select(has("comment")) | .comment.id] | length')"
+  posted=$((posted + ok))
+  echo "batch [$start..$((end-1))] posted=$ok"
+done
+
+echo "posted=$posted requested=$count"

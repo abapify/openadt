@@ -99,13 +99,14 @@ checks_json="$(gh pr checks "$PR" --repo "$OWNER/$REPO" --json name,state,bucket
 
 open_count="$(jq '[.[] | select(.isResolved==false)] | length' <<<"$threads_json_all")"
 
-# Required CI status (exclude AI reviewers that can stay PENDING without blocking merge).
+# Required CI status: any check whose bucket is not 'pass' (i.e. it was NOT a
+# success) and whose state is not SKIPPED. Excludes AI reviewers by name.
 ci_required_pending="$(echo "$checks_json" | jq -r '
   [
     .[]
-    | select(.bucket == null)
-    | select(.name | test("(?i)(cubic|code\\s*rabbit|amazon\\s*q|qodo|chatgpt\\s*codex|gemini)"; "x") | not)
-    | select(.state != "SUCCESS" and .state != "SKIPPED")
+    | select(.bucket != "pass")
+    | select(.state != "SKIPPED")
+    | select(.name | test("(?i)(cubic|code\\s*rabbit|amazon\\s*q|qodo|chatgpt\\s*codex|gemini|kilo)"; "x") | not)
   ] | length
 ')"
 
