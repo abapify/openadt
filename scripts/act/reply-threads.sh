@@ -3,14 +3,15 @@
 #
 # Replaces per-thread `gh api graphql` calls with one mutation that aliases all
 # replies. The mapping comes from a TSV file (default: ./replies.tsv) with one
-# row per thread: <thread_id>\t<reply body, may contain tabs and newlines>.
+# row per thread: <thread_id>\t<reply body>.
+#
+# Newlines in the reply body MUST be escaped as the literal sequence `\n`
+# (backslash + n). The script decodes them before sending. Tabs in the body
+# would break the TSV format; escape them too if needed (rare).
 #
 # Usage: reply-threads.sh [--dry-run] [--file PATH]
 #   --file PATH   TSV file (default ./replies.tsv)
 #   --dry-run     Validate the file and print the resulting mutation, but do not POST
-#
-# Each row must have the thread ID in the first tab-separated field; everything
-# after the first tab is the body (preserves newlines).
 set -euo pipefail
 
 FILE="./replies.tsv"
@@ -23,22 +24,49 @@ while [[ "${1:-}" == --* ]]; do
   esac
 done
 
-command -v gh >/dev/null 2>&1 || { echo "error: gh required" >&2; exit 1; }
+for bin in gh jq; do
+  command -v "$bin" >/dev/null 2>&1 || { echo "error: $bin required" >&2; exit 1; }
+done
 gh auth status >/dev/null 2>&1 || { echo "error: gh not authenticated" >&2; exit 1; }
 [[ -r "$FILE" ]] || { echo "error: cannot read $FILE" >&2; exit 1; }
 
-# Build a single mutation with one alias per row.
-aliases=()
+# Single-pass parse: read the TSV file into memory, splitting each line on the
+# first TAB. Reassemble into per-thread (id, body) pairs. Standard `while read`
+# only handles one TSV row per line; this script does not attempt to allow
+# literal newlines in bodies — it requires `\n` escapes (see header). That keeps
+# the TSV unambiguous and the file readable.
+threads=()
+bodies=()
 i=0
-while IFS=$'\t' read -r tid _rest; do
-  [[ -z "${tid:-}" ]] && continue
-  aliases+=("r$i")
+TAB=$'\t'
+while IFS= read -r line || [[ -n "$line" ]]; do
+  [[ -z "$line" ]] && continue
+  # Strip a leading tab (would mean empty thread id).
+  if [[ "$line" != *"$TAB"* ]]; then
+    echo "warn: line $((i+1)) has no tab separator, skipping" >&2
+    continue
+  fi
+  tid="${line%%"$TAB"*}"
+  body="${line#*"$TAB"}"
+  [[ -z "$tid" ]] && { echo "warn: empty thread id on line $((i+1))" >&2; continue; }
+  # Decode \n (and \t) escapes in the body.
+  body="${body//\\n/$'\n'}"
+  body="${body//\\t/	}"
+  threads+=("$tid")
+  bodies+=("$body")
   i=$((i + 1))
 done < "$FILE"
 
-if [[ "${#aliases[@]}" -eq 0 ]]; then
+count="${#threads[@]}"
+if [[ "$count" -eq 0 ]]; then
   echo "no rows in $FILE"; exit 0
 fi
+
+# Build a single mutation with one alias per row.
+aliases=()
+for ((idx=0; idx<count; idx++)); do
+  aliases+=("r$idx")
+done
 
 alias_blocks=""
 for a in "${aliases[@]}"; do
@@ -46,7 +74,6 @@ for a in "${aliases[@]}"; do
 "
 done
 
-# Variable decls: $tid_r0:ID!, $body_r0:String!, $tid_r1:ID!, $body_r1:String!, ...
 var_decls=""
 for a in "${aliases[@]}"; do
   var_decls+="\$tid_$a:ID!,\$body_$a:String!,"
@@ -56,20 +83,16 @@ var_decls="${var_decls%,}"
 mutation="mutation($var_decls) {
 $alias_blocks}"
 
-# Build gh args. Bodies must be passed via -f/--field; complex strings are fine.
 gh_args=(-f "query=$mutation")
-i=0
-while IFS=$'\t' read -r tid body; do
-  [[ -z "${tid:-}" ]] && continue
-  a="r$i"
-  gh_args+=(-f "tid_$a=$tid" -f "body_$a=$body")
-  i=$((i + 1))
-done < "$FILE"
+for ((idx=0; idx<count; idx++)); do
+  a="r$idx"
+  gh_args+=(-f "tid_$a=${threads[idx]}" -f "body_$a=${bodies[idx]}")
+done
 
 if [[ "$DRY_RUN" == true ]]; then
-  echo "would post $i replies via one mutation (${#aliases[@]} aliases)"
-  echo "first 200 chars of mutation:"
-  echo "  ${mutation:0:200}..."
+  echo "would post $count replies via one mutation (${#aliases[@]} aliases)"
+  echo "first 240 chars of mutation:"
+  echo "  ${mutation:0:240}..."
   exit 0
 fi
 
@@ -79,4 +102,4 @@ if echo "$result" | jq -e '.errors' >/dev/null 2>&1; then
 fi
 
 ok="$(echo "$result" | jq '[.. | objects | select(has("comment")) | .comment.id] | length')"
-echo "posted=$ok requested=$i"
+echo "posted=$ok requested=$count"

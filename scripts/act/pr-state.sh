@@ -2,11 +2,13 @@
 # Single-call PR state dump for /act: HEAD SHA, mergeability, open threads (table),
 # and required CI status (excluding AI reviewers like cubic / CodeRabbit).
 #
-# Replaces 5-6 separate `gh pr view` / `gh pr checks` invocations per /act run.
+# Replaces 4-6 separate `gh pr view` / `gh pr checks` invocations per /act run.
 #
 # Usage: pr-state.sh OWNER REPO PR_NUMBER
-# Output: key=value lines (HEAD_SHA, MERGEABLE, MERGE_STATE, OPEN_THREADS, CI_REQUIRED_PENDING)
-#         followed by a TSV table of open threads (id<TAB>author<TAB>path:line<TAB>body[:120]).
+# Output: key=value lines (HEAD_SHA, HEAD_REF, MERGEABLE, MERGE_STATE,
+#         OPEN_THREADS, CI_REQUIRED_PENDING) followed by a 5-column TSV table
+#         of open threads:
+#           id<TAB>author<TAB>path<TAB>line<TAB>body[:120]\n
 set -euo pipefail
 
 OWNER="${1:?owner}"
@@ -18,39 +20,58 @@ for bin in gh jq; do
 done
 gh auth status >/dev/null 2>&1 || { echo "error: gh not authenticated" >&2; exit 1; }
 
-state_query='query($o:String!,$r:String!,$pr:Int!) {
-  repository(owner:$o, name:$r) {
-    pullRequest(number:$pr) {
-      headRefOid
-      headRefName
-      mergeable
-      state
-      url
-      reviewThreads(first:100) {
-        nodes {
-          id isResolved isOutdated
-          comments(first:1) { nodes { author { login } path line body } }
+# Page through reviewThreads (default 100 per page) to avoid silent truncation.
+# `gh api graphql --paginate` does not work for arbitrary connections, so loop
+# manually using `pageInfo.endCursor`.
+threads_json_all='[]'
+cursor=""
+has_next=true
+while [[ "$has_next" == "true" ]]; do
+  after_arg=""
+  [[ -n "$cursor" ]] && after_arg="(after: \"$cursor\")"
+  page_query="query(\$o:String!,\$r:String!,\$pr:Int!,\$n:Int!,$([ -n "$cursor" ] && echo '$after:String' || true)) {
+    repository(owner:\$o, name:\$r) {
+      pullRequest(number:\$pr) {
+        headRefOid
+        headRefName
+        mergeable
+        state
+        url
+        reviewThreads(first:\$n$([ -n "$cursor" ] && echo ', after:$after' || true)) {
+          pageInfo { hasNextPage endCursor }
+          nodes {
+            id isResolved isOutdated
+            comments(first:1) { nodes { author { login } path line body } }
+          }
         }
       }
     }
-  }
-}'
+  }"
 
-state_json="$(gh api graphql -f query="$state_query" -f o="$OWNER" -f r="$REPO" -F pr="$PR" 2>&1)" || {
-  echo "$state_json" >&2; exit 1;
-}
-if echo "$state_json" | jq -e '.errors' >/dev/null 2>&1; then
-  echo "$state_json" | jq -c '.errors' >&2; exit 1;
-fi
+  args=( -f query="$page_query" -f o="$OWNER" -f r="$REPO" -F pr="$PR" -F n=100 )
+  [[ -n "$cursor" ]] && args+=( -F "after=$cursor" )
+  state_json="$(gh api graphql "${args[@]}" 2>&1)" || { echo "$state_json" >&2; exit 1; }
+  if echo "$state_json" | jq -e '.errors' >/dev/null 2>&1; then
+    echo "$state_json" | jq -c '.errors' >&2; exit 1
+  fi
+  if echo "$state_json" | jq -e '.data.repository.pullRequest == null' >/dev/null 2>&1; then
+    echo "error: pull request #$PR not found in $OWNER/$REPO" >&2; exit 1
+  fi
 
-read -r head_sha head_ref mergeable url <<<"$(echo "$state_json" | jq -r '
+  threads_json_all="$(jq -s '.[0] + .[1].data.repository.pullRequest.reviewThreads.nodes' \
+    <(echo "$threads_json_all") <(echo "$state_json"))"
+  has_next="$(echo "$state_json" | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage')"
+  cursor="$(echo "$state_json" | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.endCursor // empty')"
+done
+
+read -r head_sha head_ref mergeable url <<<"$(jq -r '
   [
     .data.repository.pullRequest.headRefOid,
     .data.repository.pullRequest.headRefName,
     (.data.repository.pullRequest.mergeable // "UNKNOWN" | ascii_downcase),
     .data.repository.pullRequest.url
   ] | @tsv
-')"
+' <<<"$state_json")"
 
 # GitHub may report mergeable=MERGEABLE (REST) or mergeable=mergeable (GraphQL). Normalize.
 case "$mergeable" in
@@ -65,16 +86,22 @@ rest_json="$(gh pr view "$PR" --repo "$OWNER/$REPO" --json mergeStateStatus 2>&1
 }
 merge_state="$(echo "$rest_json" | jq -r '.mergeStateStatus // "UNKNOWN"')"
 
-open_count="$(echo "$state_json" | jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved==false)] | length')"
+# gh pr checks exits 1 with "no checks reported" when no checks have run yet.
+checks_json="$(gh pr checks "$PR" --repo "$OWNER/$REPO" --json name,state,bucket 2>&1)" || {
+  if echo "$checks_json" | grep -qi "no checks reported"; then
+    checks_json="[]"
+  else
+    echo "$checks_json" >&2; exit 1
+  fi
+}
+
+open_count="$(jq '[.[] | select(.isResolved==false)] | length' <<<"$threads_json_all")"
 
 # Required CI status (exclude AI reviewers that can stay PENDING without blocking merge).
-checks_json="$(gh pr checks "$PR" --repo "$OWNER/$REPO" --json name,state,bucket 2>&1)" || {
-  echo "$checks_json" >&2; exit 1;
-}
 ci_required_pending="$(echo "$checks_json" | jq -r '
   [
     .[]
-    | select(.bucket == null)   # null bucket = required (non-artifact)
+    | select(.bucket == null)
     | select(.name | test("(?i)(cubic|code\\s*rabbit|amazon\\s*q|qodo|chatgpt\\s*codex|gemini)"; "x") | not)
     | select(.state != "SUCCESS" and .state != "SKIPPED")
   ] | length
@@ -89,10 +116,10 @@ echo "OPEN_THREADS=$open_count"
 echo "CI_REQUIRED_PENDING=$ci_required_pending"
 echo
 echo "OPEN_THREADS_TABLE:"
-echo "$state_json" | jq -r '
-  .data.repository.pullRequest.reviewThreads.nodes[]
+jq -r '
+  .[]
   | select(.isResolved == false)
   | . as $t
   | ($t.comments.nodes[0] // {}) as $c
-  | "\($t.id)\t\($c.author.login // "-")\t\($c.path // "-")\t\($c.line // "-" | tostring)\t\($c.body // "" | gsub("\n"; " ") | .[0:120])"
-' | sed 's/^/  /'
+  | "\($t.id)\t\($c.author.login // "-")\t\($c.path // "-")\t\($c.line // "-" | tostring)\t\($c.body // "" | gsub("[\n\t]"; " ") | .[0:120])"
+' <<<"$threads_json_all" | sed 's/^/  /'
