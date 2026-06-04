@@ -12,7 +12,7 @@
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux%20%7C%20macOS-blue)](#install)
 [![Java](https://img.shields.io/badge/Java-17%2B-orange)](apps/ARCHITECTURE.md)
 
-[Quick start](#quick-start) · [Install](#install) · [Usage guide](docs/usage.md) · [Specs](specs/) · [Report issue](https://github.com/abapify/openadt/issues)
+[Quick start](#quick-start) · [Install](#install) · [ABAP FS + OpenADT](#abap-fs-and-other-adt-clients--openadt) · [Usage guide](docs/usage.md) · [Specs](specs/) · [Report issue](https://github.com/abapify/openadt/issues)
 
 </div>
 
@@ -147,6 +147,73 @@ Experimental **stdio MCP** so agents (Cursor, Claude, Copilot, etc.) can call AD
 
 - Spec: [specs/mcp.md](specs/mcp.md)
 - Bridge: [tools/mcp-bridge/](tools/mcp-bridge/)
+
+---
+
+## ABAP FS and other ADT clients + OpenADT
+
+[**ABAP FS**](https://marcellourbani.github.io/vscode_abap_remote_fs/) (ABAP remote filesystem for VS Code) and similar tools talk to SAP over **ADT HTTP**. They normally expect a **base URL**, **SAP client**, and often **HTTP Basic auth** in the connection profile. On corporate landscapes with **SNC / Secure Login / SSO**, storing a SAP password in the editor is the wrong model — OpenADT handles SAP logon once; the tool only speaks to **localhost**.
+
+```mermaid
+flowchart LR
+  Client["ABAP FS or ADT HTTP client"]
+  Proxy["openadt proxy\nlocal Basic auth"]
+  SAP["SAP /sap/bc/adt/..."]
+
+  Client -->|"http://127.0.0.1:8080"| Proxy
+  Proxy -->|"SDK + JCo / SNC"| SAP
+```
+
+### 1. Start OpenADT with local Basic auth
+
+After `openadt config bootstrap` (and `openadt config build` when using SDK transport), run the proxy on loopback. The username/password here **only protect the local listener** — they are **not** your SAP user (see [specs/proxy.md](specs/proxy.md)).
+
+```bash
+export OPENADT_PROXY_PASSWORD="choose-a-local-secret"
+openadt proxy DEV --listen 127.0.0.1:8080 --local-auth basic --local-username openadt
+```
+
+Keep this terminal open while VS Code or MCP clients are connected.
+
+### 2. Point ABAP FS at the proxy
+
+In VS Code, use [**ABAP FS: Connection Manager**](https://marcellourbani.github.io/vscode_abap_remote_fs/) (or `abapfs.remote` in settings) and set the **ADT base URL** to the proxy root — **no** `/sap/bc/adt` suffix; the extension adds ADT paths under that host.
+
+Example `settings.json` fragment (use fictional hostnames in samples; your real config stays local):
+
+```json
+{
+  "abapfs.remote": {
+    "DEV": {
+      "url": "http://127.0.0.1:8080",
+      "username": "openadt",
+      "password": "choose-a-local-secret",
+      "client": "100",
+      "language": "EN"
+    }
+  }
+}
+```
+
+Use the same **local** username/password as `--local-username` / `OPENADT_PROXY_PASSWORD`. OpenADT strips incoming `Authorization` and SAP session headers before forwarding, then logs on to SAP with your configured SDK/SNC profile.
+
+Verify from another terminal:
+
+```bash
+curl -u openadt:choose-a-local-secret http://127.0.0.1:8080/sap/bc/adt/discovery
+```
+
+### 3. ABAP FS MCP vs OpenADT
+
+ABAP FS also ships an [**in-editor MCP server**](https://marcellourbani.github.io/vscode_abap_remote_fs/) (`abapfs.mcpServer`, default port `4847`) with optional **Bearer `apiKey`** — that secures access **to the MCP server inside VS Code**, not SAP itself. VS Code must stay open and connected to SAP.
+
+| Integration                                                              | Role of OpenADT                                                                           |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| **ABAP FS ADT connection** (browse/activate/debug in VS Code)            | Point `url` at `openadt proxy`; SAP auth via OpenADT                                      |
+| **ABAP FS MCP** (`http://localhost:4847/mcp`)                            | No OpenADT in the path; use when you want ABAP FS tools inside VS Code                    |
+| **Other MCP or HTTP clients** that require Basic auth to an ADT base URL | Same pattern: ADT URL → `http://127.0.0.1:<port>` + local Basic → running `openadt proxy` |
+
+For proxy flags, profiles (`--profile snc`), and troubleshooting, see [docs/usage.md#start-the-local-proxy](docs/usage.md#start-the-local-proxy).
 
 ---
 
