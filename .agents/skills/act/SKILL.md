@@ -61,6 +61,25 @@ Do not start the resolve script until every open thread has a planned action and
 | **P5** | Hygiene | Optional cleanup after the above |
 | **P6** | Evaluation | Retrospect, update durable knowledge, cycle check — **before** merge-ready |
 
+### P0 — when CI is red, run linters locally first
+
+`pr-state.sh` reports `CI_REQUIRED_PENDING=N` for the **required** checks that
+are blocking. Before chasing a Codacy / Semgrep / ShellCheck "N new issues"
+title in the GitHub UI (which the cloud app rarely annotates in detail),
+reproduce the same checks locally and fix in one round trip:
+
+| Signal in `pr-state.sh` / `gh pr checks`                                | Reproduce locally                                  |
+| ----------------------------------------------------------------------- | -------------------------------------------------- |
+| `Codacy Static Code Analysis` fail / action_required                    | `shellcheck scripts/act/*.sh` + `bunx tsc --noEmit scripts/derive-cli-surface.ts` (ESLint/TS) |
+| `Opengrep OSS` / `OpenGrep` fail                                        | `opengrep --config .semgrep.yaml <changed-paths>`   |
+| `SonarCloud Code Analysis` fail                                        | `sonar-scanner` (or read [REVIEW.md](../../../REVIEW.md) for Sonar rules) |
+| `CodeQL` fail                                                           | Re-run workflow job; SARIF details in artifacts     |
+
+Codacy "N new issues (0 max.)" with `annotations=0` on the check-run
+**always** means linter issues raised without inline annotations — install
+the linter, run it, fix what it reports, push. Do not file the issue as
+"unclear" without reproducing locally.
+
 **Resolve is step P4, not step 1.**  
 **P6 is mandatory before merge-ready** on every `/act` (cycle check + checklist); the **retrospective** portion is required only when something went wrong during the session (see [EVALUATE.md](EVALUATE.md)).  
 If you cannot fix something in-repo, say so **in that thread**; do not resolve it without a visible reply.
