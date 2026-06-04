@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="280" viewBox="0 0 1200 280" role="img" aria-label="OpenADT - SAP ADT bridge for scripts and agents">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0c1222"/>
+      <stop offset="55%" stop-color="#132337"/>
+      <stop offset="100%" stop-color="#1a3a52"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#34d399"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="280" fill="url(#bg)" rx="12"/>
+  <rect x="48" y="48" width="4" height="184" fill="url(#accent)" rx="2"/>
+  <text x="72" y="118" font-family="Segoe UI, system-ui, -apple-system, sans-serif" font-size="56" font-weight="700" fill="#f1f5f9">OpenADT</text>
+  <text x="72" y="162" font-family="Segoe UI, system-ui, -apple-system, sans-serif" font-size="22" fill="#94a3b8">SAP ADT bridge for scripts, curl, and AI agents</text>
+  <text x="72" y="198" font-family="Segoe UI, system-ui, -apple-system, sans-serif" font-size="16" fill="#64748b">Official SAP ADT SDK + JCo - same logon stack as Eclipse ADT</text>
+  <circle cx="1080" cy="140" r="72" fill="#1e293b" opacity="0.9"/>
+  <path d="M1048 140 L1104 108 L1104 172 Z" fill="url(#accent)" opacity="0.85"/>
+  <text x="1080" y="228" font-family="Segoe UI, system-ui, sans-serif" font-size="13" fill="#475569" text-anchor="middle">fetch | proxy | MCP</text>
+</svg>
