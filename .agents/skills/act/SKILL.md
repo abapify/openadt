@@ -61,6 +61,25 @@ Do not start the resolve script until every open thread has a planned action and
 | **P5** | Hygiene | Optional cleanup after the above |
 | **P6** | Evaluation | Retrospect, update durable knowledge, cycle check — **before** merge-ready |
 
+### P0 — when CI is red, run linters locally first
+
+`pr-state.sh` reports `CI_REQUIRED_PENDING=N` for the **required** checks that
+are blocking. Before chasing a Codacy / Semgrep / ShellCheck "N new issues"
+title in the GitHub UI (which the cloud app rarely annotates in detail),
+reproduce the same checks locally and fix in one round trip:
+
+| Signal in `pr-state.sh` / `gh pr checks`                                | Reproduce locally                                  |
+| ----------------------------------------------------------------------- | -------------------------------------------------- |
+| `Codacy Static Code Analysis` fail / action_required                    | `shellcheck scripts/act/*.sh` + `bunx tsc --noEmit scripts/derive-cli-surface.ts` (ESLint/TS) |
+| `Opengrep OSS` / `OpenGrep` fail                                        | `opengrep --config .semgrep.yaml <changed-paths>`   |
+| `SonarCloud Code Analysis` fail                                        | `sonar-scanner` (or read [REVIEW.md](../../../REVIEW.md) for Sonar rules) |
+| `CodeQL` fail                                                           | Re-run workflow job; SARIF details in artifacts     |
+
+Codacy "N new issues (0 max.)" with `annotations=0` on the check-run
+**always** means linter issues raised without inline annotations — install
+the linter, run it, fix what it reports, push. Do not file the issue as
+"unclear" without reproducing locally.
+
 **Resolve is step P4, not step 1.**  
 **P6 is mandatory before merge-ready** on every `/act` (cycle check + checklist); the **retrospective** portion is required only when something went wrong during the session (see [EVALUATE.md](EVALUATE.md)).  
 If you cannot fix something in-repo, say so **in that thread**; do not resolve it without a visible reply.
@@ -141,6 +160,39 @@ If feedback is already fixed on HEAD and threads are closed → short “already
 ## Validation
 
 `bunx nx format:write` on touched `tools/**/*.ts` before commit.
+
+## Token-rationalized workflow
+
+Use the helpers under [`scripts/act/`](../../../scripts/act/) instead of issuing
+ad-hoc `gh` calls. They collapse the typical 30+ tool calls per `/act` into ~10.
+
+| Step                         | Use                                                       | Replaces                                    |
+| ---------------------------- | --------------------------------------------------------- | ------------------------------------------- |
+| **PR state + open threads**  | `bash scripts/act/pr-state.sh OWNER REPO PR`              | `gh pr view --json ...` ×4 + `gh pr checks` |
+| **Verify a CLI claim**       | `bun scripts/derive-cli-surface.ts --check "openadt X"`   | `grep` across `apps/**.java` + reads        |
+| **Post N thread replies**    | `bash scripts/act/reply-threads.sh --file replies.tsv`    | N × `gh api graphql addPullRequestReview…` |
+| **Resolve open threads (P4)**| `bash .agents/skills/act/resolve-open-threads.sh OWNER REPO PR` | unchanged                             |
+
+**`replies.tsv` format** (one row per thread). TAB separates the thread ID
+from the body; newlines and tabs in the body must be escaped as `\n` and
+`\t` (the script decodes them before POST):
+
+```tsv
+<thread_id>	<reply body on a single line; \n for newlines, \t for tabs>
+```
+
+**Gotcha:** `gh api graphql` accepts `-f query=...` + `-F var=val` together, but
+**not** `--input FILE` (which discards `-F`). Use `-f` for the query and `-F`
+or `-f` for variables.
+
+If `MERGEABLE=UNKNOWN` in `pr-state.sh` output, the GraphQL `mergeable` field
+is cached (computed asynchronously by GitHub's merge-queue worker; see
+gh-cli #9583). Note that `mergeable` (merge conflict status:
+`MERGEABLE`/`CONFLICTING`) and `mergeStateStatus` (overall merge button
+state: `CLEAN`/`BLOCKED`/`DIRTY`/etc.) are **separate** GraphQL fields and
+must not be conflated. The script already reads `mergeStateStatus` from
+`gh pr view --json` (which itself uses GraphQL) on every run, so a stale
+`mergeable` value does not block `/act` decisions.
 
 ## Runtime extras
 
