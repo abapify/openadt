@@ -40,10 +40,12 @@ while [[ "$has_next" == "true" ]]; do
   else
     # Escape backslashes and double-quotes in the cursor for embedding in a
     # double-quoted string (GraphQL accepts only double-quoted cursors).
+    # The cursor is spliced into the query as a literal; we do NOT also pass
+    # it as a $-prefixed variable (would trigger an "unused variable" error).
     esc_cursor="${cursor//\\/\\\\}"
     esc_cursor="${esc_cursor//\"/\\\"}"
     # shellcheck disable=SC2016  # GraphQL $-prefixed variables are literal.
-    var_decls='$o:String!,$r:String!,$pr:Int!,$n:Int!,$after:String'
+    var_decls='$o:String!,$r:String!,$pr:Int!,$n:Int!'
     after_clause=", after: \"$esc_cursor\""
   fi
 
@@ -70,7 +72,6 @@ EOF
 )
 
   args=( -f query="$page_query" -f o="$OWNER" -f r="$REPO" -F pr="$PR" -F n=100 )
-  [[ -n "$cursor" ]] && args+=( -F "after=$cursor" )
   state_json="$(gh api graphql "${args[@]}" 2>&1)" || { echo "$state_json" >&2; exit 1; }
   if echo "$state_json" | jq -e '.errors' >/dev/null 2>&1; then
     echo "$state_json" | jq -c '.errors' >&2; exit 1

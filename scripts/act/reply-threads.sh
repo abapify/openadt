@@ -11,7 +11,9 @@
 #
 # Usage: reply-threads.sh [--dry-run] [--file PATH]
 #   --file PATH   TSV file (default ./replies.tsv)
-#   --dry-run     Validate the file and print the resulting mutation, but do not POST
+#   --dry-run     Validate the file (parses rows, reports planned batch
+#                 count of up to --batch-size per GraphQL mutation), but do
+#                 not POST anything
 set -euo pipefail
 
 FILE="./replies.tsv"
