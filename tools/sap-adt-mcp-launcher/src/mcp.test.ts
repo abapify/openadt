@@ -1,6 +1,18 @@
 import { describe, expect, test, mock, afterEach } from "bun:test";
 import { drainHttpResponse, probeMcpHttp } from "./mcp.ts";
 
+function spyArrayBuffer(res: Response, onConsume: () => void): Response {
+  const orig = res.arrayBuffer.bind(res);
+  Object.defineProperty(res, "arrayBuffer", {
+    configurable: true,
+    value: async () => {
+      onConsume();
+      return orig();
+    },
+  });
+  return res;
+}
+
 describe("drainHttpResponse", () => {
   test("consumes response body", async () => {
     let consumed = false;
@@ -12,12 +24,10 @@ describe("drainHttpResponse", () => {
         },
       }),
     );
-    const orig = res.arrayBuffer.bind(res);
-    res.arrayBuffer = async () => {
+    const spy = spyArrayBuffer(res, () => {
       consumed = true;
-      return orig();
-    };
-    await drainHttpResponse(res);
+    });
+    await drainHttpResponse(spy);
     expect(consumed).toBe(true);
   });
 });
@@ -34,13 +44,10 @@ describe("probeMcpHttp", () => {
     globalThis.fetch = mock(async (_url, init) => {
       expect(init?.method).toBe("OPTIONS");
       const res = new Response(null, { status: 200 });
-      const orig = res.arrayBuffer.bind(res);
-      res.arrayBuffer = async () => {
+      return spyArrayBuffer(res, () => {
         drained = true;
-        return orig();
-      };
-      return res;
-    }) as typeof fetch;
+      });
+    }) as unknown as typeof fetch;
 
     expect(await probeMcpHttp(2236, "token")).toBe(true);
     expect(drained).toBe(true);

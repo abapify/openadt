@@ -109,7 +109,7 @@ describe("createStdioMcpBridge", () => {
         status: 200,
         headers: { "content-type": "application/json" },
       }),
-    ) as typeof fetch;
+    ) as unknown as typeof fetch;
 
     try {
       const bridge = createStdioMcpBridge();
@@ -169,7 +169,7 @@ describe("createStdioMcpBridge", () => {
         });
       }
       return new Response("unexpected", { status: 500 });
-    }) as typeof fetch;
+    }) as unknown as typeof fetch;
 
     try {
       const bridge = createStdioMcpBridge();

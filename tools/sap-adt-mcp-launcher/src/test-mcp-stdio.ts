@@ -3,7 +3,7 @@
  * Manual stdio MCP smoke test — initialize + tools/list via stream framing.
  * Usage: bun run test:mcp:stdio
  */
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { spawn } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { frameMcpMessage, McpFrameDecoder } from "./mcp-framing.ts";
@@ -41,7 +41,7 @@ console.log(
   String(port),
 );
 
-const child: ChildProcessWithoutNullStreams = spawn(
+const child = spawn(
   "bun",
   [launcher, "serve", "--stdio", "--port", String(port), "--import-from=adtls"],
   { stdio: ["pipe", "pipe", "inherit"], cwd: repoRoot, windowsHide: true },
