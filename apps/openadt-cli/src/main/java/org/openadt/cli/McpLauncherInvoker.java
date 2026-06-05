@@ -84,9 +84,27 @@ final class McpLauncherInvoker {
     }
 
     private static void applyRepoEnv(ProcessBuilder pb, Path launcherMain) {
-        Path repoRoot = launcherMain.getParent().getParent();
-        if (launcherMain.toString().replace('\\', '/').contains("/tools/sap-adt-mcp-launcher/")) {
-            repoRoot = repoRoot.getParent();
+        // Derive the repo root from the matched LAUNCHER_REL_PATH: the matched
+        // rel path is anchored at the repo root, so we step up by its segment
+        // count regardless of which of the two layouts (shallow `...` or
+        // `tools/...`) is in use. This avoids hard-coding the depth per layout.
+        String normalized = launcherMain.toString().replace('\\', '/');
+        String matchedRel = null;
+        for (String rel : LAUNCHER_REL_PATHS) {
+            if (normalized.endsWith("/" + rel) || normalized.equals(rel)) {
+                matchedRel = rel;
+                break;
+            }
+        }
+        Path repoRoot = launcherMain;
+        if (matchedRel != null) {
+            for (int i = 0; i < matchedRel.split("/").length; i++) {
+                Path parent = repoRoot.getParent();
+                if (parent == null) {
+                    break;
+                }
+                repoRoot = parent;
+            }
         }
         if (Files.isDirectory(repoRoot)) {
             pb.environment().putIfAbsent("OPENADT_HOME", repoRoot.toString());
