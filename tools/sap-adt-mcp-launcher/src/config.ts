@@ -125,7 +125,7 @@ export function parseServeArgv(argv: string[]): McpServeConfig {
     }
   }
 
-  if (port < 1 || port > 65535 || !Number.isFinite(port)) {
+  if (!isValidPort(port)) {
     throw new Error(`Invalid --port: ${port}`);
   }
 
@@ -150,6 +150,10 @@ export function parseServeArgv(argv: string[]): McpServeConfig {
     logFile,
     logonTimeoutMs,
   };
+}
+
+function isValidPort(value: number): boolean {
+  return Number.isFinite(value) && value >= 1 && value <= 65535;
 }
 
 export function parseStatusArgv(argv: string[]): {
@@ -185,10 +189,7 @@ export function parseStatusArgv(argv: string[]): {
     }
   }
 
-  if (
-    port !== undefined &&
-    (port < 1 || port > 65535 || !Number.isFinite(port))
-  ) {
+  if (port !== undefined && !isValidPort(port)) {
     throw new Error(`Invalid --port: ${port}`);
   }
 
@@ -218,10 +219,7 @@ export function parsePrintConfigArgv(argv: string[]): {
     }
   }
 
-  if (
-    port !== undefined &&
-    (port < 1 || port > 65535 || !Number.isFinite(port))
-  ) {
+  if (port !== undefined && !isValidPort(port)) {
     throw new Error(`Invalid --port: ${port}`);
   }
 
