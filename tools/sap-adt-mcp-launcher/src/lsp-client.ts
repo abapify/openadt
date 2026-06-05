@@ -122,7 +122,7 @@ export async function connectAdtLanguageServer(
     connection.trace(
       Trace.Verbose,
       {
-        log: (data) => {
+        log: (data: unknown) => {
           const text =
             typeof data === "string" ? data : JSON.stringify(data, null, 2);
           log.trace(redactSecrets(text));
@@ -130,11 +130,13 @@ export async function connectAdtLanguageServer(
       },
       { traceFormat: TraceFormat.Text, sendNotification: false },
     );
-    connection.onUnhandledNotification((notification) => {
-      log.info(
-        `LSP notification ← ${notification.method} ${summarizeParams(notification.params)}`,
-      );
-    });
+    connection.onUnhandledNotification(
+      (notification: { method: string; params?: unknown }) => {
+        log.info(
+          `LSP notification ← ${notification.method} ${summarizeParams(notification.params)}`,
+        );
+      },
+    );
   }
   connection.listen();
 

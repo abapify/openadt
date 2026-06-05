@@ -25,6 +25,8 @@
     "playwright": "^1.60.0",
     "prettier": "^3.7.4",
     "tar": "^7.5.15",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "uuid": "^11.1.0",
+    "vscode-jsonrpc": "^8.2.1"
   }
 }
