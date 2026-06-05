@@ -38,6 +38,11 @@ function platformPaths(): PlatformPaths {
   }
 }
 
+/** Path segments to climb from the adt-lsc binary to the extension root. */
+function adtLscParentSegments(): string[] {
+  return Array(platformPaths().adtLscRelative.length).fill("..");
+}
+
 function extensionSearchRoots(): string[] {
   const home = homedir();
   return [
@@ -123,7 +128,7 @@ export function locateAdtLs(): AdtLsInstall | undefined {
     if (!existsSync(adtLscPath)) {
       return undefined;
     }
-    const extensionRoot = join(adtLscPath, "..", "..", "..", "..");
+    const extensionRoot = join(adtLscPath, ...adtLscParentSegments());
     return {
       extensionRoot,
       adtLscPath,

@@ -29,8 +29,7 @@ export function spawnAdtLsc(
     `--pipe=${pipeName}`,
     "-consoleLog",
     ...runtime.jvmArgs,
-    "-Djco.trace_path",
-    workspace,
+    `-Djco.trace_path=${workspace}`,
     "-data",
     workspace,
   ];
