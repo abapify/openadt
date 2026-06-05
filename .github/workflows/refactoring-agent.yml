@@ -1,0 +1,109 @@
+# CodeScene PR Refactoring Agent
+# https://codescene.io/docs/developer-tools/pr-refactoring-agent.html
+# Reviewers trigger Code Health-guided refactoring by commenting `/cs-agent` on a PR
+# (or `/cs-agent <skill>` for an explicit skill, e.g. `skill:uplift-code-health`).
+#
+# Required repository variable:
+#   - CS_AGENT_MODEL           (provider/model id, e.g. anthropic/claude-sonnet-4-6-20251101)
+#
+# Required repository secrets:
+#   - CS_ACCESS_TOKEN          (https://codescene.io/users/me/pat or on-prem token)
+#   - At least one AI provider:
+#       ANTHROPIC_API_KEY / OPENAI_API_KEY / GOOGLE_API_KEY
+#       or Kilo/OpenCode: OPENCODE_AUTH_JSON (+ optional KILO_API_KEY)
+name: PR Refactoring Agent
+
+on:
+  issue_comment:
+    types: [created]
+
+# Queue runs per PR so back-to-back /cs-agent comments are serialized and
+# never race to push (preserves the commit chain; `cancel-in-progress: false`
+# is intentional — we'd rather run all triggers than drop a reviewer's request).
+concurrency:
+  group: cs-agent-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  refactor:
+    # Accept only the bare `/cs-agent` command or `/cs-agent <args>` (a single
+    # ASCII space after the trigger). The boundary check rejects near-misses
+    # like `/cs-agent-foo` or `/cs-agentxyz` that plain `startsWith` would
+    # match. Commenter must also have write trust.
+    if: |
+      github.event.issue.pull_request != null &&
+      (github.event.comment.body == '/cs-agent' ||
+       startsWith(github.event.comment.body, '/cs-agent ')) &&
+      (github.event.comment.author_association == 'OWNER' ||
+       github.event.comment.author_association == 'MEMBER' ||
+       github.event.comment.author_association == 'COLLABORATOR')
+    runs-on: ubuntu-latest
+    env:
+      # Kilo/OpenCode reads KILO_API_KEY from the process environment (not an action input).
+      KILO_API_KEY: ${{ secrets.KILO_API_KEY }}
+    permissions:
+      contents: write
+      pull-requests: write
+      # `issues: write` is required: the action posts and updates the
+      # "CodeScene Refactoring Agent" status comment via the Issues API.
+      issues: write
+    steps:
+      - name: Resolve command
+        id: cmd
+        env:
+          BODY: ${{ github.event.comment.body }}
+        run: |
+          set -euo pipefail
+          # Strip the `/cs-agent` trigger only when it's followed by whitespace
+          # or end-of-input. Near-misses like `/cs-agent-foo` / `/cs-agentxyz`
+          # stay intact and are rejected below (the workflow-level `if:` already
+          # keeps them out, but enforce the boundary here too for defense in
+          # depth).
+          rest="$(printf '%s' "$BODY" | sed -E 's#^/cs-agent([[:space:]]+|$)##')"
+          if [ -z "$rest" ]; then
+            rest="skill:fix-code-health-degradations"
+          fi
+          # Flatten CR/LF so a comment can't smuggle multi-line instructions
+          # past the action's CLI parsing (e.g. `/cs-agent\nrm -rf /`).
+          rest="$(printf '%s' "$rest" | tr -d '\r\n')"
+          # Defense in depth: reject if stripping didn't consume the prefix
+          # (near-miss like `/cs-agent-foo` where the `if:` guard would have
+          # blocked it, but belt-and-suspenders).
+          case "$rest" in
+            /cs-agent*)
+              echo "Refusing /cs-agent command: prefix not cleanly stripped" >&2
+              exit 1
+              ;;
+          esac
+          # Allowlist: documented command shape is `skill:<name>` or free-form
+          # args. Permit only alphanumerics, `.:,_=+/-`, and spaces so shell
+          # metacharacters (` & ; | < > ( ) { } [ ] * ? ~ # \ ` $ ` etc.) and
+          # whitespace-based injection are all refused up front.
+          if ! printf '%s' "$rest" | grep -qE '^[A-Za-z0-9 .,:_=+/-]+$'; then
+            echo "Refusing /cs-agent command with disallowed characters" >&2
+            exit 1
+          fi
+          {
+            echo "command<<EOF"
+            echo "$rest"
+            echo "EOF"
+          } >>"$GITHUB_OUTPUT"
+      - name: Check agent configuration
+        env:
+          CS_AGENT_MODEL: ${{ vars.CS_AGENT_MODEL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CS_AGENT_MODEL}" ]; then
+            echo "::error::Repository variable CS_AGENT_MODEL is not set (Settings → Secrets and variables → Actions → Variables)." >&2
+            exit 1
+          fi
+      - uses: codescene-oss/pr-refactoring-agent@36399b741c2b575dea5fbd456aecc000b7e9af74 # v1.0.0
+        with:
+          pr_number: ${{ github.event.issue.number }}
+          command: ${{ steps.cmd.outputs.command }}
+          model: ${{ vars.CS_AGENT_MODEL }}
+          codescene_token: ${{ secrets.CS_ACCESS_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+          google_api_key: ${{ secrets.GOOGLE_API_KEY }}
+          opencode_auth_json: ${{ secrets.OPENCODE_AUTH_JSON }}
