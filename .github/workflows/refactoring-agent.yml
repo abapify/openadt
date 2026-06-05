@@ -1,0 +1,28 @@
+# CodeScene PR Refactoring Agent
+# https://codescene.io/docs/developer-tools/pr-refactoring-agent.html
+# Reviewers trigger Code Health-guided refactoring by commenting `/cs-agent` on a PR.
+# Required repository secrets:
+#   - CODESCENE_ACCESS_TOKEN   (https://codescene.io/users/me/pat or on-prem token)
+#   - ANTHROPIC_API_KEY        (or OPENAI_API_KEY / GOOGLE_API_KEY / OPENCODE_AUTH_JSON)
+name: PR Refactoring Agent
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  refactor:
+    if: github.event.issue.pull_request != null && contains(github.event.comment.body, '/cs-agent')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: codescene-oss/pr-refactoring-agent@v1
+        with:
+          pr_number: ${{ github.event.issue.number }}
+          command: ${{ github.event.comment.body }}
+          model: 'anthropic/claude-sonnet-4-6-20251101'
+          codescene_token: ${{ secrets.CODESCENE_ACCESS_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
