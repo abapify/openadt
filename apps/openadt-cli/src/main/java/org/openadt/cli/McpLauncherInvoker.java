@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
@@ -15,26 +16,25 @@ final class McpLauncherInvoker {
         "sap-adt-mcp-launcher/src/main.ts",
         "tools/sap-adt-mcp-launcher/src/main.ts",
     };
+    private static final int CWD_WALK_MAX_DEPTH = 8;
 
     private McpLauncherInvoker() {}
 
     static int invoke(String subcommand, String[] extraArgs) {
         Path script = resolveLauncherMain();
         if (script == null) {
-            CliLog.error(
-                "SAP ADT MCP launcher not found under OPENADT_HOME or OPENADT_REPO.\n"
-                    + "Reinstall OpenADT or set OPENADT_REPO to your git clone.\n"
-                    + "Requires Bun on PATH: https://bun.sh");
+            CliLog.error("""
+                    SAP ADT MCP launcher not found under OPENADT_HOME or OPENADT_REPO.
+                    Reinstall OpenADT or set OPENADT_REPO to your git clone.
+                    Requires Bun on PATH: https://bun.sh""");
             return 1;
         }
         List<String> cmd = new ArrayList<>();
         cmd.add(resolveBunExecutable());
         cmd.add(script.toString());
         cmd.add(subcommand);
-        if (extraArgs != null) {
-            for (String arg : extraArgs) {
-                cmd.add(arg);
-            }
+        if (extraArgs != null && extraArgs.length > 0) {
+            cmd.addAll(Arrays.asList(extraArgs));
         }
         ProcessBuilder pb = new ProcessBuilder(cmd);
         pb.inheritIO();
@@ -42,16 +42,59 @@ final class McpLauncherInvoker {
         try {
             Process process = pb.start();
             return process.waitFor();
-        } catch (IOException | InterruptedException e) {
-            if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            CliLog.error("Failed to run MCP launcher: " + e.getMessage());
+            return 1;
+        } catch (IOException e) {
             CliLog.error("Failed to run MCP launcher: " + e.getMessage());
             return 1;
         }
     }
 
     static Path resolveLauncherMain() {
+        Path envHit = findInEnvBases();
+        if (envHit != null) {
+            return envHit;
+        }
+        return findFromCwd();
+    }
+
+    private static Path findInEnvBases() {
+        for (String base : envBases()) {
+            Path hit = findInRoot(Path.of(base), true);
+            if (hit != null) {
+                return hit;
+            }
+        }
+        return null;
+    }
+
+    private static Path findFromCwd() {
+        Path cwd = Path.of("").toAbsolutePath();
+        for (int depth = 0; depth < CWD_WALK_MAX_DEPTH && cwd != null; depth++) {
+            Path hit = findInRoot(cwd, false);
+            if (hit != null) {
+                return hit;
+            }
+            cwd = cwd.getParent();
+        }
+        return null;
+    }
+
+    private static Path findInRoot(Path root, boolean absolute) {
+        for (String rel : LAUNCHER_REL_PATHS) {
+            Path candidate = root.resolve(rel);
+            if (Files.isRegularFile(candidate)) {
+                return absolute
+                        ? candidate.toAbsolutePath().normalize()
+                        : candidate.normalize();
+            }
+        }
+        return null;
+    }
+
+    private static List<String> envBases() {
         List<String> bases = new ArrayList<>();
         String home = System.getenv("OPENADT_HOME");
         if (home != null && !home.isBlank()) {
@@ -61,26 +104,7 @@ final class McpLauncherInvoker {
         if (repo != null && !repo.isBlank()) {
             bases.add(repo.trim());
         }
-        for (String base : bases) {
-            Path root = Path.of(base);
-            for (String rel : LAUNCHER_REL_PATHS) {
-                Path candidate = root.resolve(rel);
-                if (Files.isRegularFile(candidate)) {
-                    return candidate.toAbsolutePath().normalize();
-                }
-            }
-        }
-        Path cwd = Path.of("").toAbsolutePath();
-        for (int depth = 0; depth < 8 && cwd != null; depth++) {
-            for (String rel : LAUNCHER_REL_PATHS) {
-                Path candidate = cwd.resolve(rel);
-                if (Files.isRegularFile(candidate)) {
-                    return candidate.normalize();
-                }
-            }
-            cwd = cwd.getParent();
-        }
-        return null;
+        return bases;
     }
 
     private static void applyRepoEnv(ProcessBuilder pb, Path launcherMain) {
