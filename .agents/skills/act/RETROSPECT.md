@@ -54,6 +54,13 @@ Append-only durable learnings from `/act` P6 evaluation. One entry per session w
 - **Prevention:** [SKILL.md P0 — when CI is red, run linters locally first](SKILL.md#work-order-mandatory-sequence) now includes a "Codacy N new issues (0 max.) with annotations=0" → "install linter, run it, fix" table. Same pattern for Opengrep (`opengrep --config .semgrep.yaml`), SonarCloud, CodeQL.
 - **Cycle signal:** none
 
+## 2026-06-05 — PR #47 — CodeScene delta check fails repeatedly on inherited complexity
+
+- **What happened:** CodeScene "Code Health Review (main)" failed on every CI run for PR #47 (initial `744c44f`, after `a1a446e`, after `2deb67a`, after `520370b`). The flagged complexity deltas are all on stdio-bridge code first introduced in #42/#43 (`mcp-stdio-entry.ts`, `stdio-proxy.ts`, `mcp-framing.ts`, `runtime-env.ts`, `main.ts cmdServe`, `lsp-client.ts createProjectAndLogon`, `gui-import.ts resolveDestinationImport`, `config.ts parseServeArgv`) — not on the fixes this PR added. CodeScene is a required check on this repo, so `mergeStateStatus` stays `UNSTABLE` and the merge button is blocked.
+- **Root cause:** The PR title is "fix/dev-openadt-docs-followup" but the body landed 20+ product fixes (review feedback from a multi-bot round on the stdio bridge). Each push re-triggers the delta report against the same complex methods. There is no per-method suppression path from the agent — every CodeScene thread carries a "Suppress" link only the author can click.
+- **Prevention:** On PRs that carry a CodeScene workflow, treat the delta as part of the **scope** of the PR. If the inherited complexity is out of scope, either (a) split the refactor into its own PR, or (b) ask the user (or click in the GitHub UI) to suppress the specific deltas before the next `/act`. The P6 cycle guard already escalates "same rule flagged 2+ times" — that's the right call here; do **not** declare merge-ready while `CodeScene Code Health Review (main)` is `failure` even if all other required checks are green.
+- **Cycle signal:** same rule re-flagged (3 consecutive CI runs)
+
 ## 2026-06-05 — PR #42 — stale review threads from an earlier PR scope
 
 - **What happened:** PR #42 (TS-only `tools/sap-adt-mcp-launcher/`) carried 12+ open review threads pointing at `apps/openadt-cli/src/main/java/org/openadt/cli/McpLauncherInvoker.java`, `LauncherArgs.java`, `McpServeCommand.java`, and `McpStatusCommand.java` — files that are not in the current PR diff. An earlier scope of the PR included a Java CLI shim that was force-pushed out; the auto-reviews (Codacy, Copilot, Amazon Q, Gemini, cubic) were never pruned and stuck around as ghost feedback.
