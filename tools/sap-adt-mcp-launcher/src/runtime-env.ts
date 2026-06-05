@@ -112,35 +112,58 @@ export function ensureMinimalProcessEnv(
   if (process.platform !== "win32") {
     return env;
   }
-  const home = homedir();
   const view = new CaseInsensitiveEnv(env);
+  const home = homedir();
+  ensureHomeProfile(view, home);
+  ensureSystemRoot(view);
+  ensureAppData(view, home);
+  const temp = ensureTempDir(view, home);
+  ensureTmpMirror(view, temp);
+  return env;
+}
 
+function ensureHomeProfile(view: CaseInsensitiveEnv, home: string): void {
   if (!view.hasNonEmpty("USERPROFILE")) {
     view.set("USERPROFILE", home);
   }
   if (!view.hasNonEmpty("HOME")) {
     view.set("HOME", home);
   }
-  if (!view.hasNonEmpty("SystemRoot") && !view.hasNonEmpty("WINDIR")) {
-    view.set("SystemRoot", "C:\\Windows");
+}
+
+function ensureSystemRoot(view: CaseInsensitiveEnv): void {
+  if (view.hasNonEmpty("SystemRoot") || view.hasNonEmpty("WINDIR")) {
+    return;
   }
+  view.set("SystemRoot", "C:\\Windows");
+}
+
+function ensureAppData(view: CaseInsensitiveEnv, home: string): void {
   if (!view.hasNonEmpty("APPDATA")) {
     view.set("APPDATA", join(home, "AppData", "Roaming"));
   }
-  let localAppData = view.getTrimmed("LOCALAPPDATA");
-  if (!localAppData) {
-    localAppData = join(home, "AppData", "Local");
-    view.set("LOCALAPPDATA", localAppData);
+  if (!view.hasNonEmpty("LOCALAPPDATA")) {
+    view.set("LOCALAPPDATA", join(home, "AppData", "Local"));
   }
-  let temp = view.getTrimmed("TEMP");
-  if (!temp) {
-    temp = join(localAppData, "Temp");
-    view.set("TEMP", temp);
+}
+
+function ensureTempDir(view: CaseInsensitiveEnv, home: string): string {
+  const existing = view.getTrimmed("TEMP");
+  if (existing) {
+    return existing;
   }
-  if (!view.hasNonEmpty("TMP")) {
-    view.set("TMP", temp);
+  const localAppData =
+    view.getTrimmed("LOCALAPPDATA") ?? join(home, "AppData", "Local");
+  const temp = join(localAppData, "Temp");
+  view.set("TEMP", temp);
+  return temp;
+}
+
+function ensureTmpMirror(view: CaseInsensitiveEnv, temp: string): void {
+  if (view.hasNonEmpty("TMP")) {
+    return;
   }
-  return env;
+  view.set("TMP", temp);
 }
 
 /** Case-insensitive view over NodeJS.ProcessEnv (Windows env keys are case-insensitive). */

@@ -262,7 +262,13 @@ async function cmdServe(argv: string[]): Promise<number> {
     writeEndpoint(endpoint);
     endpointWritten = true;
     printServeState(
-      toServerState(endpoint, install, cfg, gui, started.version),
+      toServerState({
+        endpoint,
+        install,
+        cfg,
+        gui,
+        version: started.version,
+      }),
       cfg,
     );
 
@@ -358,13 +364,14 @@ function buildEndpointRecord(
   };
 }
 
-function toServerState(
-  endpoint: EndpointRecord,
-  install: NonNullable<ReturnType<typeof locateAdtLs>>,
-  cfg: McpServeConfig,
-  gui: ReturnType<typeof resolveDestinationImport>,
-  version: string | undefined,
-): ServerState {
+function toServerState(input: {
+  endpoint: EndpointRecord;
+  install: NonNullable<ReturnType<typeof locateAdtLs>>;
+  cfg: McpServeConfig;
+  gui: ReturnType<typeof resolveDestinationImport>;
+  version: string | undefined;
+}): ServerState {
+  const { endpoint, install, cfg, gui, version } = input;
   return {
     url: endpoint.url,
     port: endpoint.port,

@@ -259,13 +259,8 @@ async function createProjectAndLogon(
       return;
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(formatError(err));
-      if (attempt === 0 && isRetryableLogonError(lastError.message)) {
-        log?.warn(
-          `Logon for ${destinationId} failed (${lastError.message}); retrying createProject+logon once.`,
-        );
-        console.error(
-          `[openadt-mcp] Logon failed (${lastError.message}); retrying once…`,
-        );
+      if (shouldRetryLogon(attempt, lastError)) {
+        logRetryWarning(destinationId, lastError, log);
         await sleep(1_000);
         continue;
       }
@@ -273,6 +268,23 @@ async function createProjectAndLogon(
     }
   }
   throw lastError ?? new Error(`Logon failed for ${destinationId}`);
+}
+
+function shouldRetryLogon(attempt: number, error: Error): boolean {
+  return attempt === 0 && isRetryableLogonError(error.message);
+}
+
+function logRetryWarning(
+  destinationId: string,
+  error: Error,
+  log: McpLog | undefined,
+): void {
+  log?.warn(
+    `Logon for ${destinationId} failed (${error.message}); retrying createProject+logon once.`,
+  );
+  console.error(
+    `[openadt-mcp] Logon failed (${error.message}); retrying once…`,
+  );
 }
 
 async function runLogonAttempt(

@@ -269,45 +269,51 @@ export function resolveDestinationImport(
   destinationsStorePath?: string;
   fileUris: string[];
 } {
-  if (importFrom === "none") {
-    return emptyImport(workspace);
+  const request: ImportRequest = { workspace, importFrom, explicitWorkspace };
+  if (request.importFrom === "none") {
+    return emptyImport(request.workspace);
   }
-  if (importFrom === "adtls" || importFrom === "auto") {
-    const adtls = importFromAdtls(workspace, explicitWorkspace);
+  if (request.importFrom === "adtls" || request.importFrom === "auto") {
+    const adtls = importFromAdtls(request);
     if (adtls) {
       return adtls;
     }
-    if (importFrom === "adtls") {
-      return emptyImport(workspace);
+    if (request.importFrom === "adtls") {
+      return emptyImport(request.workspace);
     }
   }
-  if (importFrom === "gui" || importFrom === "auto") {
-    const gui = importFromGui(workspace, explicitWorkspace);
+  if (request.importFrom === "gui" || request.importFrom === "auto") {
+    const gui = importFromGui(request);
     if (gui.imported.length > 0) {
       return gui;
     }
-    if (importFrom === "gui") {
+    if (request.importFrom === "gui") {
       return gui;
     }
   }
-  return importFromOpenAdt(workspace);
+  return importFromOpenAdt(request.workspace);
 }
 
-function emptyImport(workspace: string) {
+type ImportRequest = {
+  workspace: string;
+  importFrom: DestinationImportMode;
+  explicitWorkspace: boolean;
+};
+
+type ImportResult = ReturnType<typeof resolveDestinationImport>;
+
+function emptyImport(workspace: string): ImportResult {
   return { workspace, workspaceFolderUris: [], imported: [], fileUris: [] };
 }
 
-function importFromAdtls(
-  workspace: string,
-  explicitWorkspace: boolean,
-): ReturnType<typeof resolveDestinationImport> | undefined {
-  const adtls = discoverAdtlsDestinations(workspace);
+function importFromAdtls(request: ImportRequest): ImportResult | undefined {
+  const adtls = discoverAdtlsDestinations(request.workspace);
   if (!adtls || adtls.destinations.length === 0) {
     return undefined;
   }
   const dataWorkspace = resolveAdtLscDataWorkspace(
-    workspace,
-    explicitWorkspace,
+    request.workspace,
+    request.explicitWorkspace,
   );
   const store = loadAdtlsDestinationsStore();
   const materialized = store
@@ -323,14 +329,11 @@ function importFromAdtls(
   };
 }
 
-function importFromGui(
-  workspace: string,
-  explicitWorkspace: boolean,
-): ReturnType<typeof resolveDestinationImport> {
+function importFromGui(request: ImportRequest): ImportResult {
   const bundle = discoverGuiDestinations();
   if (!bundle || bundle.destinations.length === 0) {
     return {
-      workspace,
+      workspace: request.workspace,
       workspaceFolderUris: [],
       imported: [],
       bundle,
@@ -338,7 +341,9 @@ function importFromGui(
     };
   }
   return {
-    workspace: explicitWorkspace ? workspace : bundle.adtWorkspacePath,
+    workspace: request.explicitWorkspace
+      ? request.workspace
+      : bundle.adtWorkspacePath,
     workspaceFolderUris: bundle.destinations.map((d) => d.workspaceFolderUri),
     imported: bundle.destinations,
     bundle,
@@ -347,9 +352,7 @@ function importFromGui(
   };
 }
 
-function importFromOpenAdt(
-  workspace: string,
-): ReturnType<typeof resolveDestinationImport> {
+function importFromOpenAdt(workspace: string): ImportResult {
   const materialized = materializeOpenAdtDestinations(workspace);
   if (materialized.length === 0) {
     return emptyImport(workspace);

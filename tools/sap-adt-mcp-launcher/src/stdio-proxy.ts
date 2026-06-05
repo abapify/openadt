@@ -102,18 +102,14 @@ export type StdioMcpBridge = {
   flush(): Promise<void>;
 };
 
+type Backend = { port: number; token: string };
+
 /** Transparent stdio MCP bridge to local SAP ADT HTTP MCP. */
 export function createStdioMcpBridge(): StdioMcpBridge {
-  let sessionId: string | undefined;
-  let forwardChain = Promise.resolve();
-  let ready = false;
-  let backend: { port: number; token: string } | undefined;
   const queue = new PendingBodyQueue(256);
-  let resolveClose: (() => void) | undefined;
-  let closePromise: Promise<void> | undefined;
-  let started = false;
-  let stdinEnded = false;
-  let failed = false;
+  const chain = new ForwardChain();
+  const lifecycle = new BridgeLifecycle();
+  let backend: Backend | undefined;
 
   const decoder = new McpStdioDecoder();
   const encoder = new McpStdioEncoder();
@@ -133,26 +129,20 @@ export function createStdioMcpBridge(): StdioMcpBridge {
     }
   };
 
-  const appendForward = (step: () => Promise<void>): void => {
-    forwardChain = forwardChain.then(step);
-  };
-
   const forwardHttpOne = (body: string): void => {
     if (!backend) {
       return;
     }
     const http = backend;
-    appendForward(async () => {
+    chain.append(async () => {
       try {
         const result = await postMcpHttpMessage(
           http.port,
           http.token,
           body,
-          sessionId,
+          chain.sessionId,
         );
-        if (result.sessionId) {
-          sessionId = result.sessionId;
-        }
+        chain.captureSessionId(result.sessionId);
         if (result.messages.length === 0 && result.status >= 400) {
           await replyError(body, -32000, `MCP HTTP ${result.status}`);
           return;
@@ -171,7 +161,7 @@ export function createStdioMcpBridge(): StdioMcpBridge {
   const enqueuePending = (body: string): void => {
     const dropped = queue.enqueueOrDrop(body);
     if (dropped) {
-      appendForward(() =>
+      chain.append(() =>
         replyError(
           dropped,
           -32000,
@@ -192,7 +182,7 @@ export function createStdioMcpBridge(): StdioMcpBridge {
     if (queued.length === 0) {
       return;
     }
-    appendForward(async () => {
+    chain.append(async () => {
       for (const body of queued) {
         await replyError(body, code, message);
       }
@@ -200,20 +190,20 @@ export function createStdioMcpBridge(): StdioMcpBridge {
   };
 
   const scheduleCloseWhenIdle = (): void => {
-    if (!stdinEnded || !ready) {
+    if (!lifecycle.canClose()) {
       return;
     }
-    forwardChain.finally(() => resolveClose?.());
+    chain.tail().finally(() => lifecycle.resolveClose());
   };
 
   decoder.on("data", (body: string) => {
-    if (failed) {
-      appendForward(() =>
+    if (lifecycle.failed) {
+      chain.append(() =>
         replyError(body, -32000, "MCP backend failed to start"),
       );
       return;
     }
-    if (!ready) {
+    if (!lifecycle.ready) {
       enqueuePending(body);
       return;
     }
@@ -221,7 +211,7 @@ export function createStdioMcpBridge(): StdioMcpBridge {
   });
   decoder.on("error", (err: Error) => {
     console.error(`[openadt-mcp] stdio stdin decode error: ${err.message}`);
-    stdinEnded = true;
+    lifecycle.markStdinEnded();
     scheduleCloseWhenIdle();
   });
 
@@ -233,22 +223,18 @@ export function createStdioMcpBridge(): StdioMcpBridge {
 
   return {
     start() {
-      if (started) {
+      if (!lifecycle.tryStart()) {
         return;
       }
-      started = true;
-      closePromise = new Promise((resolve) => {
-        resolveClose = resolve;
-      });
       process.stdin.pipe(decoder);
       process.stdin.on("end", () => {
         detachStdin();
-        stdinEnded = true;
+        lifecycle.markStdinEnded();
         scheduleCloseWhenIdle();
       });
       process.stdin.on("error", (err) => {
         detachStdin();
-        stdinEnded = true;
+        lifecycle.markStdinEnded();
         console.error(`[openadt-mcp] stdio stdin error: ${err.message}`);
         scheduleCloseWhenIdle();
       });
@@ -260,7 +246,7 @@ export function createStdioMcpBridge(): StdioMcpBridge {
       );
     },
     async run(port: number, token: string) {
-      if (!started) {
+      if (!lifecycle.started) {
         throw new Error("Call start() before run()");
       }
       backend = { port, token };
@@ -272,8 +258,7 @@ export function createStdioMcpBridge(): StdioMcpBridge {
           console.error(
             `[openadt-mcp] MCP HTTP not ready at ${mcpUrl(port)} after 5min`,
           );
-          failed = true;
-          ready = true;
+          lifecycle.markFailed();
           replyAllPending(
             -32000,
             "MCP HTTP backend failed to start (SAP logon timeout)",
@@ -281,20 +266,19 @@ export function createStdioMcpBridge(): StdioMcpBridge {
           scheduleCloseWhenIdle();
           return;
         }
-        ready = true;
+        lifecycle.markReady();
         drainPending();
         scheduleCloseWhenIdle();
       });
-      return closePromise!;
+      return lifecycle.closePromise!;
     },
     failPending(code: number, message: string) {
-      failed = true;
-      ready = true;
+      lifecycle.markFailed();
       replyAllPending(code, message);
       scheduleCloseWhenIdle();
     },
     flush(): Promise<void> {
-      return forwardChain;
+      return chain.tail();
     },
   };
 }
@@ -314,5 +298,71 @@ class PendingBodyQueue {
 
   takeAll(): string[] {
     return this.bodies.splice(0, this.bodies.length);
+  }
+}
+
+/** Sequential promise chain that serialises HTTP forwards and writes. */
+class ForwardChain {
+  private chain: Promise<void> = Promise.resolve();
+  private nextSessionId: string | undefined;
+
+  get sessionId(): string | undefined {
+    return this.nextSessionId;
+  }
+
+  append(step: () => Promise<void>): void {
+    this.chain = this.chain.then(step);
+  }
+
+  tail(): Promise<void> {
+    return this.chain;
+  }
+
+  captureSessionId(value: string | undefined): void {
+    if (value) {
+      this.nextSessionId = value;
+    }
+  }
+}
+
+/** Lifecycle flags + close-promise for a stdio MCP bridge. */
+class BridgeLifecycle {
+  ready = false;
+  failed = false;
+  started = false;
+  stdinEnded = false;
+  closePromise: Promise<void> | undefined;
+  private resolveCloseFn: (() => void) | undefined;
+
+  tryStart(): boolean {
+    if (this.started) {
+      return false;
+    }
+    this.started = true;
+    this.closePromise = new Promise<void>((resolve) => {
+      this.resolveCloseFn = resolve;
+    });
+    return true;
+  }
+
+  markReady(): void {
+    this.ready = true;
+  }
+
+  markFailed(): void {
+    this.failed = true;
+    this.ready = true;
+  }
+
+  markStdinEnded(): void {
+    this.stdinEnded = true;
+  }
+
+  canClose(): boolean {
+    return this.stdinEnded && this.ready;
+  }
+
+  resolveClose(): void {
+    this.resolveCloseFn?.();
   }
 }

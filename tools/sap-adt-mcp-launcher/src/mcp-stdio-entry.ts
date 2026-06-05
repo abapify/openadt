@@ -31,6 +31,9 @@ function resolveBun(): string {
   return resolveBunExecutable();
 }
 
+const PORT_MIN = 1024;
+const PORT_MAX = 65535;
+
 async function pickMcpPort(): Promise<number> {
   const explicit = process.env.OPENADT_MCP_PORT?.trim();
   if (explicit) {
@@ -41,17 +44,12 @@ async function pickMcpPort(): Promise<number> {
 
 function parseExplicitPort(raw: string): number {
   const port = Number(raw);
-  if (
-    !Number.isFinite(port) ||
-    !Number.isInteger(port) ||
-    port < 1024 ||
-    port > 65535
-  ) {
-    throw new Error(
-      `Invalid OPENADT_MCP_PORT=${raw} (expected integer 1024-65535); falling back to ephemeral.`,
-    );
+  if (Number.isInteger(port) && port >= PORT_MIN && port <= PORT_MAX) {
+    return port;
   }
-  return port;
+  throw new Error(
+    `Invalid OPENADT_MCP_PORT=${raw} (expected integer ${PORT_MIN}-${PORT_MAX}); falling back to ephemeral.`,
+  );
 }
 
 function bindEphemeralPort(): Promise<number> {
@@ -72,7 +70,7 @@ function bindEphemeralPort(): Promise<number> {
           reject(err);
           return;
         }
-        resolve(port >= 1024 ? port : DEFAULT_MCP_PORT);
+        resolve(port >= PORT_MIN ? port : DEFAULT_MCP_PORT);
       });
     });
   });

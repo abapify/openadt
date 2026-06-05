@@ -80,38 +80,24 @@ const IMPORT_FROM_MODES: readonly DestinationImportMode[] = [
 
 function buildServeArgvHandlers(): ServeArgvHandler[] {
   return [
-    flag(
-      (s) => {
-        s.importFrom = "gui";
-      },
-      ["--gui", "--import-from=gui"],
-    ),
-    flagValue(
-      (s) => {
-        s.importFrom = "openadt";
-      },
-      ["--import-from=openadt"],
-    ),
-    flagValue(
-      (s) => {
-        s.importFrom = "adtls";
-      },
-      ["--import-from=adtls"],
-    ),
-    flagValue(
-      (s) => {
-        s.importFrom = "auto";
-      },
-      ["--import-from=auto"],
-    ),
-    flag(
-      (s) => {
-        s.importFrom = "none";
-      },
-      ["--no-gui", "--import-from=none"],
-    ),
+    ...importFromArgvHandlers(),
+    ...booleanFlagArgvHandlers(),
+    ...valuedArgvHandlers(),
+  ];
+}
+
+function importFromArgvHandlers(): ServeArgvHandler[] {
+  const setMode = (mode: DestinationImportMode) => (s: ServeArgvState) => {
+    s.importFrom = mode;
+  };
+  return [
+    flag(setMode("gui"), ["--gui", "--import-from=gui"]),
+    flagValue(setMode("openadt"), ["--import-from=openadt"]),
+    flagValue(setMode("adtls"), ["--import-from=adtls"]),
+    flagValue(setMode("auto"), ["--import-from=auto"]),
+    flag(setMode("none"), ["--no-gui", "--import-from=none"]),
     consumeNext(
-      (arg, argv, i, s) => {
+      (_arg, argv, i, s) => {
         const value = argv[++i]!.toLowerCase();
         if (!IMPORT_FROM_MODES.includes(value as DestinationImportMode)) {
           throw new Error(
@@ -123,63 +109,77 @@ function buildServeArgvHandlers(): ServeArgvHandler[] {
       },
       ["--import-from"],
     ),
-    flag(
+  ];
+}
+
+function booleanFlagArgvHandlers(): ServeArgvHandler[] {
+  const boolFlag = (
+    apply: (s: ServeArgvState) => void,
+    forms: readonly string[],
+  ) => flag(apply, forms);
+  return [
+    boolFlag(
       (s) => {
         s.json = true;
       },
       ["--json"],
     ),
-    flag(
+    boolFlag(
       (s) => {
         s.showToken = true;
       },
       ["--show-token"],
     ),
-    flag(
+    boolFlag(
       (s) => {
         s.stdio = true;
       },
       ["--stdio"],
     ),
-    flag(
+    boolFlag(
       (s) => {
         s.verbose = true;
       },
       ["--verbose", "-v"],
     ),
-    stringValue(
-      (arg, value, s) => {
-        s.logFile = value;
-      },
-      ["--log-file"],
-    ),
-    secondsValue(
-      (arg, value, s) => {
-        s.logonTimeoutMs = value * 1000;
-      },
-      ["--logon-timeout"],
-    ),
-    flag(
+    boolFlag(
       (s) => {
         s.foreground = true;
       },
       ["--foreground"],
     ),
+  ];
+}
+
+function valuedArgvHandlers(): ServeArgvHandler[] {
+  return [
+    stringValue(
+      (_arg, value, s) => {
+        s.logFile = value;
+      },
+      ["--log-file"],
+    ),
+    secondsValue(
+      (_arg, value, s) => {
+        s.logonTimeoutMs = value * 1000;
+      },
+      ["--logon-timeout"],
+    ),
     numberValue(
-      (arg, value, s) => {
+      (_arg, value, s) => {
         s.port = value;
       },
       ["--port"],
     ),
     stringValue(
-      (arg, value, s) => {
+      (_arg, value, s) => {
         s.workspace = value;
         s.explicitWorkspace = true;
       },
       ["--workspace"],
     ),
     stringValue(
-      (arg, value, s) => {
+      (_arg, value, s) => {
         s.destination = value;
       },
       ["--destination"],
