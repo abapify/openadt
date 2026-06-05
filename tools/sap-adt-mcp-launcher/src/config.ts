@@ -234,7 +234,9 @@ export interface ParsedSubcommand {
   readonly argv: string[];
 }
 
-export function parseSubcommandArgv(argv: string[]): ParsedSubcommand | undefined {
+export function parseSubcommandArgv(
+  argv: string[],
+): ParsedSubcommand | undefined {
   const sub = argv[0];
   if (!sub || sub === "--help" || sub === "-h") {
     return undefined;
