@@ -27,7 +27,6 @@ replay_pid*
 target/
 
 # IDE files
-.cursor/mcp.json
 .idea/
 *.iml
 .eclipse/
@@ -43,6 +42,7 @@ yarn.lock
 
 # Local OpenADT runtime and config
 .openadt/
+.devin/
 .devcontainer/dist/
 .devcontainer/sec/
 .devcontainer/openadt-config.toml

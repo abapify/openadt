@@ -8,6 +8,7 @@ import {
 } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { killProcessByPid, sleep, waitForProcessExit } from "./process.ts";
 
 export type McpEndpointRecord = {
   port: number;
@@ -216,4 +217,32 @@ function resolveFromActive(): ResolveEndpointResult {
     ok: false,
     message: `Multiple MCP endpoints active (ports ${ports}). Use: openadt mcp list · openadt mcp print-config --port <port>`,
   };
+}
+
+/** Stop prior `openadt mcp serve` instances tracked in the endpoint store. */
+export async function stopTrackedMcpServers(): Promise<number> {
+  const endpoints = listEndpoints();
+  const pids = new Set<number>();
+  for (const ep of endpoints) {
+    pids.add(ep.pid);
+    if (ep.adtLscPid) {
+      pids.add(ep.adtLscPid);
+    }
+  }
+  let stopped = 0;
+  for (const ep of endpoints) {
+    removeEndpoint(ep.port);
+  }
+  for (const pid of pids) {
+    if (!isProcessAlive(pid)) {
+      continue;
+    }
+    killProcessByPid(pid);
+    stopped++;
+  }
+  await Promise.all([...pids].map((pid) => waitForProcessExit(pid, 8_000)));
+  if (stopped > 0) {
+    await sleep(1_000);
+  }
+  return stopped;
 }

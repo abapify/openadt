@@ -1,6 +1,34 @@
 # OpenADT — agents
 
-**SDD is mandatory:** read **[DESIGN.md](DESIGN.md)** (enforcement gate) before any behavior or spec change. Product: `openadt fetch`, `openadt proxy` ([specs/vision.md](specs/vision.md)).
+**SDD is mandatory.** [DESIGN.md](DESIGN.md) is the enforcement gate — not optional reading.
+
+Product: `openadt fetch`, `openadt proxy` ([specs/vision.md](specs/vision.md)). MCP launcher: [specs/mcp.md](specs/mcp.md) (includes the official SAP server interface).
+
+## SDD gate (before any code)
+
+**No spec → no merge.** Undocumented behavior is out of scope for PRs.
+
+| Step | Action                                                                                  |
+| ---- | --------------------------------------------------------------------------------------- |
+| 1    | Read [DESIGN.md](DESIGN.md) + the area spec from the table below                        |
+| 2    | **Edit `specs/*.md` first** (same PR as code; spec-only PRs are fine)                   |
+| 3    | Tests + implementation in the package from [apps/ARCHITECTURE.md](apps/ARCHITECTURE.md) |
+| 4    | Run the [verify block](#verify-before-pr) — all must pass                               |
+
+**Stop** if the change is not yet described in `specs/`: update the spec, then implement. Do not ship from chat summaries, agent notes, or gitignored `tmp/` (including decompiled SAP research) unless the contract is written in `specs/` first.
+
+| Area                                              | Spec                                                                                                   |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| CLI commands, flags, exit codes                   | [specs/cli.md](specs/cli.md)                                                                           |
+| Config / profiles                                 | [specs/config.md](specs/config.md)                                                                     |
+| Proxy                                             | [specs/proxy.md](specs/proxy.md)                                                                       |
+| Setup / detectors                                 | [specs/setup.md](specs/setup.md)                                                                       |
+| SDK usage                                         | [specs/sdk-capabilities.md](specs/sdk-capabilities.md), [specs/sdk-services.md](specs/sdk-services.md) |
+| **MCP / `adt-lsc` / stdio bridge / SAP HTTP MCP** | [specs/mcp.md](specs/mcp.md)                                                                           |
+| Packaging / releases                              | [specs/packaging.md](specs/packaging.md)                                                               |
+| Product scope                                     | [specs/vision.md](specs/vision.md)                                                                     |
+
+Workflow detail: [openadt-sdd skill](.agents/skills/openadt-sdd/SKILL.md).
 
 ## Documentation map
 
@@ -47,10 +75,10 @@ Index: [.agents/skills/README.md](.agents/skills/README.md).
 
 ## Rules
 
-1. **SDD** — [DESIGN.md](DESIGN.md) → update `specs/*.md` with behavior changes (no undocumented product behavior).
+1. **SDD** — follow the [SDD gate](#sdd-gate-before-any-code); [DESIGN.md](DESIGN.md) is the full spec index.
 2. **Fixtures only** in git: `DEV`, `dev-ms.example.com`. No SAP jars, no real landscape.
 3. **Host OS owns JCo natives** — run `./dev-openadt` from a clone (not bare `openadt` in the repo root on Windows CMD); see `openadt-devcontainer-host-runtime` skill.
-4. **`tmp/`** for scratch; redact secrets in logs.
+4. **`tmp/`** for scratch and local SAP research; redact secrets in logs — mirror any product contract into `specs/` before code changes.
 
 ## Verify (before PR)
 

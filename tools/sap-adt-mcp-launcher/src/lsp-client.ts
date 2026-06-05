@@ -22,7 +22,7 @@ import {
   LSP_METHOD_DESTINATIONS_LIST,
   type DestinationsInitParams,
 } from "./types.ts";
-import { spawnAdtLsc } from "./process.ts";
+import { sleep, spawnAdtLsc } from "./process.ts";
 import type { AdtLsInstall } from "./types.ts";
 
 export type LspSession = {
@@ -171,37 +171,16 @@ export async function connectAdtLanguageServer(
     );
     log?.info(`LSP ← ${LSP_METHOD_DESTINATIONS_INIT} ok`);
 
-    const projectIds =
-      options.createProjectIds ?? options.ensureLoggedOnIds ?? [];
-    for (const destinationId of projectIds) {
-      try {
-        log?.info(
-          `LSP → ${LSP_METHOD_DESTINATIONS_CREATE_PROJECT} ${destinationId}`,
-        );
-        await withTimeout(
-          connection.sendRequest(
-            LSP_METHOD_DESTINATIONS_CREATE_PROJECT,
-            destinationId,
-          ),
-          LSP_INIT_TIMEOUT_MS,
-          LSP_METHOD_DESTINATIONS_CREATE_PROJECT,
-        );
-        log?.info(
-          `LSP ← ${LSP_METHOD_DESTINATIONS_CREATE_PROJECT} ${destinationId} ok`,
-        );
-      } catch (err) {
-        const msg = formatError(err);
-        if (log) {
-          log.warn(
-            `${LSP_METHOD_DESTINATIONS_CREATE_PROJECT} ${destinationId}: ${msg}`,
-          );
-        }
-      }
+    const logonIds = new Set(options.ensureLoggedOnIds ?? []);
+    const createOnlyIds = (options.createProjectIds ?? []).filter(
+      (id) => !logonIds.has(id),
+    );
+    for (const destinationId of createOnlyIds) {
+      await createProjectOnce(connection, destinationId, log);
     }
-    const logonTimeoutMs = options.logonTimeoutMs ?? DEFAULT_LOGON_TIMEOUT_MS;
     for (const destinationId of options.ensureLoggedOnIds ?? []) {
-      await ensureDestinationLoggedOn(connection, destinationId, {
-        timeoutMs: logonTimeoutMs,
+      await createProjectAndLogon(connection, destinationId, {
+        logonTimeoutMs: options.logonTimeoutMs ?? DEFAULT_LOGON_TIMEOUT_MS,
         log,
       });
     }
@@ -222,6 +201,67 @@ export async function connectAdtLanguageServer(
   }
 
   return { connection, child, pipeName };
+}
+
+async function createProjectOnce(
+  connection: MessageConnection,
+  destinationId: string,
+  log?: McpLog,
+): Promise<void> {
+  log?.info(`LSP → ${LSP_METHOD_DESTINATIONS_CREATE_PROJECT} ${destinationId}`);
+  await withTimeout(
+    connection.sendRequest(
+      LSP_METHOD_DESTINATIONS_CREATE_PROJECT,
+      destinationId,
+    ),
+    LSP_INIT_TIMEOUT_MS,
+    LSP_METHOD_DESTINATIONS_CREATE_PROJECT,
+  );
+  log?.info(
+    `LSP ← ${LSP_METHOD_DESTINATIONS_CREATE_PROJECT} ${destinationId} ok`,
+  );
+}
+
+function isRetryableLogonError(message: string): boolean {
+  return (
+    /does not exist/i.test(message) ||
+    /JCO_ERROR_RESOURCE/i.test(message) ||
+    /Internal error/i.test(message)
+  );
+}
+
+async function createProjectAndLogon(
+  connection: MessageConnection,
+  destinationId: string,
+  options: { logonTimeoutMs: number; log?: McpLog },
+): Promise<void> {
+  const { logonTimeoutMs, log } = options;
+  let lastError: Error | undefined;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      await createProjectOnce(connection, destinationId, log);
+      await sleep(attempt === 1 ? 750 : 1_500);
+      await ensureDestinationLoggedOn(connection, destinationId, {
+        timeoutMs: logonTimeoutMs,
+        log,
+      });
+      return;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(formatError(err));
+      if (attempt === 1 && isRetryableLogonError(lastError.message)) {
+        log?.warn(
+          `Logon for ${destinationId} failed (${lastError.message}); retrying createProject+logon once.`,
+        );
+        console.error(
+          `[openadt-mcp] Logon failed (${lastError.message}); retrying once…`,
+        );
+        await sleep(1_000);
+        continue;
+      }
+      throw lastError;
+    }
+  }
+  throw lastError ?? new Error(`Logon failed for ${destinationId}`);
 }
 
 export async function logDestinationDiagnostics(

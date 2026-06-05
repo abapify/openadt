@@ -7,7 +7,7 @@ import {
   pickNewestExtension,
   resolveAdtLscFromExtension,
 } from "./locate.ts";
-import { redactToken, cursorMcpSnippet } from "./mcp.ts";
+import { mcpHttpClientConfig, redactToken } from "./mcp.ts";
 
 describe("pickNewestExtension", () => {
   test("sorts semver-like folder versions", () => {
@@ -53,16 +53,12 @@ describe("mcp helpers", () => {
     expect(redactToken("abcdefgh-ijkl")).not.toContain("ijkl-mnop");
   });
 
-  test("cursorMcpSnippet shape", () => {
-    const snippet = cursorMcpSnippet(2236, "secret-token") as {
-      mcpServers: Record<
-        string,
-        { url: string; headers: Record<string, string> }
-      >;
+  test("mcpHttpClientConfig shape", () => {
+    const config = mcpHttpClientConfig(2236, "secret-token") as {
+      url: string;
+      headers: Record<string, string>;
     };
-    expect(snippet.mcpServers["sap-adt"].url).toBe("http://localhost:2236/mcp");
-    expect(snippet.mcpServers["sap-adt"].headers.Authorization).toBe(
-      "Bearer secret-token",
-    );
+    expect(config.url).toBe("http://localhost:2236/mcp");
+    expect(config.headers.Authorization).toBe("Bearer secret-token");
   });
 });

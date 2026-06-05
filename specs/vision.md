@@ -26,7 +26,7 @@ OpenADT is a **thin Java wrapper around the official SAP ADT SDK** (`com.sap.adt
 
 ## Roadmap: MCP
 
-Agents (Cursor, Claude, etc.) should call ADT via OpenADT over MCP. See [mcp.md](mcp.md). Initial bridge may shell out to `openadt fetch`; long term in-process SDK calls.
+Agents call **official SAP ADT MCP** via OpenADT launcher: child `adt-lsc`, HTTP MCP, optional stdio bridge (`serve --stdio`). OpenADT does not define tools. See [mcp.md](mcp.md).
 
 ## Package map (code navigation)
 

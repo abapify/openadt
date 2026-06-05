@@ -292,12 +292,13 @@ Behavior:
 
 ### openadt mcp
 
-Launch the **official SAP ADT MCP** HTTP server (requires SAP ADT VS Code extension and **Bun** on PATH). See [mcp.md](mcp.md).
+Launch the **official SAP ADT MCP** (child `adt-lsc` from SAP ADT VS Code extension + optional stdio bridge). Requires extension and **Bun**. See [mcp.md](mcp.md).
 
-From a git clone use `./dev-openadt mcp …` (Windows: `.\dev-openadt.ps1 mcp …`). With Scoop/Homebrew on PATH, replace the prefix with `openadt`.
+**`serve --stdio`:** one process spawns `adt-lsc`, starts HTTP MCP on localhost, proxies agent stdin/stdout to that HTTP endpoint with Bearer token; on exit kills HTTP MCP and child.
 
 ```bash
 ./dev-openadt mcp serve
+./dev-openadt mcp serve --stdio
 ./dev-openadt mcp serve --port 2236 --destination DEV_100_developer_en
 ./dev-openadt mcp list
 ./dev-openadt mcp print-config --port 2236

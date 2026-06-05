@@ -264,4 +264,4 @@ Before sharing logs, config, or screenshots:
 - Use fictional examples: `DEV`, `DEVELOPER`, `dev-ms.example.com`.
 - Do not commit SAP binaries, `.openadt/`, or generated devcontainer paths.
 
-MCP bridge: [tools/mcp-bridge](../tools/mcp-bridge/), [specs/mcp.md](../specs/mcp.md).
+MCP: [tools/sap-adt-mcp-launcher](../tools/sap-adt-mcp-launcher/), [specs/mcp.md](../specs/mcp.md).

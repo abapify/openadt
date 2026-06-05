@@ -135,10 +135,13 @@ Proxy behavior (header stripping, local vs SAP credentials): [specs/proxy.md](sp
 
 ## MCP preview
 
-Experimental stdio MCP (`adt_fetch`, `adt_discover`) for Cursor, Claude, Copilot, etc.
+SAP ADT MCP via `openadt mcp serve --stdio` (stdio bridge to native SAP HTTP MCP).
 
-- [specs/mcp.md](specs/mcp.md)
-- [tools/mcp-bridge/](tools/mcp-bridge/)
+- [specs/mcp.md](specs/mcp.md) — specification
+- [.cursor/mcp.json](.cursor/mcp.json) — Cursor / agent MCP config (`bun run mcp:stdio`)
+- [tools/sap-adt-mcp-launcher/](tools/sap-adt-mcp-launcher/)
+
+**Test it:** `bun run test:mcp:stdio` — verifies stdio → HTTP proxy flow end-to-end
 
 ## What OpenADT is not
 

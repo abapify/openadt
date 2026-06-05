@@ -26,6 +26,7 @@ export function parseServeArgv(argv: string[]): McpServeConfig {
   let verbose = false;
   let logFile: string | undefined;
   let logonTimeoutMs = DEFAULT_LOGON_TIMEOUT_MS;
+  let stdio = false;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
@@ -71,6 +72,10 @@ export function parseServeArgv(argv: string[]): McpServeConfig {
     }
     if (arg === "--show-token") {
       showToken = true;
+      continue;
+    }
+    if (arg === "--stdio") {
+      stdio = true;
       continue;
     }
     if (arg === "--verbose" || arg === "-v") {
@@ -149,6 +154,7 @@ export function parseServeArgv(argv: string[]): McpServeConfig {
     verbose,
     logFile,
     logonTimeoutMs,
+    stdio,
   };
 }
 

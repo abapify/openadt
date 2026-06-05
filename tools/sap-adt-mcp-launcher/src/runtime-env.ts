@@ -21,12 +21,14 @@ export function loadOpenAdtRuntimePaths(): OpenAdtRuntimePaths {
   }
   try {
     const parsed = Bun.TOML.parse(readFileSync(LOCAL_CONFIG, "utf8")) as {
+      runtime?: { jco_native_dir?: string; sapcrypto?: string };
       jco_native_dir?: string;
       sapcrypto?: string;
     };
+    const runtime = parsed.runtime ?? parsed;
     return {
-      jcoNativeDir: readTomlString(parsed.jco_native_dir),
-      sapcrypto: readTomlString(parsed.sapcrypto),
+      jcoNativeDir: readTomlString(runtime.jco_native_dir),
+      sapcrypto: readTomlString(runtime.sapcrypto),
     };
   } catch {
     return {};
@@ -41,7 +43,7 @@ function readTomlString(value: string | undefined): string | undefined {
 export function buildAdtLscSpawnRuntime(
   paths: OpenAdtRuntimePaths = loadOpenAdtRuntimePaths(),
 ): AdtLscSpawnRuntime {
-  const env = { ...process.env };
+  const env = ensureMinimalProcessEnv({ ...process.env });
   const jvmArgs: string[] = [];
   const libraryPathEntries: string[] = [];
 
@@ -55,6 +57,7 @@ export function buildAdtLscSpawnRuntime(
     const sapDir = dirname(paths.sapcrypto);
     if (existsSync(paths.sapcrypto)) {
       prependPath(env, sapDir);
+      env.SNC_LIB = paths.sapcrypto;
     }
     libraryPathEntries.push(sapDir);
     jvmArgs.push(`-Djco.middleware.snc_lib=${paths.sapcrypto}`);
@@ -67,7 +70,7 @@ export function buildAdtLscSpawnRuntime(
 
   if (!env.SECUDIR?.trim()) {
     for (const candidate of secudirCandidates()) {
-      if (existsSync(candidate)) {
+      if (isSecureLoginSecudir(candidate)) {
         env.SECUDIR = candidate;
         break;
       }
@@ -77,18 +80,61 @@ export function buildAdtLscSpawnRuntime(
   return { env, jvmArgs };
 }
 
+/** ~/.openadt/sec holds HTTP CA PEMs — not SAP Secure Login SECUDIR. */
+export function isSecureLoginSecudir(candidate: string): boolean {
+  if (!existsSync(candidate)) {
+    return false;
+  }
+  const normalized = candidate.replace(/\\/g, "/").toLowerCase();
+  if (normalized.endsWith("/.openadt/sec")) {
+    return false;
+  }
+  return true;
+}
+
 function secudirCandidates(): string[] {
   const home = homedir();
   const appData = process.env.APPDATA;
-  const candidates = [join(home, ".openadt", "sec")];
+  const candidates: string[] = [];
   if (appData) {
     candidates.push(join(appData, "SAP", "Common"));
   }
-  candidates.push(
-    "C:\\Program Files\\SAP\\FrontEnd\\SecureLogin\\lib",
-    join(home, "AppData", "Roaming", "SAP", "Common"),
-  );
+  candidates.push(join(home, "AppData", "Roaming", "SAP", "Common"));
+  candidates.push("C:\\Program Files\\SAP\\FrontEnd\\SecureLogin\\lib");
+  candidates.push(join(home, ".openadt", "sec"));
   return candidates;
+}
+
+/** Cursor agent CLI passes a stripped env; fill Windows profile dirs for SECUDIR/JCo. */
+export function ensureMinimalProcessEnv(
+  env: NodeJS.ProcessEnv,
+): NodeJS.ProcessEnv {
+  if (process.platform !== "win32") {
+    return env;
+  }
+  const home = homedir();
+  if (!env.USERPROFILE?.trim()) {
+    env.USERPROFILE = home;
+  }
+  if (!env.HOME?.trim()) {
+    env.HOME = home;
+  }
+  if (!env.SystemRoot?.trim() && !env.WINDIR?.trim()) {
+    env.SystemRoot = "C:\\Windows";
+  }
+  if (!env.APPDATA?.trim()) {
+    env.APPDATA = join(home, "AppData", "Roaming");
+  }
+  if (!env.LOCALAPPDATA?.trim()) {
+    env.LOCALAPPDATA = join(home, "AppData", "Local");
+  }
+  if (!env.TEMP?.trim()) {
+    env.TEMP = join(env.LOCALAPPDATA, "Temp");
+  }
+  if (!env.TMP?.trim()) {
+    env.TMP = env.TEMP;
+  }
+  return env;
 }
 
 function prependPath(env: NodeJS.ProcessEnv, dir: string): void {

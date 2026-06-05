@@ -8,8 +8,11 @@
     "release:version": "bun tools/release-version/src/main.ts",
     "format:write": "nx format:write",
     "openadt": "nx run openadt-cli:run --output-style=stream --",
+    "openadt:mcp": "bun scripts/nx-openadt.ts mcp",
+    "mcp:stdio": "bun scripts/mcp-stdio.ts",
     "openadt:build": "nx package openadt-cli --output-style=stream",
     "openadt:test": "nx test openadt-cli --output-style=stream",
+    "test:mcp:stdio": "bun tools/sap-adt-mcp-launcher/src/test-mcp-stdio.ts",
     "prepare": "husky",
     "precommit:format": "nx format:write --uncommitted && git update-index --again",
     "nx": "nx"

@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import {
   adtlsImportSourceLabel,
   discoverAdtlsDestinations,
@@ -44,6 +45,11 @@ export function buildAbapWorkspaceFolderUri(destinationId: string): string {
     throw new Error("destination id is empty");
   }
   return `${ABAP_WORKSPACE_SCHEME}:/${trimmed}`;
+}
+
+/** file:// URIs for materialized `.destination.properties` (adtLs/destinations/initializeService). */
+export function destinationFileUris(destinations: GuiDestination[]): string[] {
+  return destinations.map((d) => pathToFileURL(d.propertiesPath).href);
 }
 
 /** Parse `id=` from Eclipse `.destination.properties` (no multiline values). */
@@ -261,9 +267,10 @@ export function resolveDestinationImport(
   bundle?: GuiImportBundle;
   importSource?: string;
   destinationsStorePath?: string;
+  fileUris: string[];
 } {
   if (importFrom === "none") {
-    return { workspace, workspaceFolderUris: [], imported: [] };
+    return { workspace, workspaceFolderUris: [], imported: [], fileUris: [] };
   }
 
   if (importFrom === "adtls" || importFrom === "auto") {
@@ -274,24 +281,20 @@ export function resolveDestinationImport(
         explicitWorkspace,
       );
       const store = loadAdtlsDestinationsStore();
-      if (store) {
-        materializeAdtlsDestinations(dataWorkspace, store);
-      }
+      const materialized = store
+        ? materializeAdtlsDestinations(dataWorkspace, store)
+        : [];
       return {
         workspace: dataWorkspace,
-        workspaceFolderUris: adtls.destinations.map(
-          (d) => d.workspaceFolderUri,
-        ),
-        imported: adtls.destinations.map((d) => ({
-          ...d,
-          adtWorkspacePath: dataWorkspace,
-        })),
+        workspaceFolderUris: materialized.map((d) => d.workspaceFolderUri),
+        imported: materialized,
         importSource: adtlsImportSourceLabel(),
         destinationsStorePath: adtls.storePath,
+        fileUris: destinationFileUris(materialized),
       };
     }
     if (importFrom === "adtls") {
-      return { workspace, workspaceFolderUris: [], imported: [] };
+      return { workspace, workspaceFolderUris: [], imported: [], fileUris: [] };
     }
   }
 
@@ -306,16 +309,23 @@ export function resolveDestinationImport(
         imported: bundle.destinations,
         bundle,
         importSource: bundle.sources.join("+"),
+        fileUris: destinationFileUris(bundle.destinations),
       };
     }
     if (importFrom === "gui") {
-      return { workspace, workspaceFolderUris: [], imported: [], bundle };
+      return {
+        workspace,
+        workspaceFolderUris: [],
+        imported: [],
+        bundle,
+        fileUris: [],
+      };
     }
   }
 
   const materialized = materializeOpenAdtDestinations(workspace);
   if (materialized.length === 0) {
-    return { workspace, workspaceFolderUris: [], imported: [] };
+    return { workspace, workspaceFolderUris: [], imported: [], fileUris: [] };
   }
 
   return {
@@ -323,6 +333,7 @@ export function resolveDestinationImport(
     workspaceFolderUris: materialized.map((d) => d.workspaceFolderUri),
     imported: materialized,
     importSource: openAdtImportSourceLabel(),
+    fileUris: destinationFileUris(materialized),
   };
 }
 

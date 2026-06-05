@@ -39,6 +39,12 @@ public class McpServeCommand implements Callable<Integer> {
     private boolean showToken;
 
     @Option(
+        names = "--stdio",
+        description = "Stdio MCP transport (proxy stdin/stdout to local HTTP MCP; stdout is JSON-RPC only)"
+    )
+    private boolean stdio;
+
+    @Option(
         names = {"--verbose", "-v"},
         description = "LSP trace + adt-lsc -consoleLog to ~/.openadt/logs/mcp-serve.log"
     )
@@ -65,6 +71,7 @@ public class McpServeCommand implements Callable<Integer> {
                 .option("--import-from", noGui || importFrom == null ? null : importFrom)
                 .flag("--json", json)
                 .flag("--show-token", showToken)
+                .flag("--stdio", stdio)
                 .flag("--verbose", verbose)
                 .option("--log-file", logFile)
                 .option("--logon-timeout", logonTimeoutSeconds)

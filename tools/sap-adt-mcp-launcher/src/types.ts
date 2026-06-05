@@ -70,6 +70,8 @@ export type McpServeConfig = {
   verbose: boolean;
   logFile?: string;
   logonTimeoutMs: number;
+  /** Stdio MCP transport: proxy stdin/stdout to local HTTP MCP (no token in agent config). */
+  stdio: boolean;
 };
 
 export type McpRuntimeState = {
