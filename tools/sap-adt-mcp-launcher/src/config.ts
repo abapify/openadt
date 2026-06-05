@@ -160,10 +160,12 @@ export function parseStatusArgv(argv: string[]): {
   port?: number;
   token?: string;
   json: boolean;
+  statusTimeoutMs: number;
 } {
   let port: number | undefined;
   let token: string | undefined;
   let json = false;
+  let statusTimeoutMs = 60_000;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;

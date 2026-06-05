@@ -66,6 +66,7 @@ export function isPortInUseMessage(message: string): boolean {
 export async function probeMcpHttp(
   port: number,
   token?: string,
+  timeoutMs = 60_000,
 ): Promise<boolean> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -92,7 +93,7 @@ export async function probeMcpHttp(
       method: "POST",
       headers,
       body,
-      signal: AbortSignal.timeout(10_000),
+        signal: AbortSignal.timeout(timeoutMs),
     });
     return res.ok || res.status === 401;
   } catch {
