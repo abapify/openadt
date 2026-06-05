@@ -86,12 +86,11 @@ export function parseServeArgv(argv: string[]): McpServeConfig {
       continue;
     }
     if (arg === "--logon-timeout" && i + 1 < argv.length) {
-      logonTimeoutMs = Number.parseInt(argv[++i]!, 10) * 1000;
+      logonTimeoutMs = Number(argv[++i]!) * 1000;
       continue;
     }
     if (arg.startsWith("--logon-timeout=")) {
-      logonTimeoutMs =
-        Number.parseInt(arg.slice("--logon-timeout=".length), 10) * 1000;
+      logonTimeoutMs = Number(arg.slice("--logon-timeout=".length)) * 1000;
       continue;
     }
     if (arg === "--foreground") {
@@ -99,11 +98,11 @@ export function parseServeArgv(argv: string[]): McpServeConfig {
       continue;
     }
     if (arg === "--port" && i + 1 < argv.length) {
-      port = Number.parseInt(argv[++i]!, 10);
+      port = Number(argv[++i]!);
       continue;
     }
     if (arg.startsWith("--port=")) {
-      port = Number.parseInt(arg.slice("--port=".length), 10);
+      port = Number(arg.slice("--port=".length));
       continue;
     }
     if (arg === "--workspace" && i + 1 < argv.length) {
@@ -169,11 +168,11 @@ export function parseStatusArgv(argv: string[]): {
       continue;
     }
     if (arg === "--port" && i + 1 < argv.length) {
-      port = Number.parseInt(argv[++i]!, 10);
+      port = Number(argv[++i]!);
       continue;
     }
     if (arg.startsWith("--port=")) {
-      port = Number.parseInt(arg.slice("--port=".length), 10);
+      port = Number(arg.slice("--port=".length));
       continue;
     }
     if (arg === "--token" && i + 1 < argv.length) {
@@ -213,11 +212,11 @@ export function parsePrintConfigArgv(argv: string[]): {
       continue;
     }
     if (arg === "--port" && i + 1 < argv.length) {
-      port = Number.parseInt(argv[++i]!, 10);
+      port = Number(argv[++i]!);
       continue;
     }
     if (arg.startsWith("--port=")) {
-      port = Number.parseInt(arg.slice("--port=".length), 10);
+      port = Number(arg.slice("--port=".length));
       continue;
     }
   }

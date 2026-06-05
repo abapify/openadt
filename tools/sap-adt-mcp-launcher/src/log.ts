@@ -85,7 +85,7 @@ class FileMcpLog implements McpLog {
   private emit(level: string, message: string): void {
     this.write(level, message);
     if (level === "error" || level === "warn" || level === "info") {
-      console.error(`[openadt-mcp] ${level}: ${message}`);
+      console.error(`[openadt-mcp] ${level}: ${redactSecrets(message)}`);
     }
   }
 
