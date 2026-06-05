@@ -1,6 +1,8 @@
 # CodeScene PR Refactoring Agent
 # https://codescene.io/docs/developer-tools/pr-refactoring-agent.html
-# Reviewers trigger Code Health-guided refactoring by commenting `/cs-agent` on a PR.
+# Reviewers trigger Code Health-guided refactoring by commenting `/cs-agent` on a PR
+# (or `/cs-agent <skill>` for an explicit skill, e.g. `skill:uplift-code-health`).
+#
 # Required repository secrets:
 #   - CODESCENE_ACCESS_TOKEN   (https://codescene.io/users/me/pat or on-prem token)
 #   - ANTHROPIC_API_KEY        (or OPENAI_API_KEY / GOOGLE_API_KEY / OPENCODE_AUTH_JSON)
@@ -10,19 +12,66 @@ on:
   issue_comment:
     types: [created]
 
+# Serialize runs per PR to prevent non-fast-forward pushes when reviewers fire
+# multiple /cs-agent comments in quick succession.
+concurrency:
+  group: cs-agent-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
 jobs:
   refactor:
-    if: github.event.issue.pull_request != null && contains(github.event.comment.body, '/cs-agent')
+    # Gate to PR comments that start with `/cs-agent` and come from a commenter
+    # with write trust (OWNER / MEMBER / COLLABORATOR). `startsWith` avoids
+    # matching `/cs-agent-...` substrings in unrelated text.
+    if: |
+      github.event.issue.pull_request != null &&
+      startsWith(github.event.comment.body, '/cs-agent') &&
+      (github.event.comment.author_association == 'OWNER' ||
+       github.event.comment.author_association == 'MEMBER' ||
+       github.event.comment.author_association == 'COLLABORATOR')
     runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
+      # `issues: write` is required: the action posts and updates the
+      # "CodeScene Refactoring Agent" status comment via the Issues API.
       issues: write
     steps:
-      - uses: codescene-oss/pr-refactoring-agent@v1
+      - name: Resolve command
+        id: cmd
+        env:
+          BODY: ${{ github.event.comment.body }}
+        run: |
+          set -euo pipefail
+          # Strip the `/cs-agent` trigger and any leading whitespace; default to
+          # the fix-degradations skill so a bare `/cs-agent` comment yields a
+          # valid command (per upstream docs).
+          rest="$(printf '%s' "$BODY" | sed -E 's#^/cs-agent[[:space:]]*##')"
+          if [ -z "$rest" ]; then
+            rest="skill:fix-code-health-degradations"
+          fi
+          # Reject newlines so a comment can't smuggle multi-line instructions
+          # past the action's CLI parsing.
+          rest="$(printf '%s' "$rest" | tr -d '\r\n')"
+          # Only allow the documented command shape: `skill:<name>` or
+          # free-form args. Refuse anything containing shell metacharacters
+          # that have no business being in a CodeScene command.
+          if printf '%s' "$rest" | grep -qE '[`$|<>;]'; then
+            echo "Refusing /cs-agent command with disallowed characters" >&2
+            exit 1
+          fi
+          {
+            echo "command<<EOF"
+            echo "$rest"
+            echo "EOF"
+          } >>"$GITHUB_OUTPUT"
+      - uses: codescene-oss/pr-refactoring-agent@36399b741c2b575dea5fbd456aecc000b7e9af74 # v1.0.0
         with:
           pr_number: ${{ github.event.issue.number }}
-          command: ${{ github.event.comment.body }}
-          model: 'anthropic/claude-sonnet-4-6-20251101'
+          command: ${{ steps.cmd.outputs.command }}
+          model: "anthropic/claude-sonnet-4-6-20251101"
           codescene_token: ${{ secrets.CODESCENE_ACCESS_TOKEN }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+          google_api_key: ${{ secrets.GOOGLE_API_KEY }}
+          opencode_auth_json: ${{ secrets.OPENCODE_AUTH_JSON }}

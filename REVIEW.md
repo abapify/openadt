@@ -4,14 +4,14 @@ Where to triage comments and static analysis on OpenADT PRs. Agents hub: [AGENTS
 
 ## Do not mix these systems
 
-| System                          | List open items via                                      | Not the same as                                        |
-| ------------------------------- | -------------------------------------------------------- | ------------------------------------------------------ |
-| **Codacy**                      | Codacy UI / MCP                                          | `gh api …/code-scanning`                               |
-| **GitHub Code Scanning**        | `gh api repos/{o}/{r}/code-scanning/alerts` (state=open) | Codacy                                                 |
-| **PR review threads**           | `gh pr view` / Files changed                             | Code Scanning API                                      |
-| **Dependabot**                  | `gh api …/dependabot/alerts`                             | Codacy, Semgrep                                        |
-| **Semgrep / Opengrep**          | CI `opengrep`, root [`.semgrep.yaml`](.semgrep.yaml)     | Whole-file `# nosemgrep` — use line-level suppressions |
-| **CodeScene PR Refactoring Agent** | CI `.github/workflows/refactoring-agent.yml` (`/cs-agent` PR comment) | Codacy, GitHub Code Scanning |
+| System                             | List open items via                                                   | Not the same as                                        |
+| ---------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------ |
+| **Codacy**                         | Codacy UI / MCP                                                       | `gh api …/code-scanning`                               |
+| **GitHub Code Scanning**           | `gh api repos/{o}/{r}/code-scanning/alerts` (state=open)              | Codacy                                                 |
+| **PR review threads**              | `gh pr view` / Files changed                                          | Code Scanning API                                      |
+| **Dependabot**                     | `gh api …/dependabot/alerts`                                          | Codacy, Semgrep                                        |
+| **Semgrep / Opengrep**             | CI `opengrep`, root [`.semgrep.yaml`](.semgrep.yaml)                  | Whole-file `# nosemgrep` — use line-level suppressions |
+| **CodeScene PR Refactoring Agent** | CI `.github/workflows/refactoring-agent.yml` (`/cs-agent` PR comment) | Codacy, GitHub Code Scanning                           |
 
 Before claiming “N issues fixed”: name the **source**, query it on **current HEAD**, cite rule IDs or thread URLs.
 
@@ -37,4 +37,4 @@ Before claiming “N issues fixed”: name the **source**, query it on **current
 
 ## CodeScene PR Refactoring Agent
 
-Reviewers can request Code Health-guided refactoring on any PR by commenting `/cs-agent` (workflow: [`.github/workflows/refactoring-agent.yml`](.github/workflows/refactoring-agent.yml); docs: <https://codescene.io/docs/developer-tools/pr-refactoring-agent.html>). The agent pushes changes back to the PR branch, so treat its commits like any other contribution: re-run the verify chain above and re-check review threads. Required secrets: `CODESCENE_ACCESS_TOKEN` plus at least one of `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GOOGLE_API_KEY` / `OPENCODE_AUTH_JSON`.
+Reviewers can request Code Health-guided refactoring on any PR by commenting `/cs-agent` (workflow: [`.github/workflows/refactoring-agent.yml`](.github/workflows/refactoring-agent.yml); docs: [CodeScene PR Refactoring Agent](https://codescene.io/docs/developer-tools/pr-refactoring-agent.html)). The agent pushes changes back to the PR branch, so treat its commits like any other contribution: re-run the verify chain above and re-check review threads. Required secrets: `CODESCENE_ACCESS_TOKEN` plus at least one of `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GOOGLE_API_KEY` / `OPENCODE_AUTH_JSON`.
