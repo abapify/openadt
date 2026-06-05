@@ -42,4 +42,4 @@ Reviewers can request Code Health-guided refactoring on any PR by commenting `/c
 Configure under _Settings → Secrets and variables → Actions_:
 
 - **Variable** `CS_AGENT_MODEL` — backing model id (e.g. `anthropic/claude-sonnet-4-6-20251101` or a Kilo/OpenCode model).
-- **Secrets** `CODESCENE_ACCESS_TOKEN` plus at least one AI provider: `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GOOGLE_API_KEY`, or Kilo/OpenCode via `OPENCODE_AUTH_JSON` (optional `KILO_API_KEY`).
+- **Secrets** `CS_ACCESS_TOKEN` plus at least one AI provider: `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GOOGLE_API_KEY`, or Kilo/OpenCode via `OPENCODE_AUTH_JSON` (optional `KILO_API_KEY`).

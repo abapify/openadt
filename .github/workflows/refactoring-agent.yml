@@ -7,7 +7,7 @@
 #   - CS_AGENT_MODEL           (provider/model id, e.g. anthropic/claude-sonnet-4-6-20251101)
 #
 # Required repository secrets:
-#   - CODESCENE_ACCESS_TOKEN   (https://codescene.io/users/me/pat or on-prem token)
+#   - CS_ACCESS_TOKEN          (https://codescene.io/users/me/pat or on-prem token)
 #   - At least one AI provider:
 #       ANTHROPIC_API_KEY / OPENAI_API_KEY / GOOGLE_API_KEY
 #       or Kilo/OpenCode: OPENCODE_AUTH_JSON (+ optional KILO_API_KEY)
@@ -102,7 +102,7 @@ jobs:
           pr_number: ${{ github.event.issue.number }}
           command: ${{ steps.cmd.outputs.command }}
           model: ${{ vars.CS_AGENT_MODEL }}
-          codescene_token: ${{ secrets.CODESCENE_ACCESS_TOKEN }}
+          codescene_token: ${{ secrets.CS_ACCESS_TOKEN }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           openai_api_key: ${{ secrets.OPENAI_API_KEY }}
           google_api_key: ${{ secrets.GOOGLE_API_KEY }}
