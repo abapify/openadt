@@ -173,27 +173,29 @@ export function resolveEndpointPort(
   requestedPort?: number,
 ): ResolveEndpointResult {
   if (requestedPort !== undefined) {
-    if (
-      !Number.isFinite(requestedPort) ||
-      !Number.isInteger(requestedPort) ||
-      requestedPort < 1 ||
-      requestedPort > 65535
-    ) {
-      return {
-        ok: false,
-        message: `Invalid port: ${requestedPort} (must be an integer 1-65535).`,
-      };
-    }
-    const record = readEndpoint(requestedPort);
-    if (!record) {
-      return {
-        ok: false,
-        message: `No active MCP endpoint on port ${requestedPort}. Run: openadt mcp serve --port ${requestedPort}`,
-      };
-    }
-    return { ok: true, port: requestedPort, record };
+    return resolveExplicitPort(requestedPort);
   }
+  return resolveFromActive();
+}
 
+function resolveExplicitPort(port: number): ResolveEndpointResult {
+  if (!isValidPort(port)) {
+    return {
+      ok: false,
+      message: `Invalid port: ${port} (must be an integer 1-65535).`,
+    };
+  }
+  const record = readEndpoint(port);
+  if (!record) {
+    return {
+      ok: false,
+      message: `No active MCP endpoint on port ${port}. Run: openadt mcp serve --port ${port}`,
+    };
+  }
+  return { ok: true, port, record };
+}
+
+function resolveFromActive(): ResolveEndpointResult {
   const active = listEndpoints();
   if (active.length === 0) {
     return {
@@ -205,7 +207,6 @@ export function resolveEndpointPort(
     const record = active[0]!;
     return { ok: true, port: record.port, record };
   }
-
   const ports = active.map((e) => String(e.port)).join(", ");
   return {
     ok: false,

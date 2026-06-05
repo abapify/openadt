@@ -34,18 +34,27 @@ function requirePort(value: string): number {
   return port;
 }
 
+type PortArgResult = { value: string } | { missing: true } | null;
+
+function readPortArg(argv: string[], i: number): PortArgResult {
+  const arg = argv[i];
+  if (arg === "--port") {
+    const next = argv[i + 1];
+    if (next === undefined) return { missing: true };
+    return { value: next };
+  }
+  if (arg !== undefined && arg.startsWith("--port=")) {
+    return { value: arg.slice("--port=".length) };
+  }
+  return null;
+}
+
 function parseRequestedPort(argv: string[]): number | undefined {
   for (let i = 0; i < argv.length; i++) {
-    const arg = argv[i];
-    if (!arg) continue;
-    if (arg === "--port") {
-      const value = argv[i + 1];
-      if (value === undefined) fail("Error: --port requires a value");
-      return requirePort(value);
-    }
-    if (arg.startsWith("--port=")) {
-      return requirePort(arg.slice("--port=".length));
-    }
+    const r = readPortArg(argv, i);
+    if (r === null) continue;
+    if ("missing" in r) fail("Error: --port requires a value");
+    return requirePort(r.value);
   }
   return undefined;
 }
