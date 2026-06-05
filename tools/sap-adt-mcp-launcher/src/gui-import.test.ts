@@ -31,38 +31,34 @@ describe("readDestinationId", () => {
 });
 
 function withIsolatedHome(run: () => void): void {
-  const prevAppData = process.env.APPDATA;
-  const prevHome = process.env.USERPROFILE;
-  const prevHomeDrive = process.env.HOMEDRIVE;
-  const prevHomePath = process.env.HOMEPATH;
-  const isolated = join(tmpdir(), `openadt-home-${Date.now()}`);
+  const prev: Record<string, string | undefined> = {
+    APPDATA: process.env.APPDATA,
+    USERPROFILE: process.env.USERPROFILE,
+    HOMEDRIVE: process.env.HOMEDRIVE,
+    HOMEPATH: process.env.HOMEPATH,
+    HOME: process.env.HOME,
+    XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME,
+  };
+  const isolated = join(
+    tmpdir(),
+    `openadt-home-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  );
   mkdirSync(isolated, { recursive: true });
   process.env.APPDATA = join(isolated, "Roaming");
   process.env.USERPROFILE = isolated;
   delete process.env.HOMEDRIVE;
   delete process.env.HOMEPATH;
+  process.env.HOME = isolated;
+  process.env.XDG_CONFIG_HOME = join(isolated, ".config");
   try {
     run();
   } finally {
-    if (prevAppData === undefined) {
-      delete process.env.APPDATA;
-    } else {
-      process.env.APPDATA = prevAppData;
-    }
-    if (prevHome === undefined) {
-      delete process.env.USERPROFILE;
-    } else {
-      process.env.USERPROFILE = prevHome;
-    }
-    if (prevHomeDrive === undefined) {
-      delete process.env.HOMEDRIVE;
-    } else {
-      process.env.HOMEDRIVE = prevHomeDrive;
-    }
-    if (prevHomePath === undefined) {
-      delete process.env.HOMEPATH;
-    } else {
-      process.env.HOMEPATH = prevHomePath;
+    for (const [key, value] of Object.entries(prev)) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
     }
     rmSync(isolated, { recursive: true, force: true });
   }
@@ -77,12 +73,17 @@ describe("discoverGuiDestinations", () => {
 
   test("finds destinations under synthetic VS Code workspaceStorage", () => {
     withIsolatedHome(() => {
-      const fakeRoaming = process.env.APPDATA!;
+      const storageRoot =
+        process.platform === "win32"
+          ? join(process.env.APPDATA!, "Code", "User", "workspaceStorage")
+          : join(
+              process.env.XDG_CONFIG_HOME ?? join(process.env.HOME!, ".config"),
+              "Code",
+              "User",
+              "workspaceStorage",
+            );
       const destDir = join(
-        fakeRoaming,
-        "Code",
-        "User",
-        "workspaceStorage",
+        storageRoot,
         "abc123",
         "SAPSE.adt-vscode",
         "adtWorkspace",

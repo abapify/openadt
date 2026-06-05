@@ -80,6 +80,8 @@ function eclipseWorkspaceCandidates(): string[] {
 
 function listWorkspaceStorageRoots(): string[] {
   const home = homedir();
+  const xdgConfig =
+    process.env.XDG_CONFIG_HOME?.trim() || join(home, ".config");
   const roots: string[] = [];
   if (process.platform === "win32") {
     const appData = process.env.APPDATA;
@@ -87,9 +89,30 @@ function listWorkspaceStorageRoots(): string[] {
       roots.push(join(appData, "Code", "User", "workspaceStorage"));
       roots.push(join(appData, "Cursor", "User", "workspaceStorage"));
     }
+  } else if (process.platform === "darwin") {
+    roots.push(
+      join(
+        home,
+        "Library",
+        "Application Support",
+        "Code",
+        "User",
+        "workspaceStorage",
+      ),
+    );
+    roots.push(
+      join(
+        home,
+        "Library",
+        "Application Support",
+        "Cursor",
+        "User",
+        "workspaceStorage",
+      ),
+    );
   } else {
-    roots.push(join(home, ".config", "Code", "User", "workspaceStorage"));
-    roots.push(join(home, ".config", "Cursor", "User", "workspaceStorage"));
+    roots.push(join(xdgConfig, "Code", "User", "workspaceStorage"));
+    roots.push(join(xdgConfig, "Cursor", "User", "workspaceStorage"));
   }
   return roots.filter((p) => existsSync(p));
 }
