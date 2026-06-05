@@ -12,7 +12,7 @@ $launcher = Join-Path $repoRoot "scripts\nx-openadt.ts"
 
 $bun = Get-Command bun -ErrorAction SilentlyContinue
 if (-not $bun) {
-  Write-Error "bun is required for .\dev-openadt.ps1. Install bun or use: .\scripts\openadt-sdk.ps1 @args"
+  Write-Error "bun is required for .\dev-openadt.ps1. Install bun: https://bun.sh — or use .\scripts\openadt-sdk.ps1 with the same subcommand arguments."
   exit 1
 }
 

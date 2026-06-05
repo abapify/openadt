@@ -36,7 +36,7 @@ Spec: [specs/config.md](../../../specs/config.md), [specs/cli.md](../../../specs
 
 | Symptom | Fix |
 | --- | --- |
-| `no sapjco3 in java.library.path` | `jco_native_dir` must match host OS; `openadt setup` on host |
+| `no sapjco3 in java.library.path` | `jco_native_dir` must match host OS; `./dev-openadt setup` on host (from clone) or `openadt setup` when installed |
 | `SessionReferenceProvider` CNFE | Canonical core JCo first on classpath |
 | `Illegal JCo archive` | Re-run bootstrap / canonicalizer |
 | `Unrecognized field "default_profile"` | Rebuild/replace jar (profiles need current release) |
@@ -48,12 +48,14 @@ Spec: [specs/config.md](../../../specs/config.md), [specs/cli.md](../../../specs
 
 ## Validate (local machine only — never paste output to repo)
 
+From a **git clone**, prefix with `./dev-openadt` (Windows: `.\dev-openadt.ps1`). With Scoop/Homebrew on PATH, use `openadt` instead.
+
 ```bash
-openadt config
-openadt auth login DEV
-openadt fetch DEV /sap/bc/adt/core/http/systeminformation --json
+./dev-openadt config
+./dev-openadt auth login DEV
+./dev-openadt fetch DEV /sap/bc/adt/core/http/systeminformation --json
 ```
 
-`OPENADT_VERBOSE=true` for classpath/logon. Dev JAR: `scripts/openadt-sdk.ps1` (Windows).
+`OPENADT_VERBOSE=true` for classpath/logon. Alternative dev classpath: `scripts/openadt-sdk.ps1` (Windows).
 
 WSL/devcontainer split: [openadt-devcontainer-host-runtime](../openadt-devcontainer-host-runtime/SKILL.md).
