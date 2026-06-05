@@ -4,7 +4,7 @@ import {
   McpStdioEncoder,
   writeMcpStdioMessage,
 } from "./mcp-framing.ts";
-import { mcpUrl, waitForMcpHttp } from "./mcp.ts";
+import { mcpUrl } from "./mcp.ts";
 
 /** Parse MCP HTTP response body (JSON or SSE `data:` lines). */
 export function parseMcpHttpResponseBody(
@@ -89,6 +89,45 @@ export async function postMcpHttpMessage(
     sessionId: nextSessionId ?? undefined,
     status: res.status,
   };
+}
+
+/** Poll the MCP HTTP endpoint until it accepts a request. */
+export async function waitForMcpHttp(
+  port: number,
+  token: string,
+  options?: { timeoutMs?: number; intervalMs?: number },
+): Promise<boolean> {
+  const timeoutMs = options?.timeoutMs ?? 30_000;
+  const intervalMs = options?.intervalMs ?? 250;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await probeMcpHttp(port, token)) {
+      return true;
+    }
+    await sleep(intervalMs);
+  }
+  return false;
+}
+
+async function probeMcpHttp(port: number, token: string): Promise<boolean> {
+  try {
+    const res = await fetch(mcpUrl(port), {
+      method: "OPTIONS",
+      headers: {
+        "User-Agent": "openadt-mcp-client",
+        Authorization: `Bearer ${token}`,
+      },
+      signal: AbortSignal.timeout(10_000),
+    });
+    await res.arrayBuffer().catch(() => undefined);
+    return res.status > 0;
+  } catch {
+    return false;
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export type StdioMcpBridge = {

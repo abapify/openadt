@@ -38,6 +38,16 @@ export type GuiImportBundle = {
   sources: string[];
 };
 
+export type DestinationImportResult = {
+  workspace: string;
+  workspaceFolderUris: string[];
+  imported: GuiDestination[];
+  bundle?: GuiImportBundle;
+  importSource?: string;
+  destinationsStorePath?: string;
+  fileUris: string[];
+};
+
 /** Build the `abap:/<destinationId>` folder URI the ADT VS Code extension uses. */
 export function buildAbapWorkspaceFolderUri(destinationId: string): string {
   const trimmed = destinationId.trim();
@@ -166,16 +176,34 @@ function scoreBundle(destinations: GuiDestination[]): number {
   return destinations.length * 1_000_000_000_000 + newest;
 }
 
-/**
- * Discover SAP ADT destinations persisted by the VS Code / Cursor GUI
- * (Eclipse semantic cache under workspaceStorage).
- */
-export function discoverGuiDestinations(): GuiImportBundle | undefined {
-  const byWorkspace = new Map<
-    string,
-    { destinations: GuiDestination[]; sources: Set<string> }
-  >();
+type BundleEntry = {
+  destinations: GuiDestination[];
+  sources: Set<string>;
+};
 
+function mergeIntoBundle(
+  byWorkspace: Map<string, BundleEntry>,
+  adtWorkspacePath: string,
+  destinations: GuiDestination[],
+  sourceLabel: string,
+): void {
+  const existing = byWorkspace.get(adtWorkspacePath);
+  if (existing) {
+    for (const d of destinations) {
+      if (!existing.destinations.some((x) => x.id === d.id)) {
+        existing.destinations.push(d);
+      }
+    }
+    existing.sources.add(sourceLabel);
+    return;
+  }
+  byWorkspace.set(adtWorkspacePath, {
+    destinations: [...destinations],
+    sources: new Set([sourceLabel]),
+  });
+}
+
+function collectFromStorageRoots(byWorkspace: Map<string, BundleEntry>): void {
   for (const storageRoot of listWorkspaceStorageRoots()) {
     let entries: { name: string; isDirectory: () => boolean }[];
     try {
@@ -202,44 +230,26 @@ export function discoverGuiDestinations(): GuiImportBundle | undefined {
       if (destinations.length === 0) {
         continue;
       }
-      const existing = byWorkspace.get(adtWorkspacePath);
-      if (existing) {
-        for (const d of destinations) {
-          if (!existing.destinations.some((x) => x.id === d.id)) {
-            existing.destinations.push(d);
-          }
-        }
-        existing.sources.add(sourceLabel);
-      } else {
-        byWorkspace.set(adtWorkspacePath, {
-          destinations: [...destinations],
-          sources: new Set([sourceLabel]),
-        });
-      }
+      mergeIntoBundle(byWorkspace, adtWorkspacePath, destinations, sourceLabel);
     }
   }
+}
 
+function collectFromEclipseWorkspaces(
+  byWorkspace: Map<string, BundleEntry>,
+): void {
   for (const eclipseRoot of eclipseWorkspaceCandidates()) {
     const destinations = scanAdtWorkspace(eclipseRoot, "eclipse");
     if (destinations.length === 0) {
       continue;
     }
-    const existing = byWorkspace.get(eclipseRoot);
-    if (existing) {
-      for (const d of destinations) {
-        if (!existing.destinations.some((x) => x.id === d.id)) {
-          existing.destinations.push(d);
-        }
-      }
-      existing.sources.add("eclipse");
-    } else {
-      byWorkspace.set(eclipseRoot, {
-        destinations: [...destinations],
-        sources: new Set(["eclipse"]),
-      });
-    }
+    mergeIntoBundle(byWorkspace, eclipseRoot, destinations, "eclipse");
   }
+}
 
+function pickBestBundle(
+  byWorkspace: Map<string, BundleEntry>,
+): GuiImportBundle | undefined {
   let best: GuiImportBundle | undefined;
   let bestScore = 0;
   for (const [adtWorkspacePath, { destinations, sources }] of byWorkspace) {
@@ -256,19 +266,22 @@ export function discoverGuiDestinations(): GuiImportBundle | undefined {
   return best;
 }
 
+/**
+ * Discover SAP ADT destinations persisted by the VS Code / Cursor GUI
+ * (Eclipse semantic cache under workspaceStorage).
+ */
+export function discoverGuiDestinations(): GuiImportBundle | undefined {
+  const byWorkspace = new Map<string, BundleEntry>();
+  collectFromStorageRoots(byWorkspace);
+  collectFromEclipseWorkspaces(byWorkspace);
+  return pickBestBundle(byWorkspace);
+}
+
 export function resolveDestinationImport(
   workspace: string,
   importFrom: DestinationImportMode,
   explicitWorkspace: boolean,
-): {
-  workspace: string;
-  workspaceFolderUris: string[];
-  imported: GuiDestination[];
-  bundle?: GuiImportBundle;
-  importSource?: string;
-  destinationsStorePath?: string;
-  fileUris: string[];
-} {
+): DestinationImportResult {
   if (importFrom === "none") {
     return emptyImport(workspace);
   }
@@ -293,14 +306,14 @@ export function resolveDestinationImport(
   return importFromOpenAdt(workspace);
 }
 
-function emptyImport(workspace: string) {
+function emptyImport(workspace: string): DestinationImportResult {
   return { workspace, workspaceFolderUris: [], imported: [], fileUris: [] };
 }
 
 function importFromAdtls(
   workspace: string,
   explicitWorkspace: boolean,
-): ReturnType<typeof resolveDestinationImport> | undefined {
+): DestinationImportResult | undefined {
   const adtls = discoverAdtlsDestinations(workspace);
   if (!adtls || adtls.destinations.length === 0) {
     return undefined;
@@ -326,7 +339,7 @@ function importFromAdtls(
 function importFromGui(
   workspace: string,
   explicitWorkspace: boolean,
-): ReturnType<typeof resolveDestinationImport> {
+): DestinationImportResult {
   const bundle = discoverGuiDestinations();
   if (!bundle || bundle.destinations.length === 0) {
     return {
@@ -347,9 +360,7 @@ function importFromGui(
   };
 }
 
-function importFromOpenAdt(
-  workspace: string,
-): ReturnType<typeof resolveDestinationImport> {
+function importFromOpenAdt(workspace: string): DestinationImportResult {
   const materialized = materializeOpenAdtDestinations(workspace);
   if (materialized.length === 0) {
     return emptyImport(workspace);

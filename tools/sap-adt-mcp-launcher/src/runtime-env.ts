@@ -14,6 +14,75 @@ export type AdtLscSpawnRuntime = {
 
 const LOCAL_CONFIG = join(homedir(), ".openadt", "local.openadt.toml");
 
+export type GetEnvOptions = {
+  required?: boolean;
+  default?: string;
+};
+
+export type GetEnvIntOptions = {
+  min?: number;
+  max?: number;
+};
+
+export type GetEnvPathOptions = {
+  mustExist?: boolean;
+};
+
+/** Read a string env var. `default` applies when unset or blank; `required` throws otherwise. */
+export function getEnv(
+  name: string,
+  opts: GetEnvOptions = {},
+): string | undefined {
+  const raw = process.env[name]?.trim();
+  if (raw) {
+    return raw;
+  }
+  if (opts.default !== undefined) {
+    return opts.default;
+  }
+  if (opts.required) {
+    throw new Error(`Missing required env var ${name}`);
+  }
+  return undefined;
+}
+
+/** Parse an env var as an integer within `[min, max]`. Returns undefined when unset/blank. */
+export function getEnvInt(
+  name: string,
+  opts: GetEnvIntOptions = {},
+): number | undefined {
+  const raw = process.env[name]?.trim();
+  if (!raw) {
+    return undefined;
+  }
+  const value = Number(raw);
+  if (!Number.isInteger(value)) {
+    throw new Error(`Env ${name}=${raw} is not an integer`);
+  }
+  if (opts.min !== undefined && value < opts.min) {
+    throw new Error(`Env ${name}=${value} below min ${opts.min}`);
+  }
+  if (opts.max !== undefined && value > opts.max) {
+    throw new Error(`Env ${name}=${value} above max ${opts.max}`);
+  }
+  return value;
+}
+
+/** Read a filesystem path env var; reject when `mustExist` and the path is absent. */
+export function getEnvPath(
+  name: string,
+  opts: GetEnvPathOptions = {},
+): string | undefined {
+  const raw = process.env[name]?.trim();
+  if (!raw) {
+    return undefined;
+  }
+  if (opts.mustExist && !existsSync(raw)) {
+    return undefined;
+  }
+  return raw;
+}
+
 /** Minimal TOML field read (avoid pulling full parser into launcher). */
 export function loadOpenAdtRuntimePaths(): OpenAdtRuntimePaths {
   if (!existsSync(LOCAL_CONFIG)) {
@@ -94,7 +163,7 @@ export function isSecureLoginSecudir(candidate: string): boolean {
 
 function secudirCandidates(): string[] {
   const home = homedir();
-  const appData = process.env.APPDATA;
+  const appData = getEnv("APPDATA", { default: "" });
   const candidates: string[] = [];
   if (appData) {
     candidates.push(join(appData, "SAP", "Common"));

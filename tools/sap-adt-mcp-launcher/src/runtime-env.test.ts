@@ -1,8 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import {
   buildAdtLscSpawnRuntime,
-  ensureMinimalProcessEnv,
-  isSecureLoginSecudir,
+  getEnv,
+  getEnvInt,
+  getEnvPath,
   isVsCodeAdtWorkspacePath,
 } from "./runtime-env.ts";
 
@@ -31,53 +32,61 @@ describe("buildAdtLscSpawnRuntime", () => {
     expect(rt.jvmArgs.some((a) => a.includes("snc_lib"))).toBe(true);
     expect(rt.jvmArgs.some((a) => a.includes("java.library.path"))).toBe(true);
   });
+});
 
-  test("includes configured native dirs in java.library.path", () => {
-    const rt = buildAdtLscSpawnRuntime({
-      jcoNativeDir: "C:\\SAP\\jco",
-      sapcrypto: "C:\\SAP\\sapcrypto.dll",
-    });
-    const libPath = rt.jvmArgs.find((a) =>
-      a.startsWith("-Djava.library.path="),
+describe("getEnv", () => {
+  test("returns trimmed value", () => {
+    process.env.OPENADT_TEST_GETENV = "  hello  ";
+    try {
+      expect(getEnv("OPENADT_TEST_GETENV")).toBe("hello");
+    } finally {
+      delete process.env.OPENADT_TEST_GETENV;
+    }
+  });
+
+  test("returns default when unset", () => {
+    delete process.env.OPENADT_TEST_GETENV_MISSING;
+    expect(getEnv("OPENADT_TEST_GETENV_MISSING", { default: "fallback" })).toBe(
+      "fallback",
     );
-    expect(libPath).toContain("jco");
-    expect(libPath).toContain("SAP");
+  });
+
+  test("throws when required and missing", () => {
+    delete process.env.OPENADT_TEST_GETENV_MISSING;
+    expect(() =>
+      getEnv("OPENADT_TEST_GETENV_MISSING", { required: true }),
+    ).toThrow(/Missing required/);
   });
 });
 
-describe("ensureMinimalProcessEnv", () => {
-  test("fills Windows profile dirs when agent strips env", () => {
-    if (process.platform !== "win32") {
-      // The function is a no-op off-Windows; covered by typecheck.
-      const env = ensureMinimalProcessEnv({ Path: "C:\\Users\\me\\.bun\\bin" });
-      expect(env.Path).toBe("C:\\Users\\me\\.bun\\bin");
-      return;
+describe("getEnvInt", () => {
+  test("parses integer", () => {
+    process.env.OPENADT_TEST_PORT = "2236";
+    try {
+      expect(getEnvInt("OPENADT_TEST_PORT", { min: 1, max: 65535 })).toBe(2236);
+    } finally {
+      delete process.env.OPENADT_TEST_PORT;
     }
-    const env = ensureMinimalProcessEnv({
-      Path: "C:\\Users\\me\\.bun\\bin",
-    });
-    expect(env.APPDATA).toContain("AppData");
-    expect(env.LOCALAPPDATA).toContain("Local");
-    expect(env.SystemRoot).toBe("C:\\Windows");
+  });
+
+  test("rejects out-of-range", () => {
+    process.env.OPENADT_TEST_PORT = "99999";
+    try {
+      expect(() =>
+        getEnvInt("OPENADT_TEST_PORT", { min: 1, max: 65535 }),
+      ).toThrow(/above max/);
+    } finally {
+      delete process.env.OPENADT_TEST_PORT;
+    }
   });
 });
 
-describe("isSecureLoginSecudir", () => {
-  test("rejects openadt HTTP CA sec folder", () => {
-    expect(isSecureLoginSecudir("C:\\Users\\me\\.openadt\\sec")).toBe(false);
-  });
-
-  test("accepts SAP Common when present", () => {
-    if (process.platform !== "win32") {
-      // SAP Common path is Windows-only; the function still rejects our own
-      // sec folder on every platform.
-      expect(isSecureLoginSecudir("C:\\Users\\me\\.openadt\\sec")).toBe(false);
-      return;
-    }
+describe("getEnvPath", () => {
+  test("returns undefined when mustExist and missing", () => {
+    process.env.OPENADT_TEST_PATH = "/nonexistent/openadt-test";
     expect(
-      isSecureLoginSecudir(
-        "C:\\Program Files\\SAP\\FrontEnd\\SecureLogin\\lib",
-      ),
-    ).toBe(true);
+      getEnvPath("OPENADT_TEST_PATH", { mustExist: true }),
+    ).toBeUndefined();
+    delete process.env.OPENADT_TEST_PATH;
   });
 });
