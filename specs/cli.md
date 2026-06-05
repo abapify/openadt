@@ -418,5 +418,5 @@ To avoid browser SSO entirely: set `OPENADT_MYSAPSSO2` or `OPENADT_COOKIE_FILE`,
 
 Local SDK dev runner (not required in production installs):
 
-- `./openadt` / `bun run openadt` — Nx `openadt-cli:run` (cached `compile` + dev classpath from `apps/*/target/classes`; fat jar only for Maven deps, built once via `ensure-dev-jar`)
+- `./dev-openadt` / `bun run openadt` — Nx `openadt-cli:run` (cached `compile` + dev classpath from `apps/*/target/classes`; fat jar only for Maven deps, built once via `ensure-dev-jar`)
 - `scripts/openadt-sdk.ps1` — same classpath layout without Nx; run `nx run openadt-cli:compile` first after pulling changes

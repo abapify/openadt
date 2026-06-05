@@ -58,18 +58,20 @@ Shaded CLI jar: `apps/openadt-cli/target/openadt-*.jar` (version matches root `p
 
 ## Run from clone
 
-**Windows (repo scripts):**
+**Windows (repo scripts — explicit `./dev-openadt`, not bare `openadt`):**
 
 ```powershell
-.\openadt.ps1 --help
-.\openadt.cmd fetch DEV /sap/bc/adt/core/http/systeminformation --profile sso
+.\dev-openadt.ps1 --help
+.\dev-openadt.cmd fetch DEV /sap/bc/adt/core/http/systeminformation --profile sso
 ```
+
+Bare `openadt` on PATH is the **Scoop/Homebrew** install. From a clone, do not name dev scripts `openadt.*` at repo root (CMD searches the current directory first).
 
 **Unix / Git Bash:**
 
 ```bash
-chmod +x openadt
-./openadt config bootstrap
+chmod +x dev-openadt
+./dev-openadt config bootstrap
 ```
 
 **SDK classpath from `target/` (Windows):**
