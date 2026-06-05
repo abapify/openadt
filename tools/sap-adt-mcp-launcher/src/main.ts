@@ -35,7 +35,7 @@ import {
   startMcpServer,
   stopMcpServer,
 } from "./mcp.ts";
-import { MARKETPLACE_URL } from "./types.ts";
+import { MARKETPLACE_URL, type McpServeConfig } from "./types.ts";
 
 const EXIT_OK = 0;
 const EXIT_NO_EXTENSION = 1;
@@ -65,6 +65,69 @@ function extensionMissing(): never {
   process.exit(EXIT_NO_EXTENSION);
 }
 
+type ServerState = {
+  url: string;
+  port: number;
+  token: string;
+  endpointFile: string;
+  version?: string;
+  extensionVersion: string;
+  adtLscPath: string;
+  workspace: string;
+  importFrom: string;
+  importSource?: string;
+  destinations: string[];
+};
+
+function printImportNotices(
+  cfg: McpServeConfig,
+  gui: ReturnType<typeof resolveDestinationImport>,
+): void {
+  if (gui.imported.length === 0 && cfg.importFrom !== "none") {
+    console.error(
+      "No destinations to import.\n" +
+        "ADT LS store: log on in VS Code (creates ~/.adtls/destinations.json), or\n" +
+        "GUI: Add Destination as Folder to Workspace, or `openadt setup` for ~/.openadt fallback.",
+    );
+    return;
+  }
+  if (gui.imported.length === 0 || cfg.json) {
+    return;
+  }
+  const ids = gui.imported.map((d) => d.id).join(", ");
+  const via = gui.importSource ?? cfg.importFrom;
+  console.error(
+    `Imported ${gui.imported.length} destination(s) from ${via}: ${ids}`,
+  );
+  if (
+    cfg.explicitWorkspace &&
+    isVsCodeAdtWorkspacePath(cfg.workspace) &&
+    gui.workspace !== cfg.workspace
+  ) {
+    console.error(
+      `Using separate adt-lsc workspace: ${gui.workspace}\n` +
+        "(VS Code adtWorkspace is not used as -data to avoid lock conflicts.)",
+    );
+  }
+}
+
+function printServeState(state: ServerState, cfg: McpServeConfig): void {
+  if (cfg.json) {
+    const out = { ...state };
+    if (!cfg.showToken) out.token = redactToken(out.token);
+    console.log(JSON.stringify(out, null, 2));
+    return;
+  }
+  console.log(`SAP ADT MCP listening at ${state.url}`);
+  console.log(`Cursor config: openadt mcp print-config --port ${state.port}`);
+  console.log(`Endpoint store: ${state.endpointFile}`);
+  console.log(
+    `Extension: ${state.extensionVersion} · Workspace: ${cfg.workspace}`,
+  );
+  if (cfg.showToken) console.log(`Bearer token: ${state.token}`);
+  console.log("Press Ctrl+C to stop.");
+}
+
 async function cmdServe(argv: string[]): Promise<number> {
   const cfg = parseServeArgv(argv);
   const install = locateAdtLs();
@@ -77,30 +140,7 @@ async function cmdServe(argv: string[]): Promise<number> {
     cfg.importFrom,
     cfg.explicitWorkspace,
   );
-
-  if (gui.imported.length === 0 && cfg.importFrom !== "none") {
-    console.error(
-      "No destinations to import.\n" +
-        "ADT LS store: log on in VS Code (creates ~/.adtls/destinations.json), or\n" +
-        "GUI: Add Destination as Folder to Workspace, or `openadt setup` for ~/.openadt fallback.",
-    );
-  } else if (gui.imported.length > 0 && !cfg.json) {
-    const ids = gui.imported.map((d) => d.id).join(", ");
-    const via = gui.importSource ?? cfg.importFrom;
-    console.error(
-      `Imported ${gui.imported.length} destination(s) from ${via}: ${ids}`,
-    );
-    if (
-      cfg.explicitWorkspace &&
-      isVsCodeAdtWorkspacePath(cfg.workspace) &&
-      gui.workspace !== cfg.workspace
-    ) {
-      console.error(
-        `Using separate adt-lsc workspace: ${gui.workspace}\n` +
-          "(VS Code adtWorkspace is not used as -data to avoid lock conflicts.)",
-      );
-    }
-  }
+  printImportNotices(cfg, gui);
 
   const log = createMcpLog({ verbose: cfg.verbose, logFile: cfg.logFile });
   if (log) {
@@ -116,24 +156,12 @@ async function cmdServe(argv: string[]): Promise<number> {
   }
 
   const token = generateMcpToken();
-  let session;
-  try {
-    const destinationIds = gui.imported.map((d) => d.id);
-    session = await connectAdtLanguageServer(install, gui.workspace, {
-      workspaceFolderUris: gui.workspaceFolderUris,
-      destinationsStorePath: gui.destinationsStorePath ?? "",
-      createProjectIds: destinationIds,
-      ensureLoggedOnIds: destinationIds,
-      logonTimeoutMs: cfg.logonTimeoutMs,
-      log,
-    });
-  } catch (err) {
-    console.error(
-      `Failed to start adt-lsc or LSP handshake: ${formatError(err)}`,
-    );
+  const connectResult = await connectLanguageServer(install, cfg, gui, log);
+  if ("exit" in connectResult) {
     log?.dispose();
-    return EXIT_LSC_START;
+    return connectResult.exit;
   }
+  const { session } = connectResult;
 
   let endpointWritten = false;
   let endpointPort: number | undefined;
@@ -167,7 +195,7 @@ async function cmdServe(argv: string[]): Promise<number> {
     writeEndpoint(endpoint);
     endpointWritten = true;
 
-    const state = {
+    const state: ServerState = {
       url: endpoint.url,
       port: endpoint.port,
       token: endpoint.token,
@@ -180,27 +208,7 @@ async function cmdServe(argv: string[]): Promise<number> {
       importSource: gui.importSource,
       destinations: endpoint.destinations,
     };
-
-    if (cfg.json) {
-      const out = { ...state };
-      if (!cfg.showToken) {
-        out.token = redactToken(out.token);
-      }
-      console.log(JSON.stringify(out, null, 2));
-    } else {
-      console.log(`SAP ADT MCP listening at ${state.url}`);
-      console.log(
-        `Cursor config: openadt mcp print-config --port ${state.port}`,
-      );
-      console.log(`Endpoint store: ${endpointFilePath(state.port)}`);
-      console.log(
-        `Extension: ${install.version} · Workspace: ${cfg.workspace}`,
-      );
-      if (cfg.showToken) {
-        console.log(`Bearer token: ${state.token}`);
-      }
-      console.log("Press Ctrl+C to stop.");
-    }
+    printServeState(state, cfg);
 
     await waitForShutdown(session, cfg.foreground);
     return EXIT_OK;
@@ -220,6 +228,35 @@ async function cmdServe(argv: string[]): Promise<number> {
       await disposeLspSession(session);
     }
     log?.dispose();
+  }
+}
+
+type ConnectResult =
+  | { session: Awaited<ReturnType<typeof connectAdtLanguageServer>> }
+  | { exit: number };
+
+async function connectLanguageServer(
+  install: NonNullable<ReturnType<typeof locateAdtLs>>,
+  cfg: McpServeConfig,
+  gui: ReturnType<typeof resolveDestinationImport>,
+  log: ReturnType<typeof createMcpLog>,
+): Promise<ConnectResult> {
+  try {
+    const destinationIds = gui.imported.map((d) => d.id);
+    const session = await connectAdtLanguageServer(install, gui.workspace, {
+      workspaceFolderUris: gui.workspaceFolderUris,
+      destinationsStorePath: gui.destinationsStorePath ?? "",
+      createProjectIds: destinationIds,
+      ensureLoggedOnIds: destinationIds,
+      logonTimeoutMs: cfg.logonTimeoutMs,
+      log,
+    });
+    return { session };
+  } catch (err) {
+    console.error(
+      `Failed to start adt-lsc or LSP handshake: ${formatError(err)}`,
+    );
+    return { exit: EXIT_LSC_START };
   }
 }
 
