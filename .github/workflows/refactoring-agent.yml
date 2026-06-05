@@ -3,9 +3,14 @@
 # Reviewers trigger Code Health-guided refactoring by commenting `/cs-agent` on a PR
 # (or `/cs-agent <skill>` for an explicit skill, e.g. `skill:uplift-code-health`).
 #
+# Required repository variable:
+#   - CS_AGENT_MODEL           (provider/model id, e.g. anthropic/claude-sonnet-4-6-20251101)
+#
 # Required repository secrets:
 #   - CODESCENE_ACCESS_TOKEN   (https://codescene.io/users/me/pat or on-prem token)
-#   - ANTHROPIC_API_KEY        (or OPENAI_API_KEY / GOOGLE_API_KEY / OPENCODE_AUTH_JSON)
+#   - At least one AI provider:
+#       ANTHROPIC_API_KEY / OPENAI_API_KEY / GOOGLE_API_KEY
+#       or Kilo/OpenCode: OPENCODE_AUTH_JSON (+ optional KILO_API_KEY)
 name: PR Refactoring Agent
 
 on:
@@ -33,6 +38,9 @@ jobs:
        github.event.comment.author_association == 'MEMBER' ||
        github.event.comment.author_association == 'COLLABORATOR')
     runs-on: ubuntu-latest
+    env:
+      # Kilo/OpenCode reads KILO_API_KEY from the process environment (not an action input).
+      KILO_API_KEY: ${{ secrets.KILO_API_KEY }}
     permissions:
       contents: write
       pull-requests: write
@@ -80,11 +88,20 @@ jobs:
             echo "$rest"
             echo "EOF"
           } >>"$GITHUB_OUTPUT"
+      - name: Check agent configuration
+        env:
+          CS_AGENT_MODEL: ${{ vars.CS_AGENT_MODEL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CS_AGENT_MODEL}" ]; then
+            echo "::error::Repository variable CS_AGENT_MODEL is not set (Settings → Secrets and variables → Actions → Variables)." >&2
+            exit 1
+          fi
       - uses: codescene-oss/pr-refactoring-agent@36399b741c2b575dea5fbd456aecc000b7e9af74 # v1.0.0
         with:
           pr_number: ${{ github.event.issue.number }}
           command: ${{ steps.cmd.outputs.command }}
-          model: "anthropic/claude-sonnet-4-6-20251101"
+          model: ${{ vars.CS_AGENT_MODEL }}
           codescene_token: ${{ secrets.CODESCENE_ACCESS_TOKEN }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           openai_api_key: ${{ secrets.OPENAI_API_KEY }}

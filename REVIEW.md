@@ -37,4 +37,9 @@ Before claiming “N issues fixed”: name the **source**, query it on **current
 
 ## CodeScene PR Refactoring Agent
 
-Reviewers can request Code Health-guided refactoring on any PR by commenting `/cs-agent` (workflow: [`.github/workflows/refactoring-agent.yml`](.github/workflows/refactoring-agent.yml); docs: [CodeScene PR Refactoring Agent](https://codescene.io/docs/developer-tools/pr-refactoring-agent.html)). The agent pushes changes back to the PR branch, so treat its commits like any other contribution: re-run the verify chain above and re-check review threads. Required secrets: `CODESCENE_ACCESS_TOKEN` plus at least one of `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GOOGLE_API_KEY` / `OPENCODE_AUTH_JSON`.
+Reviewers can request Code Health-guided refactoring on any PR by commenting `/cs-agent` (workflow: [`.github/workflows/refactoring-agent.yml`](.github/workflows/refactoring-agent.yml); docs: [CodeScene PR Refactoring Agent](https://codescene.io/docs/developer-tools/pr-refactoring-agent.html)). The agent pushes changes back to the PR branch, so treat its commits like any other contribution: re-run the verify chain above and re-check review threads.
+
+Configure under _Settings → Secrets and variables → Actions_:
+
+- **Variable** `CS_AGENT_MODEL` — backing model id (e.g. `anthropic/claude-sonnet-4-6-20251101` or a Kilo/OpenCode model).
+- **Secrets** `CODESCENE_ACCESS_TOKEN` plus at least one AI provider: `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GOOGLE_API_KEY`, or Kilo/OpenCode via `OPENCODE_AUTH_JSON` (optional `KILO_API_KEY`).
