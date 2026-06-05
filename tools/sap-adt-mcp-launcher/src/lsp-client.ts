@@ -249,13 +249,13 @@ async function createProjectAndLogon(
   let lastError: Error | undefined;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      await runLogonAttempt(
+      await runLogonAttempt({
         connection,
         destinationId,
         logonTimeoutMs,
-        delaysMs[attempt]!,
+        preLogonDelayMs: delaysMs[attempt]!,
         log,
-      );
+      });
       return;
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(formatError(err));
@@ -287,18 +287,18 @@ function logRetryWarning(
   );
 }
 
-async function runLogonAttempt(
-  connection: MessageConnection,
-  destinationId: string,
-  logonTimeoutMs: number,
-  preLogonDelayMs: number,
-  log: McpLog | undefined,
-): Promise<void> {
-  await createProjectOnce(connection, destinationId, log);
-  await sleep(preLogonDelayMs);
-  await ensureDestinationLoggedOn(connection, destinationId, {
-    timeoutMs: logonTimeoutMs,
-    log,
+async function runLogonAttempt(input: {
+  connection: MessageConnection;
+  destinationId: string;
+  logonTimeoutMs: number;
+  preLogonDelayMs: number;
+  log: McpLog | undefined;
+}): Promise<void> {
+  await createProjectOnce(input.connection, input.destinationId, input.log);
+  await sleep(input.preLogonDelayMs);
+  await ensureDestinationLoggedOn(input.connection, input.destinationId, {
+    timeoutMs: input.logonTimeoutMs,
+    log: input.log,
   });
 }
 

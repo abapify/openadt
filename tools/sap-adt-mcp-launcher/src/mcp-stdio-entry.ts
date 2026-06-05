@@ -37,19 +37,15 @@ const PORT_MAX = 65535;
 async function pickMcpPort(): Promise<number> {
   const explicit = process.env.OPENADT_MCP_PORT?.trim();
   if (explicit) {
-    return parseExplicitPort(explicit);
-  }
-  return bindEphemeralPort();
-}
-
-function parseExplicitPort(raw: string): number {
-  const port = Number(raw);
-  if (Number.isInteger(port) && port >= PORT_MIN && port <= PORT_MAX) {
+    const port = Number(explicit);
+    if (!Number.isInteger(port) || port < PORT_MIN || port > PORT_MAX) {
+      throw new Error(
+        `Invalid OPENADT_MCP_PORT=${explicit} (expected integer ${PORT_MIN}-${PORT_MAX}); falling back to ephemeral.`,
+      );
+    }
     return port;
   }
-  throw new Error(
-    `Invalid OPENADT_MCP_PORT=${raw} (expected integer ${PORT_MIN}-${PORT_MAX}); falling back to ephemeral.`,
-  );
+  return bindEphemeralPort();
 }
 
 function bindEphemeralPort(): Promise<number> {
