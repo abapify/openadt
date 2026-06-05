@@ -99,6 +99,10 @@ function isValidEndpoint(
   );
 }
 
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
 function parseEndpoint(raw: string): McpEndpointRecord | undefined {
   let record: unknown;
   try {
@@ -106,7 +110,7 @@ function parseEndpoint(raw: string): McpEndpointRecord | undefined {
   } catch {
     return undefined;
   }
-  if (!record || typeof record !== "object" || Array.isArray(record)) {
+  if (!isJsonObject(record)) {
     return undefined;
   }
   const r = record as Partial<McpEndpointRecord>;
