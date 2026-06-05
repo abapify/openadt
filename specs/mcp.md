@@ -239,11 +239,11 @@ Run via `./dev-openadt mcp …` (clone) or `openadt mcp …` (Scoop/Homebrew). R
 
 Same flags as `serve`. Stdio-specific rules:
 
-| Stream     | Content                                          |
-| ---------- | ------------------------------------------------ |
-| **stdout** | MCP messages only (Content-Length framing)       |
-| **stderr** | Startup, logon hints, errors (never MCP payload) |
-| **stdin**  | Client → server MCP messages                     |
+| Stream     | Content                                                                         |
+| ---------- | ------------------------------------------------------------------------------- |
+| **stdout** | MCP messages only (Content-Length or NDJSON framing, matching client transport) |
+| **stderr** | Startup, logon hints, errors (never MCP payload)                                |
+| **stdin**  | Client → server MCP messages                                                    |
 
 **Not in scope for `--stdio`:** `--attach`, fake `initialize` responses, or attaching to a foreign long-running `serve` without owning its child. One invocation = one parent that owns `adt-lsc` and HTTP MCP.
 

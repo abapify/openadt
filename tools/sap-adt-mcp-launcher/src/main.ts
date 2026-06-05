@@ -271,7 +271,12 @@ async function cmdServe(argv: string[]): Promise<number> {
       `LSP ← adtLs/mcp/startMCPServer port=${started.port} version=${started.version ?? "?"}`,
     );
     try {
-      await waitForMcpHttp(started.port, started.token);
+      const ready = await waitForMcpHttp(started.port, started.token);
+      if (!ready) {
+        throw new Error(
+          `MCP HTTP not ready at ${mcpUrl(started.port)} within timeout`,
+        );
+      }
     } catch (err) {
       log?.error(
         `MCP HTTP not ready at port ${started.port}: ${formatError(err)}`,

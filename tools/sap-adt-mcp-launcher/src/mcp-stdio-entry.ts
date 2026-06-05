@@ -118,8 +118,43 @@ child.stderr.on("error", () => {
 });
 
 child.on("exit", (code, signal) => {
-  if (signal) {
-    process.exit(1);
+  // Give the stdout/stderr pipes a tick to flush any final bytes the child
+  // wrote just before exiting, then exit with the child's status. process.exit
+  // terminates the event loop immediately, which can otherwise truncate the
+  // tail of a streamable HTTP response in the MCP client.
+  const finalize = () => {
+    if (signal) {
+      process.exit(1);
+    }
+    process.exit(code ?? 1);
+  };
+  const streams: Array<NodeJS.ReadableStream | null> = [
+    child.stdout,
+    child.stderr,
+  ];
+  let pending = streams.length;
+  const onDrained = () => {
+    pending -= 1;
+    if (pending === 0) {
+      finalize();
+    }
+  };
+  for (const stream of streams) {
+    if (!stream) {
+      onDrained();
+      continue;
+    }
+    const readable = stream as NodeJS.ReadableStream & {
+      writableEnded?: boolean;
+      writableLength?: number;
+      end?: () => void;
+    };
+    if (readable.writableEnded && readable.writableLength === 0) {
+      onDrained();
+    } else {
+      readable.once("drain", onDrained);
+      readable.end?.();
+    }
   }
-  process.exit(code ?? 1);
+  setTimeout(finalize, 250).unref();
 });

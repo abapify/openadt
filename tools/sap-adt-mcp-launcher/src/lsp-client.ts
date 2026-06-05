@@ -176,7 +176,16 @@ export async function connectAdtLanguageServer(
       (id) => !logonIds.has(id),
     );
     for (const destinationId of createOnlyIds) {
-      await createProjectOnce(connection, destinationId, log);
+      // Best-effort: an already-registered destination that fails
+      // createProject should not abort logon. createProjectAndLogon (below)
+      // still runs the createProject+logon pair with a retry.
+      try {
+        await createProjectOnce(connection, destinationId, log);
+      } catch (err) {
+        log?.warn(
+          `${LSP_METHOD_DESTINATIONS_CREATE_PROJECT} ${destinationId}: ${formatError(err)}`,
+        );
+      }
     }
     for (const destinationId of options.ensureLoggedOnIds ?? []) {
       await createProjectAndLogon(connection, destinationId, {

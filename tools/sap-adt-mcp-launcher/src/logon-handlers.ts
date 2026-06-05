@@ -237,7 +237,8 @@ export async function ensureDestinationLoggedOn(
     throw new Error(
       `Logon to ${destinationId} did not reach 'connected' (${detail}). ` +
         "Approve Secure Login / SSO if prompted. If this repeats: run with --verbose, " +
-        "stop stale adt-lsc (Get-Process adt-lsc | Stop-Process -Force), check ~/.openadt/local.openadt.toml jco_native_dir/sapcrypto.",
+        "stop stale adt-lsc (pkill adt-lsc on macOS/Linux, Get-Process adt-lsc | Stop-Process -Force on Windows), " +
+        "check ~/.openadt/local.openadt.toml jco_native_dir/sapcrypto.",
     );
   }
 }

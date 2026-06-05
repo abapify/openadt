@@ -111,10 +111,14 @@ export function killProcessByPid(pid: number): void {
         process.kill(pid, "SIGTERM");
         return;
       }
-      spawn(taskkill, ["/T", "/F", "/PID", String(pid)], {
+      const killer = spawn(taskkill, ["/T", "/F", "/PID", String(pid)], {
         stdio: "ignore",
         windowsHide: true,
       });
+      killer.on("error", () => {
+        /* taskkill unavailable / not on PATH; ignore — process.kill is the fallback */
+      });
+      killer.unref();
     } else {
       process.kill(pid, "SIGTERM");
     }

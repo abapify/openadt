@@ -235,9 +235,6 @@ export async function stopTrackedMcpServers(
     }
   }
   let stopped = 0;
-  for (const ep of scoped) {
-    removeEndpoint(ep.port);
-  }
   for (const pid of pids) {
     if (!isProcessAlive(pid)) {
       continue;
@@ -248,6 +245,12 @@ export async function stopTrackedMcpServers(
   await Promise.all([...pids].map((pid) => waitForProcessExit(pid, 8_000)));
   if (stopped > 0) {
     await sleep(1_000);
+  }
+  // Remove endpoint records only after the targeted PIDs have actually
+  // exited; otherwise a failed kill would leave a live MCP server with
+  // no entry in the store and we'd leak both the process and its port.
+  for (const ep of scoped) {
+    removeEndpoint(ep.port);
   }
   return stopped;
 }
