@@ -8,22 +8,53 @@ import { join } from "node:path";
 import { resolveEndpointPort } from "../tools/sap-adt-mcp-launcher/src/endpoint-store.ts";
 import { cursorMcpSnippet } from "../tools/sap-adt-mcp-launcher/src/mcp.ts";
 
-const argv = process.argv.slice(2);
-let requestedPort: number | undefined;
-for (let i = 0; i < argv.length; i++) {
-  const arg = argv[i]!;
-  if (arg === "--port" && i + 1 < argv.length) {
-    requestedPort = Number.parseInt(argv[++i]!, 10);
-  } else if (arg.startsWith("--port=")) {
-    requestedPort = Number.parseInt(arg.slice("--port=".length), 10);
+function parseRequestedPort(argv: string[]): number | undefined {
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (!arg) continue;
+    if (arg === "--port") {
+      const value = argv[i + 1];
+      if (value === undefined) {
+        console.error("Error: --port requires a value");
+        process.exit(1);
+      }
+      const port = Number.parseInt(value, 10);
+      if (
+        !Number.isFinite(port) ||
+        !Number.isInteger(port) ||
+        port < 1 ||
+        port > 65535
+      ) {
+        console.error(`Invalid --port: ${value} (must be an integer 1-65535)`);
+        process.exit(1);
+      }
+      return port;
+    }
+    if (arg.startsWith("--port=")) {
+      const value = arg.slice("--port=".length);
+      const port = Number.parseInt(value, 10);
+      if (
+        !Number.isFinite(port) ||
+        !Number.isInteger(port) ||
+        port < 1 ||
+        port > 65535
+      ) {
+        console.error(`Invalid --port: ${value} (must be an integer 1-65535)`);
+        process.exit(1);
+      }
+      return port;
+    }
   }
+  return undefined;
 }
+
+const requestedPort = parseRequestedPort(process.argv.slice(2));
 
 const resolved = resolveEndpointPort(requestedPort);
 if (!resolved.ok) {
   console.error(resolved.message);
   console.error(
-    "Start a server first, e.g. bun run openadt -- mcp serve --port 2257 --destination S0D_200_PPLENKOV_EN",
+    "Start a server first, e.g. bun run openadt -- mcp serve --port 2257 --destination DEV_100_developer_en",
   );
   process.exit(1);
 }
@@ -40,15 +71,17 @@ mkdirSync(cursorDir, { recursive: true });
 let existing: { mcpServers?: Record<string, unknown> } = { mcpServers: {} };
 if (existsSync(outPath)) {
   try {
-    existing = JSON.parse(readFileSync(outPath, "utf8")) as {
-      mcpServers?: Record<string, unknown>;
-    };
+    const parsed: unknown = JSON.parse(readFileSync(outPath, "utf8"));
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      existing = parsed as { mcpServers?: Record<string, unknown> };
+    }
   } catch {
     /* replace invalid file */
   }
 }
 
 const merged = {
+  ...existing,
   mcpServers: {
     ...(existing.mcpServers ?? {}),
     ...snippet.mcpServers,

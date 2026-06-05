@@ -136,12 +136,14 @@ async function cmdServe(argv: string[]): Promise<number> {
   }
 
   let endpointWritten = false;
+  let endpointPort: number | undefined;
   try {
     log?.info(`LSP → adtLs/mcp/startMCPServer port=${cfg.port}`);
     const started = await startMcpServer(session.connection, {
       port: cfg.port,
       token,
     });
+    endpointPort = started.port;
     log?.info(
       `LSP ← adtLs/mcp/startMCPServer port=${started.port} version=${started.version ?? "?"}`,
     );
@@ -211,8 +213,8 @@ async function cmdServe(argv: string[]): Promise<number> {
     console.error(`adtLs/mcp/startMCPServer failed: ${msg}`);
     return EXIT_LSP_MCP;
   } finally {
-    if (endpointWritten) {
-      removeEndpoint(cfg.port);
+    if (endpointWritten && endpointPort !== undefined) {
+      removeEndpoint(endpointPort);
     }
     if (session) {
       await disposeLspSession(session);

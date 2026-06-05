@@ -37,8 +37,12 @@ export function isProcessAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;
-  } catch {
-    return false;
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException | undefined)?.code;
+    // ESRCH: no such process. EPERM: process exists but we cannot signal it
+    // (another user); treat as alive so we do not prematurely prune the
+    // endpoint record.
+    return code === "EPERM";
   }
 }
 
@@ -60,21 +64,43 @@ export function removeEndpoint(port: number): void {
   }
 }
 
+function isPositiveInteger(value: unknown): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isFinite(value) &&
+    Number.isInteger(value) &&
+    value > 0
+  );
+}
+
 function parseEndpoint(raw: string): McpEndpointRecord | undefined {
+  let record: unknown;
   try {
-    const record = JSON.parse(raw) as McpEndpointRecord;
-    if (
-      typeof record.port === "number" &&
-      typeof record.token === "string" &&
-      typeof record.url === "string" &&
-      typeof record.pid === "number"
-    ) {
-      return record;
-    }
+    record = JSON.parse(raw);
   } catch {
-    /* invalid */
+    return undefined;
   }
-  return undefined;
+  if (!record || typeof record !== "object" || Array.isArray(record)) {
+    return undefined;
+  }
+  const r = record as Partial<McpEndpointRecord>;
+  if (
+    !isPositiveInteger(r.port) ||
+    r.port < 1 ||
+    r.port > 65535 ||
+    typeof r.url !== "string" ||
+    r.url.length === 0 ||
+    typeof r.token !== "string" ||
+    r.token.length === 0 ||
+    !isPositiveInteger(r.pid) ||
+    !Array.isArray(r.destinations) ||
+    !r.destinations.every((d) => typeof d === "string") ||
+    typeof r.workspace !== "string" ||
+    typeof r.startedAt !== "string"
+  ) {
+    return undefined;
+  }
+  return r as McpEndpointRecord;
 }
 
 export function readEndpoint(
@@ -137,6 +163,17 @@ export function resolveEndpointPort(
   requestedPort?: number,
 ): ResolveEndpointResult {
   if (requestedPort !== undefined) {
+    if (
+      !Number.isFinite(requestedPort) ||
+      !Number.isInteger(requestedPort) ||
+      requestedPort < 1 ||
+      requestedPort > 65535
+    ) {
+      return {
+        ok: false,
+        message: `Invalid port: ${requestedPort} (must be an integer 1-65535).`,
+      };
+    }
     const record = readEndpoint(requestedPort);
     if (!record) {
       return {
