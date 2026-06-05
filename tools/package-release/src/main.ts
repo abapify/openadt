@@ -104,6 +104,10 @@ function writeLaunchers(base: string): void {
     join(root, "packaging/windows/prepare-openadt-runtime.ps1"),
     join(base, "bin/prepare-openadt-runtime.ps1"),
   );
+  cpSync(
+    join(root, "packaging/scoop/post-install.ps1"),
+    join(base, "bin/scoop-post-install.ps1"),
+  );
 
   writeFileSync(
     join(base, "bin/openadt.cmd"),

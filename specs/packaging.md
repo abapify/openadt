@@ -4,6 +4,8 @@ OpenADT ships as a portable ZIP (`openadt.jar` + launchers + `sap-adt-mcp-launch
 
 `openadt mcp` delegates to the Bun launcher in `OPENADT_HOME/sap-adt-mcp-launcher/` — install [Bun](https://bun.sh) for MCP.
 
+Scoop: `post_install` runs `bin/scoop-post-install.ps1` (Java/Bun checks, MCP launcher presence). Optional deps in manifest `suggest`: `java/openjdk21`, `main/bun`.
+
 ## Windows
 
 - **Scoop** (recommended): `scoop bucket add openadt https://github.com/abapify/scoop-bucket` then `scoop install openadt` (updated every Release via [`abapify/scoop-bucket`](https://github.com/abapify/scoop-bucket); CI uses org app **abapify-bro** — [packaging/abapify-bro-app.md](../packaging/abapify-bro-app.md)). Legacy monorepo branch: `git clone -b scoop-bucket --depth 1 https://github.com/abapify/openadt openadt-bucket` then `scoop bucket add openadt .\openadt-bucket\packaging\scoop`
