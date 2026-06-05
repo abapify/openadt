@@ -53,3 +53,10 @@ Append-only durable learnings from `/act` P6 evaluation. One entry per session w
 - **Root cause:** Did not reproduce the linter locally. Codacy runs ShellCheck on the new `scripts/act/*.sh` files; running `shellcheck` locally found exactly the 3 reported issues (1× SC2034 unused variable, 2× SC2015+SC2016 inline GraphQL-fragment construction). The fix was a one-round-trip: `apt-get install -y shellcheck && shellcheck scripts/act/*.sh`, then refactor the query builder.
 - **Prevention:** [SKILL.md P0 — when CI is red, run linters locally first](SKILL.md#work-order-mandatory-sequence) now includes a "Codacy N new issues (0 max.) with annotations=0" → "install linter, run it, fix" table. Same pattern for Opengrep (`opengrep --config .semgrep.yaml`), SonarCloud, CodeQL.
 - **Cycle signal:** none
+
+## 2026-06-05 — PR #42 — stale review threads from an earlier PR scope
+
+- **What happened:** PR #42 (TS-only `tools/sap-adt-mcp-launcher/`) carried 12+ open review threads pointing at `apps/openadt-cli/src/main/java/org/openadt/cli/McpLauncherInvoker.java`, `LauncherArgs.java`, `McpServeCommand.java`, and `McpStatusCommand.java` — files that are not in the current PR diff. An earlier scope of the PR included a Java CLI shim that was force-pushed out; the auto-reviews (Codacy, Copilot, Amazon Q, Gemini, cubic) were never pruned and stuck around as ghost feedback.
+- **Root cause:** Reviewers (humans + bots) anchor a thread to a `path:line` at review time, but the file can move out of the PR between force-pushes; the PR UI still shows the thread as "open". `pr-state.sh` reports the count, not the staleness.
+- **Prevention:** On every `/act`, the first thing to do after `pr-state.sh` is `git diff main..HEAD --stat` to confirm the files the threads reference are actually in the current PR. Threads whose path is outside the current diff are resolved as **stale** with an in-thread reply that names the file and explains the scope shrink. This is the only safe default; resolving without the in-thread reply is the wrong "resolve-only" path the SKILL.md calls out.
+- **Cycle signal:** none
