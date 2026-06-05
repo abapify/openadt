@@ -8,6 +8,26 @@ import { join } from "node:path";
 import { resolveEndpointPort } from "../tools/sap-adt-mcp-launcher/src/endpoint-store.ts";
 import { cursorMcpSnippet } from "../tools/sap-adt-mcp-launcher/src/mcp.ts";
 
+const PORT_PATTERN = /^[0-9]+$/;
+
+function parsePort(value: string): number | undefined {
+  // Number.parseInt is permissive ("2257abc" → 2257); require the whole
+  // string to be a base-10 integer before accepting it.
+  if (!PORT_PATTERN.test(value)) {
+    return undefined;
+  }
+  const port = Number.parseInt(value, 10);
+  if (
+    !Number.isFinite(port) ||
+    !Number.isInteger(port) ||
+    port < 1 ||
+    port > 65535
+  ) {
+    return undefined;
+  }
+  return port;
+}
+
 function parseRequestedPort(argv: string[]): number | undefined {
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -18,28 +38,19 @@ function parseRequestedPort(argv: string[]): number | undefined {
         console.error("Error: --port requires a value");
         process.exit(1);
       }
-      const port = Number.parseInt(value, 10);
-      if (
-        !Number.isFinite(port) ||
-        !Number.isInteger(port) ||
-        port < 1 ||
-        port > 65535
-      ) {
+      const port = parsePort(value);
+      if (port === undefined) {
         console.error(`Invalid --port: ${value} (must be an integer 1-65535)`);
         process.exit(1);
       }
       return port;
     }
     if (arg.startsWith("--port=")) {
-      const value = arg.slice("--port=".length);
-      const port = Number.parseInt(value, 10);
-      if (
-        !Number.isFinite(port) ||
-        !Number.isInteger(port) ||
-        port < 1 ||
-        port > 65535
-      ) {
-        console.error(`Invalid --port: ${value} (must be an integer 1-65535)`);
+      const port = parsePort(arg.slice("--port=".length));
+      if (port === undefined) {
+        console.error(
+          `Invalid --port: ${arg.slice("--port=".length)} (must be an integer 1-65535)`,
+        );
         process.exit(1);
       }
       return port;
