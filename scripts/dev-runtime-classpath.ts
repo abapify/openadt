@@ -1,5 +1,5 @@
 /**
- * Writes Maven compile classpath for openadt-cli (-am) for ./openadt dev runs.
+ * Writes Maven compile classpath for openadt-cli (-am) for ./dev-openadt dev runs.
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, statSync } from "node:fs";

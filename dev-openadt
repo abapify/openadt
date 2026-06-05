@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Dev launcher: nx compile (cached) + module target/classes + optional fat jar, then Java.
+# Use explicitly: ./dev-openadt — bare `openadt` must resolve to Scoop/Homebrew on PATH.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
 if ! command -v bun >/dev/null 2>&1; then
-  echo "bun is required for ./openadt. Install bun or use: bun run openadt -- …" >&2
+  echo "bun is required for ./dev-openadt. Install bun or use: bun run openadt -- …" >&2
   exit 1
 fi
 exec bun run openadt -- "$@"

@@ -43,7 +43,7 @@ Each leaf package under `apps/*/src/main/java/org/openadt/` includes `package-in
 - [`@nx/maven`](https://nx.dev/docs/technologies/java/maven/introduction) is registered in `nx.json` (reactor analysis via `dev.nx.maven:nx-maven-plugin` in the root `pom.xml`).
 - App modules are Nx projects with Maven lifecycle targets `compile`, `test`, and `package` (`nx:run-commands` + `mvnw`; `metadata.mavenProject` matches coordinates for tooling).
 - `openadt-cli` `package` / `test` use `-Pdistribution`.
-- `./openadt` and `bun run openadt` → `nx run openadt-cli:run`: cached `compile` on all app modules (fresh `target/classes`), `ensure-dev-jar` runs `package` only when no `openadt-*.jar` exists yet.
+- `./dev-openadt` and `bun run openadt` → `nx run openadt-cli:run`: cached `compile` on all app modules (fresh `target/classes`), `ensure-dev-jar` runs `package` only when no `openadt-*.jar` exists yet.
 - Root scripts: `bun run openadt:build` → `nx package openadt-cli`; `bun run openadt:test` → `nx test openadt-cli`.
 
 ## Vision
