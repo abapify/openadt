@@ -23,10 +23,19 @@ export async function startMcpServer(
   )) as McpStartResult | undefined;
   if (!result?.port || !result?.token) {
     throw new Error(
-      `adtLs/mcp/startMCPServer returned invalid payload: ${JSON.stringify(result)}`,
+      `adtLs/mcp/startMCPServer returned invalid payload: ${summarizeMcpStart(result)}`,
     );
   }
   return result;
+}
+
+function summarizeMcpStart(result: unknown): string {
+  if (!result || typeof result !== "object") {
+    return typeof result;
+  }
+  const obj = result as Record<string, unknown>;
+  const keys = Object.keys(obj);
+  return `{${keys.map((k) => `${k}:<${typeof obj[k]}>`).join(", ")}}`;
 }
 
 export async function stopMcpServer(

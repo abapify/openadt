@@ -20,22 +20,22 @@ export function loadOpenAdtRuntimePaths(): OpenAdtRuntimePaths {
     return {};
   }
   try {
-    const text = readFileSync(LOCAL_CONFIG, "utf8");
+    const parsed = Bun.TOML.parse(readFileSync(LOCAL_CONFIG, "utf8")) as {
+      jco_native_dir?: string;
+      sapcrypto?: string;
+    };
     return {
-      jcoNativeDir: readTomlString(text, "jco_native_dir"),
-      sapcrypto: readTomlString(text, "sapcrypto"),
+      jcoNativeDir: readTomlString(parsed.jco_native_dir),
+      sapcrypto: readTomlString(parsed.sapcrypto),
     };
   } catch {
     return {};
   }
 }
 
-function readTomlString(text: string, key: string): string | undefined {
-  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = text.match(
-    new RegExp(`^\\s*${escaped}\\s*=\\s*"([^"]*)"`, "m"),
-  );
-  return match?.[1]?.trim() || undefined;
+function readTomlString(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed || undefined;
 }
 
 export function buildAdtLscSpawnRuntime(

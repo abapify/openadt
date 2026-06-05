@@ -62,7 +62,7 @@ export function parseServeArgv(argv: string[]): McpServeConfig {
         continue;
       }
       throw new Error(
-        `Invalid --import-from: ${value} (use auto, adtls, gui, none, or openadt)`,
+        `Invalid --import-from: ${value} (use auto, adtls, gui, openadt, or none)`,
       );
     }
     if (arg === "--json") {

@@ -54,6 +54,12 @@ export function destinationPropertiesContent(
   if (jco.msserv) {
     lines.push(`messageServerService=${jco.msserv}`);
   }
+  if (jco.ashost) {
+    lines.push(`applicationServerHost=${jco.ashost}`);
+  }
+  if (jco.sysnr) {
+    lines.push(`systemNumber=${jco.sysnr}`);
+  }
   if (jco.group) {
     lines.push(`group=${jco.group}`);
   }
