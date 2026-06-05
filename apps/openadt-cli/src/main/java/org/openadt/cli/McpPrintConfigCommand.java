@@ -25,15 +25,12 @@ public class McpPrintConfigCommand implements Callable<Integer> {
 
     @Override
     public Integer call() {
-        List<String> args = new ArrayList<>();
-        if (port != null) {
-            args.add("--port");
-            args.add(String.valueOf(port));
-        }
-        if (json) {
-            args.add("--json");
-        }
-        args.addAll(remainder);
-        return McpLauncherInvoker.invoke("print-config", args.toArray(String[]::new));
+        return McpLauncherInvoker.invoke(
+            "print-config",
+            McpCommandSupport.launcherArgs(remainder)
+                .option("--port", port)
+                .flag("--json", json)
+                .build()
+        );
     }
 }

@@ -22,11 +22,11 @@ public class McpListCommand implements Callable<Integer> {
 
     @Override
     public Integer call() {
-        List<String> args = new ArrayList<>();
-        if (json) {
-            args.add("--json");
-        }
-        args.addAll(remainder);
-        return McpLauncherInvoker.invoke("list", args.toArray(String[]::new));
+        return McpLauncherInvoker.invoke(
+            "list",
+            McpCommandSupport.launcherArgs(remainder)
+                .flag("--json", json)
+                .build()
+        );
     }
 }

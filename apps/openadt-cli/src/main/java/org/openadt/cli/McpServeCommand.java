@@ -55,43 +55,20 @@ public class McpServeCommand implements Callable<Integer> {
 
     @Override
     public Integer call() {
-        List<String> args = new ArrayList<>();
-        if (port != null) {
-            args.add("--port");
-            args.add(String.valueOf(port));
-        }
-        if (workspace != null) {
-            args.add("--workspace");
-            args.add(workspace);
-        }
-        if (destination != null) {
-            args.add("--destination");
-            args.add(destination);
-        }
-        if (noGui) {
-            args.add("--no-gui");
-        } else if (importFrom != null) {
-            args.add("--import-from");
-            args.add(importFrom);
-        }
-        if (json) {
-            args.add("--json");
-        }
-        if (showToken) {
-            args.add("--show-token");
-        }
-        if (verbose) {
-            args.add("--verbose");
-        }
-        if (logFile != null) {
-            args.add("--log-file");
-            args.add(logFile);
-        }
-        if (logonTimeoutSeconds != null) {
-            args.add("--logon-timeout");
-            args.add(String.valueOf(logonTimeoutSeconds));
-        }
-        args.addAll(remainder);
-        return McpLauncherInvoker.invoke("serve", args.toArray(String[]::new));
+        return McpLauncherInvoker.invoke(
+            "serve",
+            McpCommandSupport.launcherArgs(remainder)
+                .option("--port", port)
+                .option("--workspace", workspace)
+                .option("--destination", destination)
+                .flag("--no-gui", noGui)
+                .option("--import-from", noGui || importFrom == null ? null : importFrom)
+                .flag("--json", json)
+                .flag("--show-token", showToken)
+                .flag("--verbose", verbose)
+                .option("--log-file", logFile)
+                .option("--logon-timeout", logonTimeoutSeconds)
+                .build()
+        );
     }
 }

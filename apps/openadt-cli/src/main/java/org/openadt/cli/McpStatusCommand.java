@@ -28,19 +28,13 @@ public class McpStatusCommand implements Callable<Integer> {
 
     @Override
     public Integer call() {
-        List<String> args = new ArrayList<>();
-        if (port != null) {
-            args.add("--port");
-            args.add(String.valueOf(port));
-        }
-        if (token != null) {
-            args.add("--token");
-            args.add(token);
-        }
-        if (json) {
-            args.add("--json");
-        }
-        args.addAll(remainder);
-        return McpLauncherInvoker.invoke("status", args.toArray(String[]::new));
+        return McpLauncherInvoker.invoke(
+            "status",
+            McpCommandSupport.launcherArgs(remainder)
+                .option("--port", port)
+                .option("--token", token)
+                .flag("--json", json)
+                .build()
+        );
     }
 }
