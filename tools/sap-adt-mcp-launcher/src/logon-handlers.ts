@@ -171,7 +171,11 @@ async function promptLogonInputTerminal(
     console.error("[openadt-mcp] Cannot prompt: stdin is not a TTY.");
     return undefined;
   }
-  const rl = readline.createInterface({ input: stdin, output: stdout });
+  const rl = readline.createInterface({
+    input: stdin,
+    output: sensitive ? undefined : stdout,
+    terminal: sensitive,
+  });
   try {
     const answer = await rl.question(sensitive ? "Value: " : "> ");
     const trimmed = answer.trim();

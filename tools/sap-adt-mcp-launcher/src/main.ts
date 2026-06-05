@@ -207,6 +207,7 @@ async function waitForShutdown(
       settled = true;
       process.off("SIGINT", onSignal);
       process.off("SIGTERM", onSignal);
+      session.child.off("exit", onExit);
       try {
         await stopMcpServer(session.connection);
       } catch {
@@ -215,16 +216,17 @@ async function waitForShutdown(
       killProcessTree(session.child);
       resolve();
     };
+    const onExit = () => {
+      if (settled) return;
+      settled = true;
+      process.off("SIGINT", onSignal);
+      process.off("SIGTERM", onSignal);
+      console.error("[openadt-mcp] adt-lsc exited; shutting down.");
+      resolve();
+    };
     process.on("SIGINT", onSignal);
     process.on("SIGTERM", onSignal);
-    session.child.on("exit", () => {
-      if (!settled) {
-        settled = true;
-        process.off("SIGINT", onSignal);
-        process.off("SIGTERM", onSignal);
-        resolve();
-      }
-    });
+    session.child.on("exit", onExit);
   });
 }
 
