@@ -104,6 +104,7 @@ export class McpFrameDecoder extends Transform {
 
 /** NDJSON lines or single JSON objects (Cursor agent CLI). */
 export class McpNdjsonDecoder extends Transform {
+  private readonly utf8 = new TextDecoder("utf-8");
   private buffer = "";
 
   constructor() {
@@ -116,7 +117,7 @@ export class McpNdjsonDecoder extends Transform {
     callback: TransformCallback,
   ): void {
     try {
-      this.buffer += chunk.toString("utf8");
+      this.buffer += this.utf8.decode(chunk, { stream: true });
       this.drain(false);
       callback();
     } catch (err) {
@@ -126,6 +127,7 @@ export class McpNdjsonDecoder extends Transform {
 
   override _flush(callback: TransformCallback): void {
     try {
+      this.buffer += this.utf8.decode(new Uint8Array(0), { stream: false });
       this.drain(true);
       callback();
     } catch (err) {
@@ -140,31 +142,47 @@ export class McpNdjsonDecoder extends Transform {
         const line = this.buffer.slice(0, newline).trim();
         this.buffer = this.buffer.slice(newline + 1);
         if (line) {
+          if (line.startsWith("{")) {
+            try {
+              JSON.parse(line);
+            } catch (err) {
+              this.buffer = line + "\n" + this.buffer;
+              throw new Error(
+                `Invalid JSON in NDJSON stream: ${
+                  err instanceof Error ? err.message : String(err)
+                }`,
+              );
+            }
+          }
           this.push(line);
         }
         continue;
       }
       const trimmed = this.buffer.trim();
       if (!trimmed) {
+        this.buffer = "";
+        return;
+      }
+      if (!flush) {
         return;
       }
       if (trimmed.startsWith("{")) {
         try {
           JSON.parse(trimmed);
-          this.push(trimmed);
-          this.buffer = "";
-          continue;
-        } catch {
-          if (!flush) {
-            return;
-          }
+        } catch (err) {
+          throw new Error(
+            `Invalid JSON in NDJSON stream: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
         }
-      }
-      if (flush && trimmed) {
         this.push(trimmed);
         this.buffer = "";
+        return;
       }
-      return;
+      throw new Error(
+        `Non-JSON trailing data in NDJSON stream: ${trimmed.slice(0, 100)}`,
+      );
     }
   }
 }

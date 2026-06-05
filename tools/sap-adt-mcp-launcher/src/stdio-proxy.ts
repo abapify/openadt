@@ -55,6 +55,7 @@ export async function postMcpHttpMessage(
   token: string,
   body: string,
   sessionId?: string,
+  options?: { timeoutMs?: number },
 ): Promise<{ messages: string[]; sessionId?: string; status: number }> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -66,10 +67,12 @@ export async function postMcpHttpMessage(
     headers["Mcp-Session-Id"] = sessionId;
   }
 
+  const timeoutMs = options?.timeoutMs ?? 60_000;
   const res = await fetch(mcpUrl(port), {
     method: "POST",
     headers,
     body,
+    signal: AbortSignal.timeout(timeoutMs),
   });
   const nextSessionId = res.headers.get("Mcp-Session-Id") ?? sessionId;
   const text = await res.text();
@@ -99,6 +102,7 @@ export function createStdioMcpBridge(): StdioMcpBridge {
   let forwardChain = Promise.resolve();
   let ready = false;
   let backend: { port: number; token: string } | undefined;
+  const PENDING_BODIES_LIMIT = 256;
   const pendingBodies: string[] = [];
   let resolveClose: (() => void) | undefined;
   let closePromise: Promise<void> | undefined;
@@ -157,10 +161,24 @@ export function createStdioMcpBridge(): StdioMcpBridge {
 
   const forwardOne = (body: string): void => {
     if (failed) {
-      void replyError(body, -32000, "MCP backend failed to start");
+      forwardChain = forwardChain.then(() =>
+        replyError(body, -32000, "MCP backend failed to start"),
+      );
       return;
     }
     if (!ready) {
+      if (pendingBodies.length >= PENDING_BODIES_LIMIT) {
+        const dropped = pendingBodies.shift();
+        if (dropped) {
+          forwardChain = forwardChain.then(() =>
+            replyError(
+              dropped,
+              -32000,
+              "MCP backend buffer full during SAP logon; retry after initialize",
+            ),
+          );
+        }
+      }
       pendingBodies.push(body);
       return;
     }
@@ -223,6 +241,9 @@ export function createStdioMcpBridge(): StdioMcpBridge {
       );
     },
     async run(port: number, token: string) {
+      if (!started) {
+        throw new Error("Call start() before run()");
+      }
       backend = { port, token };
       void waitForMcpHttp(port, token, {
         timeoutMs: 300_000,
@@ -233,21 +254,25 @@ export function createStdioMcpBridge(): StdioMcpBridge {
             `[openadt-mcp] MCP HTTP not ready at ${mcpUrl(port)} after 5min`,
           );
           failed = true;
+          ready = true;
           const queued = pendingBodies.splice(0, pendingBodies.length);
-          for (const body of queued) {
-            await replyError(
-              body,
-              -32000,
-              "MCP HTTP backend failed to start (SAP logon timeout)",
-            );
-          }
+          forwardChain = forwardChain.then(async () => {
+            for (const body of queued) {
+              await replyError(
+                body,
+                -32000,
+                "MCP HTTP backend failed to start (SAP logon timeout)",
+              );
+            }
+            scheduleCloseWhenIdle();
+          });
           return;
         }
         ready = true;
         flushPending();
         scheduleCloseWhenIdle();
       });
-      return closePromise ?? Promise.resolve();
+      return closePromise!;
     },
     failPending(code: number, message: string) {
       failed = true;

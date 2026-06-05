@@ -1,4 +1,10 @@
-import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { type ChildProcess, spawn } from "node:child_process";
 import { dirname, join } from "node:path";
 import { PID_FILE } from "./config.ts";
@@ -88,9 +94,10 @@ export function killProcessTree(child: ChildProcess | undefined): void {
 }
 
 /** Resolve taskkill without relying on PATH (agent CLI uses minimal PATH). */
-export function windowsTaskkillPath(): string {
+export function windowsTaskkillPath(): string | undefined {
   const root = process.env.SystemRoot ?? process.env.WINDIR ?? "C:\\Windows";
-  return join(root, "System32", "taskkill.exe");
+  const candidate = join(root, "System32", "taskkill.exe");
+  return existsSync(candidate) ? candidate : undefined;
 }
 
 export function killProcessByPid(pid: number): void {
@@ -99,7 +106,12 @@ export function killProcessByPid(pid: number): void {
   }
   try {
     if (process.platform === "win32") {
-      spawn(windowsTaskkillPath(), ["/T", "/F", "/PID", String(pid)], {
+      const taskkill = windowsTaskkillPath();
+      if (!taskkill) {
+        process.kill(pid, "SIGTERM");
+        return;
+      }
+      spawn(taskkill, ["/T", "/F", "/PID", String(pid)], {
         stdio: "ignore",
         windowsHide: true,
       });

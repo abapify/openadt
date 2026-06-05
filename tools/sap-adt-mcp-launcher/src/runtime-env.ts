@@ -113,26 +113,41 @@ export function ensureMinimalProcessEnv(
     return env;
   }
   const home = homedir();
-  if (!env.USERPROFILE?.trim()) {
-    env.USERPROFILE = home;
+  const findKey = (key: string): string | undefined =>
+    Object.keys(env).find((k) => k.toUpperCase() === key.toUpperCase());
+  const readVal = (key: string): string | undefined => {
+    const k = findKey(key);
+    return k ? env[k] : undefined;
+  };
+  const writeVal = (key: string, value: string): void => {
+    const existing = findKey(key) ?? key;
+    env[existing] = value;
+  };
+
+  if (!readVal("USERPROFILE")?.trim()) {
+    writeVal("USERPROFILE", home);
   }
-  if (!env.HOME?.trim()) {
-    env.HOME = home;
+  if (!readVal("HOME")?.trim()) {
+    writeVal("HOME", home);
   }
-  if (!env.SystemRoot?.trim() && !env.WINDIR?.trim()) {
-    env.SystemRoot = "C:\\Windows";
+  if (!readVal("SystemRoot")?.trim() && !readVal("WINDIR")?.trim()) {
+    writeVal("SystemRoot", "C:\\Windows");
   }
-  if (!env.APPDATA?.trim()) {
-    env.APPDATA = join(home, "AppData", "Roaming");
+  if (!readVal("APPDATA")?.trim()) {
+    writeVal("APPDATA", join(home, "AppData", "Roaming"));
   }
-  if (!env.LOCALAPPDATA?.trim()) {
-    env.LOCALAPPDATA = join(home, "AppData", "Local");
+  let localAppData = readVal("LOCALAPPDATA")?.trim();
+  if (!localAppData) {
+    localAppData = join(home, "AppData", "Local");
+    writeVal("LOCALAPPDATA", localAppData);
   }
-  if (!env.TEMP?.trim()) {
-    env.TEMP = join(env.LOCALAPPDATA, "Temp");
+  let temp = readVal("TEMP")?.trim();
+  if (!temp) {
+    temp = join(localAppData, "Temp");
+    writeVal("TEMP", temp);
   }
-  if (!env.TMP?.trim()) {
-    env.TMP = env.TEMP;
+  if (!readVal("TMP")?.trim()) {
+    writeVal("TMP", temp);
   }
   return env;
 }

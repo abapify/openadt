@@ -24,7 +24,7 @@ import { resolveDestinationImport } from "./gui-import.ts";
 import { createMcpLog, eclipseWorkspaceLogPath } from "./log.ts";
 import { isVsCodeAdtWorkspacePath } from "./runtime-env.ts";
 import { connectAdtLanguageServer, disposeLspSession } from "./lsp-client.ts";
-import { killProcessTree, sleep } from "./process.ts";
+import { killProcessTree } from "./process.ts";
 import {
   mcpHttpClientConfig,
   generateMcpToken,
@@ -35,6 +35,7 @@ import {
   setMcpDestination,
   startMcpServer,
   stopMcpServer,
+  waitForMcpHttp,
 } from "./mcp.ts";
 import { MARKETPLACE_URL, type McpServeConfig } from "./types.ts";
 import { createStdioMcpBridge, type StdioMcpBridge } from "./stdio-proxy.ts";
@@ -229,10 +230,10 @@ async function cmdServe(argv: string[]): Promise<number> {
   );
   printImportNotices(cfg, gui);
 
-  const stopped = await stopTrackedMcpServers();
+  const stopped = await stopTrackedMcpServers({ onlyPort: cfg.port });
   if (stopped > 0 && !cfg.json) {
     console.error(
-      `[openadt-mcp] Stopped ${stopped} previous MCP serve instance(s).`,
+      `[openadt-mcp] Stopped ${stopped} previous MCP serve instance(s) on port ${cfg.port}.`,
     );
   }
 
@@ -269,7 +270,14 @@ async function cmdServe(argv: string[]): Promise<number> {
     log?.info(
       `LSP ← adtLs/mcp/startMCPServer port=${started.port} version=${started.version ?? "?"}`,
     );
-    await sleep(750);
+    try {
+      await waitForMcpHttp(started.port, started.token);
+    } catch (err) {
+      log?.error(
+        `MCP HTTP not ready at port ${started.port}: ${formatError(err)}`,
+      );
+      throw err;
+    }
     if (cfg.destination) {
       log?.info(`LSP → adtLs/mcp/setDestination ${cfg.destination}`);
       await setMcpDestination(session.connection, cfg.destination);
@@ -308,14 +316,15 @@ async function cmdServe(argv: string[]): Promise<number> {
     // Start stdio bridge immediately so it can respond to initialize
     // while SAP logon is still in progress
     if (cfg.stdio && bridge) {
-      bridge.run(state.port, state.token); // async, don't await
+      const runPromise = bridge.run(state.port, state.token);
+      await Promise.race([
+        runPromise,
+        waitForIdleHttpServe(session).then(() => runPromise),
+      ]);
+      return EXIT_OK;
     }
 
-    if (cfg.stdio && bridge) {
-      await waitForIdleHttpServe(session);
-    } else {
-      await waitForIdleHttpServe(session);
-    }
+    await waitForIdleHttpServe(session);
     return EXIT_OK;
   } catch (err) {
     const msg = formatError(err);

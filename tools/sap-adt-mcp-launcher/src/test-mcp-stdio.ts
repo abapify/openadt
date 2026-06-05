@@ -6,6 +6,7 @@
 import { spawn } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { pipeline } from "node:stream";
 import { frameMcpMessage, McpFrameDecoder } from "./mcp-framing.ts";
 
 const repoRoot = join(
@@ -48,7 +49,14 @@ const child = spawn(
 );
 
 const decoder = new McpFrameDecoder();
-child.stdout.pipe(decoder);
+pipeline(child.stdout, decoder, (err) => {
+  if (err) {
+    console.error("[MCP pipeline error]", err.message);
+    if (!child.killed) {
+      child.kill();
+    }
+  }
+});
 
 let messageCount = 0;
 

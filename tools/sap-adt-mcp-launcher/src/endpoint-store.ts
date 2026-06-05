@@ -220,17 +220,22 @@ function resolveFromActive(): ResolveEndpointResult {
 }
 
 /** Stop prior `openadt mcp serve` instances tracked in the endpoint store. */
-export async function stopTrackedMcpServers(): Promise<number> {
+export async function stopTrackedMcpServers(
+  options: { onlyPort?: number } = {},
+): Promise<number> {
   const endpoints = listEndpoints();
+  const scoped = options.onlyPort
+    ? endpoints.filter((ep) => ep.port === options.onlyPort)
+    : endpoints;
   const pids = new Set<number>();
-  for (const ep of endpoints) {
+  for (const ep of scoped) {
     pids.add(ep.pid);
     if (ep.adtLscPid) {
       pids.add(ep.adtLscPid);
     }
   }
   let stopped = 0;
-  for (const ep of endpoints) {
+  for (const ep of scoped) {
     removeEndpoint(ep.port);
   }
   for (const pid of pids) {

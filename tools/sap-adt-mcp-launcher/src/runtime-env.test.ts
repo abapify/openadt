@@ -47,6 +47,12 @@ describe("buildAdtLscSpawnRuntime", () => {
 
 describe("ensureMinimalProcessEnv", () => {
   test("fills Windows profile dirs when agent strips env", () => {
+    if (process.platform !== "win32") {
+      // The function is a no-op off-Windows; covered by typecheck.
+      const env = ensureMinimalProcessEnv({ Path: "C:\\Users\\me\\.bun\\bin" });
+      expect(env.Path).toBe("C:\\Users\\me\\.bun\\bin");
+      return;
+    }
     const env = ensureMinimalProcessEnv({
       Path: "C:\\Users\\me\\.bun\\bin",
     });
@@ -62,6 +68,12 @@ describe("isSecureLoginSecudir", () => {
   });
 
   test("accepts SAP Common when present", () => {
+    if (process.platform !== "win32") {
+      // SAP Common path is Windows-only; the function still rejects our own
+      // sec folder on every platform.
+      expect(isSecureLoginSecudir("C:\\Users\\me\\.openadt\\sec")).toBe(false);
+      return;
+    }
     expect(
       isSecureLoginSecudir(
         "C:\\Program Files\\SAP\\FrontEnd\\SecureLogin\\lib",
