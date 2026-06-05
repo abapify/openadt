@@ -171,6 +171,7 @@ function buildSdkClasspath(jar: string): string {
         "  - Run: nx package openadt-cli (fills apps/openadt-cli/target/sap-lib)\n" +
         "  - Or install Eclipse ADT (fills ~/.p2/pool/plugins)\n" +
         "  - Or: .\\scripts\\openadt-sdk.ps1 fetch …\n" +
+        "  - From clone: ./dev-openadt fetch …\n" +
         "  - For HTTP SSO only: add --profile=sso",
     );
     process.exit(1);

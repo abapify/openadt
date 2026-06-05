@@ -65,7 +65,7 @@ const resolved = resolveEndpointPort(requestedPort);
 if (!resolved.ok) {
   console.error(resolved.message);
   console.error(
-    "Start a server first, e.g. bun run openadt -- mcp serve --port 2257 --destination DEV_100_developer_en",
+    "Start a server first, e.g. ./dev-openadt mcp serve --port 2257 --destination DEV_100_developer_en",
   );
   process.exit(1);
 }

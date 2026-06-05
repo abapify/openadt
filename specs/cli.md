@@ -294,12 +294,14 @@ Behavior:
 
 Launch the **official SAP ADT MCP** HTTP server (requires SAP ADT VS Code extension and **Bun** on PATH). See [mcp.md](mcp.md).
 
+From a git clone use `./dev-openadt mcp …` (Windows: `.\dev-openadt.ps1 mcp …`). With Scoop/Homebrew on PATH, replace the prefix with `openadt`.
+
 ```bash
-openadt mcp serve
-openadt mcp serve --port 2236 --destination DEV_100_developer_en
-openadt mcp list
-openadt mcp print-config --port 2236
-openadt mcp status --port 2236
+./dev-openadt mcp serve
+./dev-openadt mcp serve --port 2236 --destination DEV_100_developer_en
+./dev-openadt mcp list
+./dev-openadt mcp print-config --port 2236
+./dev-openadt mcp status --port 2236
 ```
 
 Subcommands: `serve`, `status`, `list`, `print-config`. The release ZIP includes `sap-adt-mcp-launcher/` next to `openadt.jar`.
@@ -418,5 +420,5 @@ To avoid browser SSO entirely: set `OPENADT_MYSAPSSO2` or `OPENADT_COOKIE_FILE`,
 
 Local SDK dev runner (not required in production installs):
 
-- `./dev-openadt` / `bun run openadt` — Nx `openadt-cli:run` (cached `compile` + dev classpath from `apps/*/target/classes`; fat jar only for Maven deps, built once via `ensure-dev-jar`)
+- `./dev-openadt` / `bun run openadt` — Nx `openadt-cli:run` (cached `compile` + dev classpath from `apps/*/target/classes`; fat jar only for Maven deps, built once via `ensure-dev-jar`). **From a clone, use `./dev-openadt` for all examples below** (Windows: `.\dev-openadt.ps1`); bare `openadt` is Scoop/Homebrew on PATH.
 - `scripts/openadt-sdk.ps1` — same classpath layout without Nx; run `nx run openadt-cli:compile` first after pulling changes

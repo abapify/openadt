@@ -15,9 +15,9 @@ Mounted Windows paths are not enough to run Windows `sapjco3.dll` from Linux Jav
 
 | Step | Where | Tool |
 |------|-------|------|
-| Detect SAP landscape, write TOML | WSL or devcontainer | `openadt setup`, devcontainer bootstrap |
-| `fetch` / `proxy` with SDK+JCo | **Host Windows** (or Linux with Linux natives) | `openadt` / `scripts/openadt-sdk.ps1` |
-| IDE proxy target | Host loopback | `openadt proxy` on `127.0.0.1` |
+| Detect SAP landscape, write TOML | WSL or devcontainer | `./dev-openadt setup`, devcontainer bootstrap |
+| `fetch` / `proxy` with SDK+JCo | **Host Windows** (or Linux with Linux natives) | `./dev-openadt` / `scripts/openadt-sdk.ps1` (from clone) or packaged `openadt` |
+| IDE proxy target | Host loopback | `./dev-openadt proxy` / `openadt proxy` on `127.0.0.1` |
 
 Generated paths (see `docs/superpowers/specs/2026-05-21-devcontainer-native-runtime-design.md`):
 
@@ -45,19 +45,19 @@ For MVP, run SDK transport on the host after `setup` in WSL wrote config to a sh
 
 ## Acceptance test (same as local skill)
 
-On the host OS:
+On the host OS (from clone: `./dev-openadt …`; installed CLI: `openadt …`):
 
 ```text
-openadt fetch <SID> /sap/bc/adt/core/http/systeminformation --json
+./dev-openadt fetch <SID> /sap/bc/adt/core/http/systeminformation --json
 ```
 
 Must use `SapDestinationResolver` + `AdtSdkTransportClient` (not HTTP transport), with Eclipse destination when workspace is on a mounted path detectors can scan.
 
 ## Stale `jco_native_dir` on the host (common)
 
-Devcontainer bootstrap may set `runtime.jco_native_dir` to `.devcontainer/dist/jco` (Linux `libsapjco3.so`). If the user later runs `openadt fetch` on **Windows host Java**, JCo fails with `no sapjco3 in java.library.path` even though `openadt setup --check` already detects the correct Windows directory elsewhere.
+Devcontainer bootstrap may set `runtime.jco_native_dir` to `.devcontainer/dist/jco` (Linux `libsapjco3.so`). If the user later runs `./dev-openadt fetch` on **Windows host Java**, JCo fails with `no sapjco3 in java.library.path` even though `./dev-openadt setup --check` already detects the correct Windows directory elsewhere.
 
-**Fix on the host OS:** `openadt setup` (or `setup --check` then `setup --skip-build`) so `~/.openadt/local.openadt.toml` lists a directory that contains `sapjco3.dll`, not only `libsapjco3.so`.
+**Fix on the host OS:** `./dev-openadt setup` (or `setup --check` then `setup --skip-build`) so `~/.openadt/local.openadt.toml` lists a directory that contains `sapjco3.dll`, not only `libsapjco3.so`.
 
 Agents: compare configured `jco_native_dir` to the native file for the OS running the command before debugging destinations or SSO.
 

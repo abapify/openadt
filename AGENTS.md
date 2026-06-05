@@ -49,7 +49,7 @@ Index: [.agents/skills/README.md](.agents/skills/README.md).
 
 1. **SDD** — [DESIGN.md](DESIGN.md) → update `specs/*.md` with behavior changes (no undocumented product behavior).
 2. **Fixtures only** in git: `DEV`, `dev-ms.example.com`. No SAP jars, no real landscape.
-3. **Host OS owns JCo natives** — see `openadt-devcontainer-host-runtime` skill.
+3. **Host OS owns JCo natives** — run `./dev-openadt` from a clone (not bare `openadt` in the repo root on Windows CMD); see `openadt-devcontainer-host-runtime` skill.
 4. **`tmp/`** for scratch; redact secrets in logs.
 
 ## Verify (before PR)

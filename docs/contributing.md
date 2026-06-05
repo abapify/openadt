@@ -58,7 +58,7 @@ Shaded CLI jar: `apps/openadt-cli/target/openadt-*.jar` (version matches root `p
 
 ## Run from clone
 
-**Windows (repo scripts — explicit `./dev-openadt`, not bare `openadt`):**
+**Windows (repo scripts — use `.\dev-openadt.ps1` / `.\dev-openadt.cmd`, not bare `openadt`):**
 
 ```powershell
 .\dev-openadt.ps1 --help
@@ -163,7 +163,7 @@ bun install
 bun run bootstrap:devcontainer -- --non-interactive --skip-if-missing --container-workspace /workspaces/openadt
 ```
 
-Run `openadt setup` in the container with `adt_plugins_dir` pointing at licensed plugins (often `/mnt/c/.../.p2/pool/plugins` on WSL).
+Run `./dev-openadt setup` in the container with `adt_plugins_dir` pointing at licensed plugins (often `/mnt/c/.../.p2/pool/plugins` on WSL).
 
 Generated paths (do not commit):
 

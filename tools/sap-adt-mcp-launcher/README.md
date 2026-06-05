@@ -5,7 +5,7 @@ Headless orchestrator for the **official SAP ADT MCP** shipped in the [SAP ADT V
 ## Prerequisites
 
 - [SAP ADT for VS Code](https://marketplace.visualstudio.com/items?itemName=SAPSE.adt-vscode) installed (detected under `~/.vscode/extensions` or `~/.cursor/extensions`)
-- [Bun](https://bun.sh) on `PATH` (dev and `openadt mcp` delegation)
+- [Bun](https://bun.sh) on `PATH` (dev and `./dev-openadt mcp` / packaged `openadt mcp` delegation)
 
 ## Commands
 
@@ -34,8 +34,9 @@ Each running `serve` stores url+token in `~/.openadt/mcp/endpoints/<port>.json`.
 | `--log-file`          | see above                     | Custom debug log path                                                   |
 
 ```bash
-bun tools/sap-adt-mcp-launcher/src/main.ts serve --port 2241 --verbose --show-token
-# or: MCP_DEBUG=1 openadt mcp serve ...
+./dev-openadt mcp serve --port 2241 --verbose --show-token
+# or: bun tools/sap-adt-mcp-launcher/src/main.ts serve ...
+# packaged CLI: openadt mcp serve ...
 ```
 
 SAP MCP HTTP (`tools/call`) runs inside `adt-lsc`; use MCP Inspector for that layer. Launcher verbose mode shows the LSP control plane only.
