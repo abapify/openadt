@@ -80,11 +80,11 @@ const VALUE_FLAGS = new Set([
   "format",
 ]);
 
-function firstSubcommand(args: string[]): string | undefined {
+function firstSubcommandIndex(args: string[]): number {
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
     if (arg === "--") {
-      return args[i + 1];
+      return i + 1;
     }
     if (arg.startsWith("--")) {
       const eq = arg.indexOf("=");
@@ -110,9 +110,14 @@ function firstSubcommand(args: string[]): string | undefined {
     if (arg.startsWith("-")) {
       continue;
     }
-    return arg;
+    return i;
   }
-  return undefined;
+  return -1;
+}
+
+function firstSubcommand(args: string[]): string | undefined {
+  const i = firstSubcommandIndex(args);
+  return i >= 0 ? args[i] : undefined;
 }
 
 /** HTTP browser SSO / plain HTTP transport — fat jar is enough. */
@@ -173,8 +178,37 @@ function buildSdkClasspath(jar: string): string {
   return entries.join(pathSep);
 }
 
-const jar = findDevJar();
 const args = process.argv.slice(2);
+
+/** SAP ADT MCP uses Bun launcher (pipe LSP), not the Java classpath. */
+function runMcpLauncher(mcpArgs: string[]): number {
+  const launcher = join(
+    repoRoot,
+    "tools",
+    "sap-adt-mcp-launcher",
+    "src",
+    "main.ts",
+  );
+  if (!existsSync(launcher)) {
+    console.error(`Missing MCP launcher: ${launcher}`);
+    return 1;
+  }
+  const result = spawnSync("bun", [launcher, ...mcpArgs], {
+    stdio: "inherit",
+    cwd: repoRoot,
+    env: { ...process.env, OPENADT_REPO: repoRoot },
+  });
+  return result.status ?? 1;
+}
+
+const mcpIndex = firstSubcommandIndex(args);
+if (mcpIndex >= 0 && args[mcpIndex] === "mcp") {
+  const mcpArgs = args.slice(mcpIndex + 1);
+  process.exit(runMcpLauncher(mcpArgs.length > 0 ? mcpArgs : ["--help"]));
+}
+
+const jar = findDevJar();
+
 const profile =
   parseProfile(args) ?? normalizeProfile(process.env.OPENADT_PROFILE);
 

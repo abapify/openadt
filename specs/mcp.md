@@ -1,22 +1,39 @@
-# MCP Bridge (draft)
+# SAP ADT MCP (launcher)
 
-Experimental stdio MCP server wrapping `openadt fetch` for agent hosts (Cursor, Claude, Copilot).
+OpenADT **does not** implement MCP tools. The Bun launcher in `tools/sap-adt-mcp-launcher/` starts the **official SAP ADT MCP** from the [SAP ADT VS Code extension](https://marketplace.visualstudio.com/items?itemName=SAPSE.adt-vscode): `adt-lsc` over LSP pipe transport, then `adtLs/mcp/startMCPServer`.
 
-## Tools
+## Commands
 
-| Tool           | Args                 | Behavior                                                                 |
-| -------------- | -------------------- | ------------------------------------------------------------------------ |
-| `adt_fetch`    | `path`, `system?`    | Runs `openadt fetch [system] <path>` (uses session context when omitted) |
-| `adt_discover` | `system?`, `format?` | Runs `openadt discovery [system] --format <format>`                      |
-| `adt_logon`    | `system`, `format?`  | Runs `openadt auth login <system> --format <format>` (sets session)      |
+| Command        | Role                                                         |
+| -------------- | ------------------------------------------------------------ |
+| `serve`        | Spawn `adt-lsc`, LSP init, start HTTP MCP, hold until Ctrl+C |
+| `status`       | Probe `http://localhost:<port>/mcp`                          |
+| `list`         | List active endpoints (one store file per port)              |
+| `print-config` | Emit Cursor `mcpServers` JSON from endpoint store            |
 
-Future: `adt_proxy_status` when proxy introspection is stable.
+Run via Bun or OpenADT CLI (requires [Bun](https://bun.sh) on PATH):
+
+```bash
+openadt mcp serve --port 2236
+openadt mcp list
+openadt mcp print-config --port 2236
+```
+
+## Endpoint store (multi-instance)
+
+Each `serve` writes `~/.openadt/mcp/endpoints/<port>.json` (url, token, pid, destinations). Removed on clean shutdown; stale files pruned when pid is gone.
+
+- **One** active server: `print-config` and `status` auto-select it.
+- **Several** servers: `list`, then `print-config --port <port>` (and `status --port <port>`).
+
+Bearer token is **not** printed on serve by default — use `print-config` or `scripts/sync-cursor-mcp.ts` for Cursor.
 
 ## Security
 
-- No logging of credentials, cookies, tickets, or authorization headers.
-- Tests and docs use fictional fixtures only (`DEV`, `dev-ms.example.com`).
+- Tokens in `~/.openadt/mcp/endpoints/` (mode `0600`); debug logs redact Bearer headers
+- Tests and docs use fictional fixtures only
 
 ## Implementation
 
-See `tools/mcp-bridge/` — Bun stdio JSON-RPC stub delegating to the CLI.
+- Launcher: `tools/sap-adt-mcp-launcher/`
+- Cursor sync helper: `scripts/sync-cursor-mcp.ts`

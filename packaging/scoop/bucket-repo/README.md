@@ -24,6 +24,8 @@ Scoop has no Homebrew-style name shorthand for custom buckets; use the full Git 
 
 Each OpenADT release runs `tools/sync-scoop-bucket/sync.sh` and dispatches `openadt-release` to the bucket repo.
 
+The manifest `post_install` runs `bin/scoop-post-install.ps1` from the installed version directory (checks Java, Bun, MCP launcher folder, prints next steps).
+
 `packaging/scoop/openadt.json` in the main **openadt** repo stays the release source of truth; this bucket repo is a mirror for `scoop bucket add openadt`.
 
 Legacy monorepo bucket branch (optional): `git clone -b scoop-bucket --depth 1 https://github.com/abapify/openadt openadt-bucket` then `scoop bucket add openadt .\openadt-bucket\packaging\scoop`

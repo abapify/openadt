@@ -1,6 +1,10 @@
 # Packaging
 
-OpenADT ships as a portable ZIP (`openadt.jar` + launchers). SAP binaries are never bundled.
+OpenADT ships as a portable ZIP (`openadt.jar` + launchers + `sap-adt-mcp-launcher/`). SAP binaries are never bundled.
+
+`openadt mcp` delegates to the Bun launcher in `OPENADT_HOME/sap-adt-mcp-launcher/` — install [Bun](https://bun.sh) for MCP.
+
+Scoop: `post_install` runs `bin/scoop-post-install.ps1` (Java/Bun checks, MCP launcher presence). Optional deps in manifest `suggest`: `java/openjdk21`, `main/bun`.
 
 ## Windows
 

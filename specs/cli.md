@@ -290,6 +290,22 @@ Behavior:
 
 ---
 
+### openadt mcp
+
+Launch the **official SAP ADT MCP** HTTP server (requires SAP ADT VS Code extension and **Bun** on PATH). See [mcp.md](mcp.md).
+
+```bash
+openadt mcp serve
+openadt mcp serve --port 2236 --destination DEV_100_developer_en
+openadt mcp list
+openadt mcp print-config --port 2236
+openadt mcp status --port 2236
+```
+
+Subcommands: `serve`, `status`, `list`, `print-config`. The release ZIP includes `sap-adt-mcp-launcher/` next to `openadt.jar`.
+
+---
+
 ### openadt fetch [\<SYSTEM\>] \<URL-OR-PATH\>
 
 Fetch a single ADT resource via the configured ADT transport.

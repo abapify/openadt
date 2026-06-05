@@ -20,8 +20,22 @@ class ProductCommandsTest {
         assertTrue(help.contains("auth"));
         assertTrue(help.contains("discovery"));
         assertTrue(help.contains("transports"));
+        assertTrue(help.contains("mcp"));
         assertFalse(help.contains("sdk"));
         assertFalse(help.lines().anyMatch(line -> line.trim().startsWith("adt ")));
+    }
+
+    @Test
+    void mcpSubcommandsListedInHelp() {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        CommandLine cmd = new CommandLine(new OpenAdtCommand());
+        cmd.setOut(new PrintWriter(out, true));
+        cmd.execute("mcp", "--help");
+        String help = out.toString();
+        assertTrue(help.contains("serve"));
+        assertTrue(help.contains("status"));
+        assertTrue(help.contains("list"));
+        assertTrue(help.contains("print-config"));
     }
 
     @Test

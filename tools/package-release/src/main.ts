@@ -104,6 +104,10 @@ function writeLaunchers(base: string): void {
     join(root, "packaging/windows/prepare-openadt-runtime.ps1"),
     join(base, "bin/prepare-openadt-runtime.ps1"),
   );
+  cpSync(
+    join(root, "packaging/scoop/post-install.ps1"),
+    join(base, "bin/scoop-post-install.ps1"),
+  );
 
   writeFileSync(
     join(base, "bin/openadt.cmd"),
@@ -170,6 +174,14 @@ if (!existsSync(jarPath)) {
 cpSync(jarPath, join(stageDir, "openadt.jar"));
 writeFileSync(join(stageDir, "VERSION"), `${version}\n`);
 cpSync(join(root, "LICENSE"), join(stageDir, "LICENSE"));
+cpSync(
+  join(root, "tools/sap-adt-mcp-launcher"),
+  join(stageDir, "sap-adt-mcp-launcher"),
+  {
+    recursive: true,
+    filter: (src) => !src.includes("node_modules"),
+  },
+);
 writeLaunchers(stageDir);
 if (
   process.platform === "win32" ||

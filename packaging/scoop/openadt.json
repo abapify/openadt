@@ -3,7 +3,7 @@
   "description": "Local bridge for SAP ADT traffic",
   "homepage": "https://github.com/abapify/openadt",
   "license": "Apache-2.0",
-  "notes": "Requires Java 21 on PATH. Optional: scoop bucket add java && scoop install openjdk21",
+  "notes": "Requires Java 21 on PATH. `openadt mcp` also requires Bun (https://bun.sh). Optional: scoop bucket add java && scoop install openjdk21",
   "architecture": {
     "64bit": {
       "url": "https://github.com/abapify/openadt/releases/download/v1.3.0/openadt-1.3.0.zip",
@@ -13,8 +13,12 @@
   "extract_dir": "openadt-1.3.0",
   "bin": "openadt.exe",
   "suggest": {
-    "JDK 21": "java/openjdk21"
+    "JDK 21": "java/openjdk21",
+    "Bun (for openadt mcp)": "main/bun"
   },
+  "post_install": [
+    "& (Join-Path $dir 'bin\\scoop-post-install.ps1') -InstallDir $dir"
+  ],
   "checkver": {
     "github": "abapify/openadt"
   },
