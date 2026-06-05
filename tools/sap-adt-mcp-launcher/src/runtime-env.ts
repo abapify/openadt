@@ -113,43 +113,67 @@ export function ensureMinimalProcessEnv(
     return env;
   }
   const home = homedir();
-  const findKey = (key: string): string | undefined =>
-    Object.keys(env).find((k) => k.toUpperCase() === key.toUpperCase());
-  const readVal = (key: string): string | undefined => {
-    const k = findKey(key);
-    return k ? env[k] : undefined;
-  };
-  const writeVal = (key: string, value: string): void => {
-    const existing = findKey(key) ?? key;
-    env[existing] = value;
-  };
+  const view = new CaseInsensitiveEnv(env);
 
-  if (!readVal("USERPROFILE")?.trim()) {
-    writeVal("USERPROFILE", home);
+  if (!view.hasNonEmpty("USERPROFILE")) {
+    view.set("USERPROFILE", home);
   }
-  if (!readVal("HOME")?.trim()) {
-    writeVal("HOME", home);
+  if (!view.hasNonEmpty("HOME")) {
+    view.set("HOME", home);
   }
-  if (!readVal("SystemRoot")?.trim() && !readVal("WINDIR")?.trim()) {
-    writeVal("SystemRoot", "C:\\Windows");
+  if (!view.hasNonEmpty("SystemRoot") && !view.hasNonEmpty("WINDIR")) {
+    view.set("SystemRoot", "C:\\Windows");
   }
-  if (!readVal("APPDATA")?.trim()) {
-    writeVal("APPDATA", join(home, "AppData", "Roaming"));
+  if (!view.hasNonEmpty("APPDATA")) {
+    view.set("APPDATA", join(home, "AppData", "Roaming"));
   }
-  let localAppData = readVal("LOCALAPPDATA")?.trim();
+  let localAppData = view.getTrimmed("LOCALAPPDATA");
   if (!localAppData) {
     localAppData = join(home, "AppData", "Local");
-    writeVal("LOCALAPPDATA", localAppData);
+    view.set("LOCALAPPDATA", localAppData);
   }
-  let temp = readVal("TEMP")?.trim();
+  let temp = view.getTrimmed("TEMP");
   if (!temp) {
     temp = join(localAppData, "Temp");
-    writeVal("TEMP", temp);
+    view.set("TEMP", temp);
   }
-  if (!readVal("TMP")?.trim()) {
-    writeVal("TMP", temp);
+  if (!view.hasNonEmpty("TMP")) {
+    view.set("TMP", temp);
   }
   return env;
+}
+
+/** Case-insensitive view over NodeJS.ProcessEnv (Windows env keys are case-insensitive). */
+class CaseInsensitiveEnv {
+  private readonly env: NodeJS.ProcessEnv;
+  private readonly keyByUpper: Map<string, string>;
+
+  constructor(env: NodeJS.ProcessEnv) {
+    this.env = env;
+    this.keyByUpper = new Map();
+    for (const key of Object.keys(env)) {
+      this.keyByUpper.set(key.toUpperCase(), key);
+    }
+  }
+
+  private existingKey(name: string): string {
+    return this.keyByUpper.get(name.toUpperCase()) ?? name;
+  }
+
+  hasNonEmpty(name: string): boolean {
+    return Boolean(this.getTrimmed(name));
+  }
+
+  getTrimmed(name: string): string | undefined {
+    const key = this.keyByUpper.get(name.toUpperCase());
+    const value = key === undefined ? undefined : this.env[key];
+    const trimmed = typeof value === "string" ? value.trim() : undefined;
+    return trimmed || undefined;
+  }
+
+  set(name: string, value: string): void {
+    this.env[this.existingKey(name)] = value;
+  }
 }
 
 function prependPath(env: NodeJS.ProcessEnv, dir: string): void {

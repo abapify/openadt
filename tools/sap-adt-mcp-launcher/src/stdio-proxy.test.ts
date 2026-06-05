@@ -130,46 +130,8 @@ describe("createStdioMcpBridge", () => {
   test("run forwards initialize then tools/list with session", async () => {
     const { chunks, restore } = mockStdoutCapture();
 
-    const toolsPayload =
-      '{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"t1"}]}}';
-    let session = "";
-    let call = 0;
-
-    globalThis.fetch = mock(async (_url, init) => {
-      call++;
-      const body = String(init?.body ?? "");
-      if (body.includes('"method":"initialize"')) {
-        session = "sess-1";
-        return Response.json(
-          {
-            jsonrpc: "2.0",
-            id: 1,
-            result: {
-              protocolVersion: "2024-11-05",
-              serverInfo: { name: "ADT MCP Server", version: "1.0.0" },
-            },
-          },
-          {
-            status: 200,
-            headers: {
-              "content-type": "application/json",
-              "mcp-session-id": session,
-            },
-          },
-        );
-      }
-      if (body.includes("notifications/initialized")) {
-        return new Response(null, { status: 202 });
-      }
-      if (body.includes('"method":"tools/list"')) {
-        expect(init?.headers?.["Mcp-Session-Id"] ?? "").toBe(session);
-        return new Response(`event: message\r\ndata: ${toolsPayload}\r\n\r\n`, {
-          status: 200,
-          headers: { "content-type": "text/event-stream" },
-        });
-      }
-      return new Response("unexpected", { status: 500 });
-    }) as unknown as typeof fetch;
+    const { fetchMock, sessionRef, getCallCount } = mockSessionFetch();
+    globalThis.fetch = fetchMock;
 
     try {
       const bridge = createStdioMcpBridge();
@@ -200,10 +162,64 @@ describe("createStdioMcpBridge", () => {
       expect(out).toContain("ADT MCP Server");
       expect(out).toContain('"id":2');
       expect(out).toContain('"name":"t1"');
-      expect(call).toBeGreaterThanOrEqual(3);
+      expect(getCallCount()).toBeGreaterThanOrEqual(3);
+      expect(sessionRef.value).toBe("sess-1");
     } finally {
       restore();
       globalThis.fetch = originalFetch;
     }
   });
 });
+
+/**
+ * Build a fetch mock that handles the canonical MCP handshake (initialize →
+ * notifications/initialized → tools/list) over a single session id, returning
+ * the mock plus accessors for assertions.
+ */
+function mockSessionFetch(): {
+  fetchMock: typeof fetch;
+  sessionRef: { value: string };
+  getCallCount: () => number;
+} {
+  const toolsPayload =
+    '{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"t1"}]}}';
+  const sessionRef: { value: string } = { value: "" };
+  let call = 0;
+
+  const fetchMock = mock(async (_url, init) => {
+    call++;
+    const body = String(init?.body ?? "");
+    if (body.includes('"method":"initialize"')) {
+      sessionRef.value = "sess-1";
+      return Response.json(
+        {
+          jsonrpc: "2.0",
+          id: 1,
+          result: {
+            protocolVersion: "2024-11-05",
+            serverInfo: { name: "ADT MCP Server", version: "1.0.0" },
+          },
+        },
+        {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+            "mcp-session-id": sessionRef.value,
+          },
+        },
+      );
+    }
+    if (body.includes("notifications/initialized")) {
+      return new Response(null, { status: 202 });
+    }
+    if (body.includes('"method":"tools/list"')) {
+      expect(init?.headers?.["Mcp-Session-Id"] ?? "").toBe(sessionRef.value);
+      return new Response(`event: message\r\ndata: ${toolsPayload}\r\n\r\n`, {
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+      });
+    }
+    return new Response("unexpected", { status: 500 });
+  }) as unknown as typeof fetch;
+  return { fetchMock, sessionRef, getCallCount: () => call };
+}

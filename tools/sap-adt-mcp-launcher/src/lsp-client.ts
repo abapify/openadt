@@ -245,19 +245,21 @@ async function createProjectAndLogon(
   options: { logonTimeoutMs: number; log?: McpLog },
 ): Promise<void> {
   const { logonTimeoutMs, log } = options;
+  const delaysMs = [750, 1_500];
   let lastError: Error | undefined;
-  for (let attempt = 1; attempt <= 2; attempt++) {
+  for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      await createProjectOnce(connection, destinationId, log);
-      await sleep(attempt === 1 ? 750 : 1_500);
-      await ensureDestinationLoggedOn(connection, destinationId, {
-        timeoutMs: logonTimeoutMs,
+      await runLogonAttempt(
+        connection,
+        destinationId,
+        logonTimeoutMs,
+        delaysMs[attempt]!,
         log,
-      });
+      );
       return;
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(formatError(err));
-      if (attempt === 1 && isRetryableLogonError(lastError.message)) {
+      if (attempt === 0 && isRetryableLogonError(lastError.message)) {
         log?.warn(
           `Logon for ${destinationId} failed (${lastError.message}); retrying createProject+logon once.`,
         );
@@ -271,6 +273,21 @@ async function createProjectAndLogon(
     }
   }
   throw lastError ?? new Error(`Logon failed for ${destinationId}`);
+}
+
+async function runLogonAttempt(
+  connection: MessageConnection,
+  destinationId: string,
+  logonTimeoutMs: number,
+  preLogonDelayMs: number,
+  log: McpLog | undefined,
+): Promise<void> {
+  await createProjectOnce(connection, destinationId, log);
+  await sleep(preLogonDelayMs);
+  await ensureDestinationLoggedOn(connection, destinationId, {
+    timeoutMs: logonTimeoutMs,
+    log,
+  });
 }
 
 export async function logDestinationDiagnostics(

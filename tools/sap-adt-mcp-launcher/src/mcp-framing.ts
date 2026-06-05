@@ -118,7 +118,8 @@ export class McpNdjsonDecoder extends Transform {
   ): void {
     try {
       this.buffer += this.utf8.decode(chunk, { stream: true });
-      this.drain(false);
+      this.drainLines();
+      this.handleTrailing(false);
       callback();
     } catch (err) {
       callback(err instanceof Error ? err : new Error(String(err)));
@@ -128,62 +129,82 @@ export class McpNdjsonDecoder extends Transform {
   override _flush(callback: TransformCallback): void {
     try {
       this.buffer += this.utf8.decode(new Uint8Array(0), { stream: false });
-      this.drain(true);
+      this.drainLines();
+      this.handleTrailing(true);
       callback();
     } catch (err) {
       callback(err instanceof Error ? err : new Error(String(err)));
     }
   }
 
-  private drain(flush: boolean): void {
-    while (true) {
-      const newline = this.buffer.indexOf("\n");
-      if (newline >= 0) {
-        const line = this.buffer.slice(0, newline).trim();
-        this.buffer = this.buffer.slice(newline + 1);
-        if (line) {
-          if (line.startsWith("{")) {
-            try {
-              JSON.parse(line);
-            } catch (err) {
-              this.buffer = line + "\n" + this.buffer;
-              throw new Error(
-                `Invalid JSON in NDJSON stream: ${
-                  err instanceof Error ? err.message : String(err)
-                }`,
-              );
-            }
-          }
-          this.push(line);
-        }
-        continue;
+  /** Emit one message per `\n`-terminated line; preserve the rest of the buffer for the next chunk. */
+  private drainLines(): void {
+    let newline = this.buffer.indexOf("\n");
+    while (newline >= 0) {
+      const rawLine = this.buffer.slice(0, newline);
+      this.buffer = this.buffer.slice(newline + 1);
+      const line = rawLine.trim();
+      if (line) {
+        this.emitLine(line);
       }
-      const trimmed = this.buffer.trim();
-      if (!trimmed) {
-        this.buffer = "";
-        return;
-      }
-      if (!flush) {
-        return;
-      }
-      if (trimmed.startsWith("{")) {
-        try {
-          JSON.parse(trimmed);
-        } catch (err) {
-          throw new Error(
-            `Invalid JSON in NDJSON stream: ${
-              err instanceof Error ? err.message : String(err)
-            }`,
-          );
-        }
-        this.push(trimmed);
-        this.buffer = "";
-        return;
-      }
-      throw new Error(
-        `Non-JSON trailing data in NDJSON stream: ${trimmed.slice(0, 100)}`,
-      );
+      newline = this.buffer.indexOf("\n");
     }
+  }
+
+  private emitLine(line: string): void {
+    if (line.startsWith("{")) {
+      this.assertValidJsonOrRequeue(line);
+    }
+    this.push(line);
+  }
+
+  /** After draining lines, decide what to do with whatever remains in the buffer. */
+  private handleTrailing(flush: boolean): void {
+    const trimmed = this.buffer.trim();
+    if (!trimmed) {
+      this.buffer = "";
+      return;
+    }
+    if (!flush) {
+      return;
+    }
+    if (trimmed.startsWith("{")) {
+      this.assertValidJson(trimmed);
+      this.push(trimmed);
+      this.buffer = "";
+      return;
+    }
+    throw new Error(
+      `Non-JSON trailing data in NDJSON stream: ${trimmed.slice(0, 100)}`,
+    );
+  }
+
+  private assertValidJsonOrRequeue(line: string): void {
+    try {
+      JSON.parse(line);
+    } catch (err) {
+      this.buffer = `${line}\n${this.buffer}`;
+      throw new InvalidNdjsonError(err);
+    }
+  }
+
+  private assertValidJson(line: string): void {
+    try {
+      JSON.parse(line);
+    } catch (err) {
+      throw new InvalidNdjsonError(err);
+    }
+  }
+}
+
+class InvalidNdjsonError extends Error {
+  override readonly name = "InvalidNdjsonError";
+  constructor(cause: unknown) {
+    super(
+      `Invalid JSON in NDJSON stream: ${
+        cause instanceof Error ? cause.message : String(cause)
+      }`,
+    );
   }
 }
 

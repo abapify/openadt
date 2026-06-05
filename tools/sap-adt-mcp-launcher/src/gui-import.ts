@@ -270,64 +270,90 @@ export function resolveDestinationImport(
   fileUris: string[];
 } {
   if (importFrom === "none") {
-    return { workspace, workspaceFolderUris: [], imported: [], fileUris: [] };
+    return emptyImport(workspace);
   }
-
   if (importFrom === "adtls" || importFrom === "auto") {
-    const adtls = discoverAdtlsDestinations(workspace);
-    if (adtls && adtls.destinations.length > 0) {
-      const dataWorkspace = resolveAdtLscDataWorkspace(
-        workspace,
-        explicitWorkspace,
-      );
-      const store = loadAdtlsDestinationsStore();
-      const materialized = store
-        ? materializeAdtlsDestinations(dataWorkspace, store)
-        : [];
-      return {
-        workspace: dataWorkspace,
-        workspaceFolderUris: materialized.map((d) => d.workspaceFolderUri),
-        imported: materialized,
-        importSource: adtlsImportSourceLabel(),
-        destinationsStorePath: adtls.storePath,
-        fileUris: destinationFileUris(materialized),
-      };
+    const adtls = importFromAdtls(workspace, explicitWorkspace);
+    if (adtls) {
+      return adtls;
     }
     if (importFrom === "adtls") {
-      return { workspace, workspaceFolderUris: [], imported: [], fileUris: [] };
+      return emptyImport(workspace);
     }
   }
-
   if (importFrom === "gui" || importFrom === "auto") {
-    const bundle = discoverGuiDestinations();
-    if (bundle && bundle.destinations.length > 0) {
-      return {
-        workspace: explicitWorkspace ? workspace : bundle.adtWorkspacePath,
-        workspaceFolderUris: bundle.destinations.map(
-          (d) => d.workspaceFolderUri,
-        ),
-        imported: bundle.destinations,
-        bundle,
-        importSource: bundle.sources.join("+"),
-        fileUris: destinationFileUris(bundle.destinations),
-      };
+    const gui = importFromGui(workspace, explicitWorkspace);
+    if (gui.imported.length > 0) {
+      return gui;
     }
     if (importFrom === "gui") {
-      return {
-        workspace,
-        workspaceFolderUris: [],
-        imported: [],
-        bundle,
-        fileUris: [],
-      };
+      return gui;
     }
   }
+  return importFromOpenAdt(workspace);
+}
 
+function emptyImport(workspace: string) {
+  return { workspace, workspaceFolderUris: [], imported: [], fileUris: [] };
+}
+
+function importFromAdtls(
+  workspace: string,
+  explicitWorkspace: boolean,
+): ReturnType<typeof resolveDestinationImport> | undefined {
+  const adtls = discoverAdtlsDestinations(workspace);
+  if (!adtls || adtls.destinations.length === 0) {
+    return undefined;
+  }
+  const dataWorkspace = resolveAdtLscDataWorkspace(
+    workspace,
+    explicitWorkspace,
+  );
+  const store = loadAdtlsDestinationsStore();
+  const materialized = store
+    ? materializeAdtlsDestinations(dataWorkspace, store)
+    : [];
+  return {
+    workspace: dataWorkspace,
+    workspaceFolderUris: materialized.map((d) => d.workspaceFolderUri),
+    imported: materialized,
+    importSource: adtlsImportSourceLabel(),
+    destinationsStorePath: adtls.storePath,
+    fileUris: destinationFileUris(materialized),
+  };
+}
+
+function importFromGui(
+  workspace: string,
+  explicitWorkspace: boolean,
+): ReturnType<typeof resolveDestinationImport> {
+  const bundle = discoverGuiDestinations();
+  if (!bundle || bundle.destinations.length === 0) {
+    return {
+      workspace,
+      workspaceFolderUris: [],
+      imported: [],
+      bundle,
+      fileUris: [],
+    };
+  }
+  return {
+    workspace: explicitWorkspace ? workspace : bundle.adtWorkspacePath,
+    workspaceFolderUris: bundle.destinations.map((d) => d.workspaceFolderUri),
+    imported: bundle.destinations,
+    bundle,
+    importSource: bundle.sources.join("+"),
+    fileUris: destinationFileUris(bundle.destinations),
+  };
+}
+
+function importFromOpenAdt(
+  workspace: string,
+): ReturnType<typeof resolveDestinationImport> {
   const materialized = materializeOpenAdtDestinations(workspace);
   if (materialized.length === 0) {
-    return { workspace, workspaceFolderUris: [], imported: [], fileUris: [] };
+    return emptyImport(workspace);
   }
-
   return {
     workspace,
     workspaceFolderUris: materialized.map((d) => d.workspaceFolderUri),

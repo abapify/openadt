@@ -238,17 +238,7 @@ async function cmdServe(argv: string[]): Promise<number> {
   }
 
   const log = createMcpLog({ verbose: cfg.verbose, logFile: cfg.logFile });
-  if (log) {
-    console.error(`MCP debug log: ${log.logPath}`);
-    console.error(
-      `adt-lsc Eclipse log: ${eclipseWorkspaceLogPath(gui.workspace)}`,
-    );
-    log.info(`import source: ${gui.importSource ?? cfg.importFrom}`);
-    log.info(`destinations store: ${gui.destinationsStorePath ?? "(none)"}`);
-    log.info(
-      `workspace folders: ${gui.workspaceFolderUris.join(", ") || "(none)"}`,
-    );
-  }
+  logImportDiagnostics(log, gui, cfg);
 
   const token = generateMcpToken();
   const connectResult = await connectLanguageServer(install, cfg, gui, log);
@@ -261,94 +251,165 @@ async function cmdServe(argv: string[]): Promise<number> {
   let endpointWritten = false;
   let endpointPort: number | undefined;
   try {
-    log?.info(`LSP → adtLs/mcp/startMCPServer port=${cfg.port}`);
-    const started = await startMcpServer(session.connection, {
+    const started = await startMcpHttpAndApplyDestination(session.connection, {
       port: cfg.port,
       token,
+      destination: cfg.destination,
+      log,
     });
     endpointPort = started.port;
-    log?.info(
-      `LSP ← adtLs/mcp/startMCPServer port=${started.port} version=${started.version ?? "?"}`,
-    );
-    try {
-      const ready = await waitForMcpHttp(started.port, started.token);
-      if (!ready) {
-        throw new Error(
-          `MCP HTTP not ready at ${mcpUrl(started.port)} within timeout`,
-        );
-      }
-    } catch (err) {
-      log?.error(
-        `MCP HTTP not ready at port ${started.port}: ${formatError(err)}`,
-      );
-      throw err;
-    }
-    if (cfg.destination) {
-      log?.info(`LSP → adtLs/mcp/setDestination ${cfg.destination}`);
-      await setMcpDestination(session.connection, cfg.destination);
-      log?.info(`LSP ← adtLs/mcp/setDestination ok`);
-    }
-
-    const endpoint = {
-      port: started.port,
-      url: mcpUrl(started.port),
-      token: started.token,
-      pid: process.pid,
-      adtLscPid: session.child.pid ?? undefined,
-      startedAt: new Date().toISOString(),
-      destination: cfg.destination,
-      destinations: gui.imported.map((d) => d.id),
-      workspace: gui.workspace,
-    };
+    const endpoint = buildEndpointRecord(started, session, gui, cfg);
     writeEndpoint(endpoint);
     endpointWritten = true;
+    printServeState(
+      toServerState(endpoint, install, cfg, gui, started.version),
+      cfg,
+    );
 
-    const state: ServerState = {
-      url: endpoint.url,
-      port: endpoint.port,
-      token: endpoint.token,
-      endpointFile: endpointFilePath(endpoint.port),
-      version: started.version,
-      extensionVersion: install.version,
-      adtLscPath: install.adtLscPath,
-      workspace: gui.workspace,
-      importFrom: cfg.importFrom,
-      importSource: gui.importSource,
-      destinations: endpoint.destinations,
-    };
-    printServeState(state, cfg);
-
-    // Start stdio bridge immediately so it can respond to initialize
-    // while SAP logon is still in progress
     if (cfg.stdio && bridge) {
-      const runPromise = bridge.run(state.port, state.token);
-      await Promise.race([
-        runPromise,
-        waitForIdleHttpServe(session).then(() => runPromise),
-      ]);
+      await runStdioBridgeOrHttpLoop(bridge, session, started);
       return EXIT_OK;
     }
-
     await waitForIdleHttpServe(session);
     return EXIT_OK;
   } catch (err) {
-    const msg = formatError(err);
-    if (isPortInUseMessage(msg)) {
-      return failStdioAndExit(
-        bridge,
-        EXIT_PORT_IN_USE,
-        `Port ${cfg.port} is already in use.`,
-      );
-    }
-    return failStdioAndExit(
-      bridge,
-      EXIT_LSP_MCP,
-      `adtLs/mcp/startMCPServer failed: ${msg}`,
-    );
+    return failServeError(bridge, cfg, err);
   } finally {
     await shutdown(session, endpointPort, endpointWritten);
     log?.dispose();
   }
+}
+
+function logImportDiagnostics(
+  log: ReturnType<typeof createMcpLog>,
+  gui: ReturnType<typeof resolveDestinationImport>,
+  cfg: McpServeConfig,
+): void {
+  if (!log) {
+    return;
+  }
+  console.error(`MCP debug log: ${log.logPath}`);
+  console.error(
+    `adt-lsc Eclipse log: ${eclipseWorkspaceLogPath(gui.workspace)}`,
+  );
+  log.info(`import source: ${gui.importSource ?? cfg.importFrom}`);
+  log.info(`destinations store: ${gui.destinationsStorePath ?? "(none)"}`);
+  log.info(
+    `workspace folders: ${gui.workspaceFolderUris.join(", ") || "(none)"}`,
+  );
+}
+
+async function startMcpHttpAndApplyDestination(
+  connection: LspSession["connection"],
+  options: {
+    port: number;
+    token: string;
+    destination: string | undefined;
+    log: ReturnType<typeof createMcpLog>;
+  },
+): Promise<{ port: number; token: string; version?: string }> {
+  options.log?.info(`LSP → adtLs/mcp/startMCPServer port=${options.port}`);
+  const started = await startMcpServer(connection, {
+    port: options.port,
+    token: options.token,
+  });
+  options.log?.info(
+    `LSP ← adtLs/mcp/startMCPServer port=${started.port} version=${started.version ?? "?"}`,
+  );
+  try {
+    const ready = await waitForMcpHttp(started.port, started.token);
+    if (!ready) {
+      throw new Error(
+        `MCP HTTP not ready at ${mcpUrl(started.port)} within timeout`,
+      );
+    }
+  } catch (err) {
+    options.log?.error(
+      `MCP HTTP not ready at port ${started.port}: ${formatError(err)}`,
+    );
+    throw err;
+  }
+  if (options.destination) {
+    options.log?.info(`LSP → adtLs/mcp/setDestination ${options.destination}`);
+    await setMcpDestination(connection, options.destination);
+    options.log?.info(`LSP ← adtLs/mcp/setDestination ok`);
+  }
+  return started;
+}
+
+type EndpointRecord = ReturnType<typeof buildEndpointRecord>;
+
+function buildEndpointRecord(
+  started: { port: number; token: string; version?: string },
+  session: LspSession,
+  gui: ReturnType<typeof resolveDestinationImport>,
+  cfg: McpServeConfig,
+) {
+  return {
+    port: started.port,
+    url: mcpUrl(started.port),
+    token: started.token,
+    pid: process.pid,
+    adtLscPid: session.child.pid ?? undefined,
+    startedAt: new Date().toISOString(),
+    destination: cfg.destination,
+    destinations: gui.imported.map((d) => d.id),
+    workspace: gui.workspace,
+  };
+}
+
+function toServerState(
+  endpoint: EndpointRecord,
+  install: NonNullable<ReturnType<typeof locateAdtLs>>,
+  cfg: McpServeConfig,
+  gui: ReturnType<typeof resolveDestinationImport>,
+  version: string | undefined,
+): ServerState {
+  return {
+    url: endpoint.url,
+    port: endpoint.port,
+    token: endpoint.token,
+    endpointFile: endpointFilePath(endpoint.port),
+    version,
+    extensionVersion: install.version,
+    adtLscPath: install.adtLscPath,
+    workspace: gui.workspace,
+    importFrom: cfg.importFrom,
+    importSource: gui.importSource,
+    destinations: endpoint.destinations,
+  };
+}
+
+async function runStdioBridgeOrHttpLoop(
+  bridge: StdioMcpBridge,
+  session: LspSession,
+  started: { port: number; token: string },
+): Promise<void> {
+  const runPromise = bridge.run(started.port, started.token);
+  await Promise.race([
+    runPromise,
+    waitForIdleHttpServe(session).then(() => runPromise),
+  ]);
+}
+
+function failServeError(
+  bridge: StdioMcpBridge | undefined,
+  cfg: McpServeConfig,
+  err: unknown,
+): Promise<number> {
+  const msg = formatError(err);
+  if (isPortInUseMessage(msg)) {
+    return failStdioAndExit(
+      bridge,
+      EXIT_PORT_IN_USE,
+      `Port ${cfg.port} is already in use.`,
+    );
+  }
+  return failStdioAndExit(
+    bridge,
+    EXIT_LSP_MCP,
+    `adtLs/mcp/startMCPServer failed: ${msg}`,
+  );
 }
 
 type ConnectResult =

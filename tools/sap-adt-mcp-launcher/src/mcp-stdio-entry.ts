@@ -34,19 +34,27 @@ function resolveBun(): string {
 async function pickMcpPort(): Promise<number> {
   const explicit = process.env.OPENADT_MCP_PORT?.trim();
   if (explicit) {
-    const port = Number(explicit);
-    if (
-      !Number.isFinite(port) ||
-      !Number.isInteger(port) ||
-      port < 1024 ||
-      port > 65535
-    ) {
-      throw new Error(
-        `Invalid OPENADT_MCP_PORT=${explicit} (expected integer 1024-65535); falling back to ephemeral.`,
-      );
-    }
-    return port;
+    return parseExplicitPort(explicit);
   }
+  return bindEphemeralPort();
+}
+
+function parseExplicitPort(raw: string): number {
+  const port = Number(raw);
+  if (
+    !Number.isFinite(port) ||
+    !Number.isInteger(port) ||
+    port < 1024 ||
+    port > 65535
+  ) {
+    throw new Error(
+      `Invalid OPENADT_MCP_PORT=${raw} (expected integer 1024-65535); falling back to ephemeral.`,
+    );
+  }
+  return port;
+}
+
+function bindEphemeralPort(): Promise<number> {
   return new Promise((resolve, reject) => {
     const server = createServer();
     server.unref();

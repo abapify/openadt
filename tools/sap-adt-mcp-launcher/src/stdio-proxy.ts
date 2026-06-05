@@ -16,18 +16,24 @@ export function parseMcpHttpResponseBody(
     return [];
   }
   if (contentType.includes("text/event-stream")) {
-    const messages: string[] = [];
-    for (const line of trimmed.split(/\r?\n/)) {
-      if (line.startsWith("data:")) {
-        const payload = line.slice(5).trimStart();
-        if (payload && payload !== "[DONE]") {
-          messages.push(payload);
-        }
-      }
-    }
-    return messages;
+    return parseSseMessages(trimmed);
   }
   return [trimmed];
+}
+
+/** Extract `data:` payloads from a Server-Sent Events body. */
+function parseSseMessages(body: string): string[] {
+  const messages: string[] = [];
+  for (const line of body.split(/\r?\n/)) {
+    if (!line.startsWith("data:")) {
+      continue;
+    }
+    const payload = line.slice(5).trimStart();
+    if (payload && payload !== "[DONE]") {
+      messages.push(payload);
+    }
+  }
+  return messages;
 }
 
 export function jsonRpcErrorResponse(
@@ -102,8 +108,7 @@ export function createStdioMcpBridge(): StdioMcpBridge {
   let forwardChain = Promise.resolve();
   let ready = false;
   let backend: { port: number; token: string } | undefined;
-  const PENDING_BODIES_LIMIT = 256;
-  const pendingBodies: string[] = [];
+  const queue = new PendingBodyQueue(256);
   let resolveClose: (() => void) | undefined;
   let closePromise: Promise<void> | undefined;
   let started = false;
@@ -128,12 +133,16 @@ export function createStdioMcpBridge(): StdioMcpBridge {
     }
   };
 
+  const appendForward = (step: () => Promise<void>): void => {
+    forwardChain = forwardChain.then(step);
+  };
+
   const forwardHttpOne = (body: string): void => {
     if (!backend) {
       return;
     }
     const http = backend;
-    forwardChain = forwardChain.then(async () => {
+    appendForward(async () => {
       try {
         const result = await postMcpHttpMessage(
           http.port,
@@ -159,37 +168,35 @@ export function createStdioMcpBridge(): StdioMcpBridge {
     });
   };
 
-  const forwardOne = (body: string): void => {
-    if (failed) {
-      forwardChain = forwardChain.then(() =>
-        replyError(body, -32000, "MCP backend failed to start"),
+  const enqueuePending = (body: string): void => {
+    const dropped = queue.enqueueOrDrop(body);
+    if (dropped) {
+      appendForward(() =>
+        replyError(
+          dropped,
+          -32000,
+          "MCP backend buffer full during SAP logon; retry after initialize",
+        ),
       );
-      return;
     }
-    if (!ready) {
-      if (pendingBodies.length >= PENDING_BODIES_LIMIT) {
-        const dropped = pendingBodies.shift();
-        if (dropped) {
-          forwardChain = forwardChain.then(() =>
-            replyError(
-              dropped,
-              -32000,
-              "MCP backend buffer full during SAP logon; retry after initialize",
-            ),
-          );
-        }
-      }
-      pendingBodies.push(body);
-      return;
-    }
-    forwardHttpOne(body);
   };
 
-  const flushPending = (): void => {
-    const queued = pendingBodies.splice(0, pendingBodies.length);
-    for (const body of queued) {
+  const drainPending = (): void => {
+    for (const body of queue.takeAll()) {
       forwardHttpOne(body);
     }
+  };
+
+  const replyAllPending = (code: number, message: string): void => {
+    const queued = queue.takeAll();
+    if (queued.length === 0) {
+      return;
+    }
+    appendForward(async () => {
+      for (const body of queued) {
+        await replyError(body, code, message);
+      }
+    });
   };
 
   const scheduleCloseWhenIdle = (): void => {
@@ -199,7 +206,19 @@ export function createStdioMcpBridge(): StdioMcpBridge {
     forwardChain.finally(() => resolveClose?.());
   };
 
-  decoder.on("data", (body: string) => forwardOne(body));
+  decoder.on("data", (body: string) => {
+    if (failed) {
+      appendForward(() =>
+        replyError(body, -32000, "MCP backend failed to start"),
+      );
+      return;
+    }
+    if (!ready) {
+      enqueuePending(body);
+      return;
+    }
+    forwardHttpOne(body);
+  });
   decoder.on("error", (err: Error) => {
     console.error(`[openadt-mcp] stdio stdin decode error: ${err.message}`);
     stdinEnded = true;
@@ -255,21 +274,15 @@ export function createStdioMcpBridge(): StdioMcpBridge {
           );
           failed = true;
           ready = true;
-          const queued = pendingBodies.splice(0, pendingBodies.length);
-          forwardChain = forwardChain.then(async () => {
-            for (const body of queued) {
-              await replyError(
-                body,
-                -32000,
-                "MCP HTTP backend failed to start (SAP logon timeout)",
-              );
-            }
-            scheduleCloseWhenIdle();
-          });
+          replyAllPending(
+            -32000,
+            "MCP HTTP backend failed to start (SAP logon timeout)",
+          );
+          scheduleCloseWhenIdle();
           return;
         }
         ready = true;
-        flushPending();
+        drainPending();
         scheduleCloseWhenIdle();
       });
       return closePromise!;
@@ -277,16 +290,29 @@ export function createStdioMcpBridge(): StdioMcpBridge {
     failPending(code: number, message: string) {
       failed = true;
       ready = true;
-      const queued = pendingBodies.splice(0, pendingBodies.length);
-      forwardChain = forwardChain.then(async () => {
-        for (const body of queued) {
-          await replyError(body, code, message);
-        }
-        scheduleCloseWhenIdle();
-      });
+      replyAllPending(code, message);
+      scheduleCloseWhenIdle();
     },
     flush(): Promise<void> {
       return forwardChain;
     },
   };
+}
+
+/** FIFO queue of stdio bodies buffered while the HTTP backend is still starting. */
+class PendingBodyQueue {
+  private readonly bodies: string[] = [];
+  constructor(private readonly limit: number) {}
+
+  enqueueOrDrop(body: string): string | undefined {
+    if (this.bodies.length >= this.limit) {
+      return this.bodies.shift();
+    }
+    this.bodies.push(body);
+    return undefined;
+  }
+
+  takeAll(): string[] {
+    return this.bodies.splice(0, this.bodies.length);
+  }
 }
