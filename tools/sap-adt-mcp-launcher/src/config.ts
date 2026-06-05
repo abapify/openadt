@@ -163,22 +163,24 @@ export function parseStatusArgv(argv: string[]): {
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
-    const portArg = readStringFlag(argv, i, "port");
-    if (portArg !== null) {
-      if ("missing" in portArg) throwMissingFlag("port");
-      port = Number(portArg.value);
-      i = portArg.next;
-      continue;
-    }
     if (arg === "--json") {
       json = true;
       continue;
     }
-    const tokenArg = readStringFlag(argv, i, "token");
-    if (tokenArg !== null) {
-      if ("missing" in tokenArg) throwMissingFlag("token");
-      token = tokenArg.value;
-      i = tokenArg.next;
+    if (arg === "--port" && i + 1 < argv.length) {
+      port = Number(argv[++i]!);
+      continue;
+    }
+    if (arg.startsWith("--port=")) {
+      port = Number(arg.slice("--port=".length));
+      continue;
+    }
+    if (arg === "--token" && i + 1 < argv.length) {
+      token = argv[++i]!;
+      continue;
+    }
+    if (arg.startsWith("--token=")) {
+      token = arg.slice("--token=".length);
       continue;
     }
   }
@@ -206,11 +208,12 @@ export function parsePrintConfigArgv(argv: string[]): {
       json = true;
       continue;
     }
-    const portArg = readStringFlag(argv, i, "port");
-    if (portArg !== null) {
-      if ("missing" in portArg) throwMissingFlag("port");
-      port = Number(portArg.value);
-      i = portArg.next;
+    if (arg === "--port" && i + 1 < argv.length) {
+      port = Number(argv[++i]!);
+      continue;
+    }
+    if (arg.startsWith("--port=")) {
+      port = Number(arg.slice("--port=".length));
       continue;
     }
   }
@@ -242,25 +245,4 @@ export function parseSubcommandArgv(
     return undefined;
   }
   return { name: sub, argv: argv.slice(1) };
-}
-
-type FlagResult = { value: string; next: number } | { missing: true } | null;
-
-/** Read {@code --name value} or {@code --name=value} from argv. */
-function readStringFlag(argv: string[], i: number, name: string): FlagResult {
-  const arg = argv[i];
-  const prefix = `--${name}=`;
-  if (arg === `--${name}`) {
-    const next = argv[i + 1];
-    if (next === undefined) return { missing: true };
-    return { value: next, next: i + 1 };
-  }
-  if (arg !== undefined && arg.startsWith(prefix)) {
-    return { value: arg.slice(prefix.length), next: i };
-  }
-  return null;
-}
-
-function throwMissingFlag(name: string): never {
-  throw new Error(`Missing value for --${name}`);
 }
