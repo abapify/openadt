@@ -11,12 +11,12 @@ OpenADT **does not** implement MCP tools. The Bun launcher in `tools/sap-adt-mcp
 | `list`         | List active endpoints (one store file per port)              |
 | `print-config` | Emit Cursor `mcpServers` JSON from endpoint store            |
 
-Run via Bun:
+Run via Bun or OpenADT CLI (requires [Bun](https://bun.sh) on PATH):
 
 ```bash
-bun tools/sap-adt-mcp-launcher/src/main.ts serve --port 2236
-bun tools/sap-adt-mcp-launcher/src/main.ts list
-bun tools/sap-adt-mcp-launcher/src/main.ts print-config --port 2236
+openadt mcp serve --port 2236
+openadt mcp list
+openadt mcp print-config --port 2236
 ```
 
 ## Endpoint store (multi-instance)

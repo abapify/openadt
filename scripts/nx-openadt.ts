@@ -175,6 +175,33 @@ function buildSdkClasspath(jar: string): string {
 
 const jar = findDevJar();
 const args = process.argv.slice(2);
+
+/** SAP ADT MCP uses Bun launcher (pipe LSP), not the Java classpath. */
+function runMcpLauncher(mcpArgs: string[]): number {
+  const launcher = join(
+    repoRoot,
+    "tools",
+    "sap-adt-mcp-launcher",
+    "src",
+    "main.ts",
+  );
+  if (!existsSync(launcher)) {
+    console.error(`Missing MCP launcher: ${launcher}`);
+    return 1;
+  }
+  const result = spawnSync("bun", [launcher, ...mcpArgs], {
+    stdio: "inherit",
+    cwd: repoRoot,
+    env: { ...process.env, OPENADT_REPO: repoRoot },
+  });
+  return result.status ?? 1;
+}
+
+if (firstSubcommand(args) === "mcp") {
+  const mcpArgs = args.slice(1);
+  process.exit(runMcpLauncher(mcpArgs.length > 0 ? mcpArgs : ["--help"]));
+}
+
 const profile =
   parseProfile(args) ?? normalizeProfile(process.env.OPENADT_PROFILE);
 

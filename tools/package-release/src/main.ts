@@ -170,6 +170,14 @@ if (!existsSync(jarPath)) {
 cpSync(jarPath, join(stageDir, "openadt.jar"));
 writeFileSync(join(stageDir, "VERSION"), `${version}\n`);
 cpSync(join(root, "LICENSE"), join(stageDir, "LICENSE"));
+cpSync(
+  join(root, "tools/sap-adt-mcp-launcher"),
+  join(stageDir, "sap-adt-mcp-launcher"),
+  {
+    recursive: true,
+    filter: (src) => !src.includes("node_modules"),
+  },
+);
 writeLaunchers(stageDir);
 if (
   process.platform === "win32" ||

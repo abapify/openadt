@@ -188,7 +188,7 @@ async function cmdServe(argv: string[]): Promise<number> {
     } else {
       console.log(`SAP ADT MCP listening at ${state.url}`);
       console.log(
-        `Cursor config: bun tools/sap-adt-mcp-launcher/src/main.ts print-config --port ${state.port}`,
+        `Cursor config: openadt mcp print-config --port ${state.port}`,
       );
       console.log(`Endpoint store: ${endpointFilePath(state.port)}`);
       console.log(
