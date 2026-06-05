@@ -12,10 +12,11 @@ Headless orchestrator for the **official SAP ADT MCP** shipped in the [SAP ADT V
 ```bash
 bun tools/sap-adt-mcp-launcher/src/main.ts serve
 bun tools/sap-adt-mcp-launcher/src/main.ts status --port 2236
-bun tools/sap-adt-mcp-launcher/src/main.ts print-config
+bun tools/sap-adt-mcp-launcher/src/main.ts list
+bun tools/sap-adt-mcp-launcher/src/main.ts print-config --port 2236
 ```
 
-Via OpenADT CLI: `openadt mcp serve`, `openadt mcp status`, `openadt mcp print-config`.
+Each running `serve` stores url+token in `~/.openadt/mcp/endpoints/<port>.json`. With multiple servers, use `list` then `print-config --port <port>`. Project Cursor config: `bun scripts/sync-cursor-mcp.ts --port <port>`.
 
 ## Flags (`serve`)
 
@@ -25,7 +26,7 @@ Via OpenADT CLI: `openadt mcp serve`, `openadt mcp status`, `openadt mcp print-c
 | `--workspace`         | `~/.openadt/adt-ls-workspace` | adt-lsc `-data` directory                                               |
 | `--destination`       | —                             | Optional `adtLs/mcp/setDestination` (follow-up)                         |
 | `--json`              | off                           | Machine-readable status on stdout                                       |
-| `--show-token`        | off                           | Print full Bearer token                                                 |
+| `--show-token`        | off                           | Print Bearer token on stdout (default: endpoint store only)             |
 | `--import-from=auto`  | **on** (default)              | `~/.adtls/destinations.json` → GUI cache → `~/.openadt` materialization |
 | `--import-from=adtls` | —                             | Only `~/.adtls/destinations.json` (ADT VS Code logon store)             |
 | `--no-gui`            | —                             | Skip import (`--import-from=none`)                                      |

@@ -5,16 +5,25 @@
  */
 import { locateAdtLs } from "./locate.ts";
 import {
+  parseListArgv,
   parsePrintConfigArgv,
   parseServeArgv,
   parseStatusArgv,
   parseSubcommandArgv,
 } from "./config.ts";
+import {
+  endpointFilePath,
+  listEndpoints,
+  mcpEndpointsDir,
+  removeEndpoint,
+  resolveEndpointPort,
+  writeEndpoint,
+} from "./endpoint-store.ts";
 import { resolveDestinationImport } from "./gui-import.ts";
 import { createMcpLog, eclipseWorkspaceLogPath } from "./log.ts";
 import { isVsCodeAdtWorkspacePath } from "./runtime-env.ts";
 import { connectAdtLanguageServer, disposeLspSession } from "./lsp-client.ts";
-import { clearPidFile, killProcessTree, writePidFile } from "./process.ts";
+import { killProcessTree } from "./process.ts";
 import {
   cursorMcpSnippet,
   generateMcpToken,
@@ -40,7 +49,8 @@ function usage(): void {
 Commands:
   serve         Start SAP ADT language server and MCP HTTP endpoint
   status        Probe MCP HTTP endpoint
-  print-config  Emit Cursor mcpServers JSON snippet
+  list          List active MCP endpoints (one store file per port)
+  print-config  Emit Cursor mcpServers JSON from endpoint store
 
 Install SAP ADT for VS Code: ${MARKETPLACE_URL}
 `);
@@ -125,10 +135,7 @@ async function cmdServe(argv: string[]): Promise<number> {
     return EXIT_LSC_START;
   }
 
-  if (session.child.pid) {
-    writePidFile(session.child.pid);
-  }
-
+  let endpointWritten = false;
   try {
     log?.info(`LSP → adtLs/mcp/startMCPServer port=${cfg.port}`);
     const started = await startMcpServer(session.connection, {
@@ -144,17 +151,32 @@ async function cmdServe(argv: string[]): Promise<number> {
       log?.info(`LSP ← adtLs/mcp/setDestination ok`);
     }
 
-    const state = {
-      url: mcpUrl(started.port),
+    const endpoint = {
       port: started.port,
+      url: mcpUrl(started.port),
       token: started.token,
+      pid: process.pid,
+      adtLscPid: session.child.pid ?? undefined,
+      startedAt: new Date().toISOString(),
+      destination: cfg.destination,
+      destinations: gui.imported.map((d) => d.id),
+      workspace: gui.workspace,
+    };
+    writeEndpoint(endpoint);
+    endpointWritten = true;
+
+    const state = {
+      url: endpoint.url,
+      port: endpoint.port,
+      token: endpoint.token,
+      endpointFile: endpointFilePath(endpoint.port),
       version: started.version,
       extensionVersion: install.version,
       adtLscPath: install.adtLscPath,
       workspace: gui.workspace,
       importFrom: cfg.importFrom,
       importSource: gui.importSource,
-      destinations: gui.imported.map((d) => d.id),
+      destinations: endpoint.destinations,
     };
 
     if (cfg.json) {
@@ -166,13 +188,14 @@ async function cmdServe(argv: string[]): Promise<number> {
     } else {
       console.log(`SAP ADT MCP listening at ${state.url}`);
       console.log(
-        `Bearer token: ${cfg.showToken ? state.token : redactToken(state.token)}`,
+        `Cursor config: bun tools/sap-adt-mcp-launcher/src/main.ts print-config --port ${state.port}`,
       );
+      console.log(`Endpoint store: ${endpointFilePath(state.port)}`);
       console.log(
         `Extension: ${install.version} · Workspace: ${cfg.workspace}`,
       );
-      if (!cfg.showToken) {
-        console.log("Re-run with --show-token to print the full token.");
+      if (cfg.showToken) {
+        console.log(`Bearer token: ${state.token}`);
       }
       console.log("Press Ctrl+C to stop.");
     }
@@ -188,7 +211,9 @@ async function cmdServe(argv: string[]): Promise<number> {
     console.error(`adtLs/mcp/startMCPServer failed: ${msg}`);
     return EXIT_LSP_MCP;
   } finally {
-    clearPidFile();
+    if (endpointWritten) {
+      removeEndpoint(cfg.port);
+    }
     if (session) {
       await disposeLspSession(session);
     }
@@ -231,10 +256,28 @@ async function waitForShutdown(
 }
 
 async function cmdStatus(argv: string[]): Promise<number> {
-  const { port, token, json } = parseStatusArgv(argv);
+  const {
+    port: requestedPort,
+    token: explicitToken,
+    json,
+  } = parseStatusArgv(argv);
+  const resolved = resolveEndpointPort(requestedPort);
+  if (!resolved.ok) {
+    console.error(resolved.message);
+    return 1;
+  }
+  const { port, record } = resolved;
+  const token = explicitToken ?? record.token;
   const ok = await probeMcpHttp(port, token);
   if (json) {
-    console.log(JSON.stringify({ port, url: mcpUrl(port), reachable: ok }));
+    console.log(
+      JSON.stringify({
+        port,
+        url: mcpUrl(port),
+        reachable: ok,
+        endpointFile: endpointFilePath(port),
+      }),
+    );
   } else if (ok) {
     console.log(`MCP reachable at ${mcpUrl(port)}`);
   } else {
@@ -243,18 +286,49 @@ async function cmdStatus(argv: string[]): Promise<number> {
   return ok ? EXIT_OK : 1;
 }
 
-function cmdPrintConfig(argv: string[]): number {
-  const { port, showToken, json } = parsePrintConfigArgv(argv);
-  const token = showToken
-    ? generateMcpToken()
-    : "<run openadt mcp serve --show-token>";
-  const snippet = cursorMcpSnippet(port, token);
+function cmdList(argv: string[]): number {
+  const { json } = parseListArgv(argv);
+  const endpoints = listEndpoints();
   if (json) {
-    console.log(JSON.stringify(snippet, null, 2));
+    console.log(
+      JSON.stringify(
+        endpoints.map((e) => ({
+          port: e.port,
+          url: e.url,
+          destinations: e.destinations,
+          destination: e.destination,
+          pid: e.pid,
+          startedAt: e.startedAt,
+          endpointFile: endpointFilePath(e.port),
+        })),
+        null,
+        2,
+      ),
+    );
+  } else if (endpoints.length === 0) {
+    console.error(`No active MCP endpoints in ${mcpEndpointsDir()}`);
   } else {
-    console.log(JSON.stringify(snippet, null, 2));
+    for (const e of endpoints) {
+      const dests = e.destinations.join(", ") || "(none)";
+      console.log(`${e.port}\t${e.url}\t${dests}`);
+    }
+  }
+  return endpoints.length > 0 ? EXIT_OK : 1;
+}
+
+function cmdPrintConfig(argv: string[]): number {
+  const { port: requestedPort, json } = parsePrintConfigArgv(argv);
+  const resolved = resolveEndpointPort(requestedPort);
+  if (!resolved.ok) {
+    console.error(resolved.message);
+    return 1;
+  }
+  const { port, record } = resolved;
+  const snippet = cursorMcpSnippet(port, record.token);
+  console.log(JSON.stringify(snippet, null, 2));
+  if (!json) {
     console.error(
-      "\nReplace the Bearer token with the value from `openadt mcp serve --show-token`.",
+      `\nFrom endpoint ${endpointFilePath(port)} · active servers: list`,
     );
   }
   return EXIT_OK;
@@ -280,6 +354,8 @@ const code = await (async (): Promise<number> => {
       return cmdServe(subcmd.argv);
     case "status":
       return cmdStatus(subcmd.argv);
+    case "list":
+      return cmdList(subcmd.argv);
     case "print-config":
       return cmdPrintConfig(subcmd.argv);
     default:

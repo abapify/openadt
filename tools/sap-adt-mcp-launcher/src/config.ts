@@ -153,11 +153,11 @@ export function parseServeArgv(argv: string[]): McpServeConfig {
 }
 
 export function parseStatusArgv(argv: string[]): {
-  port: number;
+  port?: number;
   token?: string;
   json: boolean;
 } {
-  let port = DEFAULT_MCP_PORT;
+  let port: number | undefined;
   let token: string | undefined;
   let json = false;
 
@@ -185,7 +185,10 @@ export function parseStatusArgv(argv: string[]): {
     }
   }
 
-  if (port < 1 || port > 65535 || !Number.isFinite(port)) {
+  if (
+    port !== undefined &&
+    (port < 1 || port > 65535 || !Number.isFinite(port))
+  ) {
     throw new Error(`Invalid --port: ${port}`);
   }
 
@@ -193,22 +196,16 @@ export function parseStatusArgv(argv: string[]): {
 }
 
 export function parsePrintConfigArgv(argv: string[]): {
-  port: number;
-  showToken: boolean;
+  port?: number;
   json: boolean;
 } {
-  let port = DEFAULT_MCP_PORT;
-  let showToken = false;
+  let port: number | undefined;
   let json = false;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
     if (arg === "--json") {
       json = true;
-      continue;
-    }
-    if (arg === "--show-token") {
-      showToken = true;
       continue;
     }
     if (arg === "--port" && i + 1 < argv.length) {
@@ -221,11 +218,18 @@ export function parsePrintConfigArgv(argv: string[]): {
     }
   }
 
-  if (port < 1 || port > 65535 || !Number.isFinite(port)) {
+  if (
+    port !== undefined &&
+    (port < 1 || port > 65535 || !Number.isFinite(port))
+  ) {
     throw new Error(`Invalid --port: ${port}`);
   }
 
-  return { port, showToken, json };
+  return { port, json };
+}
+
+export function parseListArgv(argv: string[]): { json: boolean } {
+  return { json: argv.includes("--json") };
 }
 
 export interface ParsedSubcommand {
