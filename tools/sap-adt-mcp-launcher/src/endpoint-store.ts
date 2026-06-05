@@ -73,6 +73,32 @@ function isPositiveInteger(value: unknown): value is number {
   );
 }
 
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0;
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((d) => typeof d === "string");
+}
+
+function isValidPort(value: unknown): value is number {
+  return isPositiveInteger(value) && value >= 1 && value <= 65535;
+}
+
+function isValidEndpoint(
+  r: Partial<McpEndpointRecord>,
+): r is McpEndpointRecord {
+  return (
+    isValidPort(r.port) &&
+    isNonEmptyString(r.url) &&
+    isNonEmptyString(r.token) &&
+    isPositiveInteger(r.pid) &&
+    isStringArray(r.destinations) &&
+    isNonEmptyString(r.workspace) &&
+    isNonEmptyString(r.startedAt)
+  );
+}
+
 function parseEndpoint(raw: string): McpEndpointRecord | undefined {
   let record: unknown;
   try {
@@ -84,23 +110,7 @@ function parseEndpoint(raw: string): McpEndpointRecord | undefined {
     return undefined;
   }
   const r = record as Partial<McpEndpointRecord>;
-  if (
-    !isPositiveInteger(r.port) ||
-    r.port < 1 ||
-    r.port > 65535 ||
-    typeof r.url !== "string" ||
-    r.url.length === 0 ||
-    typeof r.token !== "string" ||
-    r.token.length === 0 ||
-    !isPositiveInteger(r.pid) ||
-    !Array.isArray(r.destinations) ||
-    !r.destinations.every((d) => typeof d === "string") ||
-    typeof r.workspace !== "string" ||
-    typeof r.startedAt !== "string"
-  ) {
-    return undefined;
-  }
-  return r as McpEndpointRecord;
+  return isValidEndpoint(r) ? r : undefined;
 }
 
 export function readEndpoint(

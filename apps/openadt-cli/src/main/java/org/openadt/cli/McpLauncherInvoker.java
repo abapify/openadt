@@ -112,28 +112,37 @@ final class McpLauncherInvoker {
         // rel path is anchored at the repo root, so we step up by its segment
         // count regardless of which of the two layouts (shallow `...` or
         // `tools/...`) is in use. This avoids hard-coding the depth per layout.
+        String rel = matchedRelPath(launcherMain);
+        Path repoRoot =
+                rel == null ? launcherMain : walkUpSegments(launcherMain, rel.split("/").length);
+        if (!Files.isDirectory(repoRoot)) {
+            return;
+        }
+        String root = repoRoot.toString();
+        pb.environment().putIfAbsent("OPENADT_HOME", root);
+        pb.environment().putIfAbsent("OPENADT_REPO", root);
+    }
+
+    private static String matchedRelPath(Path launcherMain) {
         String normalized = launcherMain.toString().replace('\\', '/');
-        String matchedRel = null;
         for (String rel : LAUNCHER_REL_PATHS) {
             if (normalized.endsWith("/" + rel) || normalized.equals(rel)) {
-                matchedRel = rel;
-                break;
+                return rel;
             }
         }
-        Path repoRoot = launcherMain;
-        if (matchedRel != null) {
-            for (int i = 0; i < matchedRel.split("/").length; i++) {
-                Path parent = repoRoot.getParent();
-                if (parent == null) {
-                    break;
-                }
-                repoRoot = parent;
+        return null;
+    }
+
+    private static Path walkUpSegments(Path start, int segments) {
+        Path current = start;
+        for (int i = 0; i < segments; i++) {
+            Path parent = current.getParent();
+            if (parent == null) {
+                return current;
             }
+            current = parent;
         }
-        if (Files.isDirectory(repoRoot)) {
-            pb.environment().putIfAbsent("OPENADT_HOME", repoRoot.toString());
-            pb.environment().putIfAbsent("OPENADT_REPO", repoRoot.toString());
-        }
+        return current;
     }
 
     private static String resolveBunExecutable() {
