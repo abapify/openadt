@@ -1,0 +1,20 @@
+{
+  "name": "sap-adt-mcp-launcher",
+  "root": "tools/sap-adt-mcp-launcher",
+  "sourceRoot": "tools/sap-adt-mcp-launcher/src",
+  "projectType": "application",
+  "targets": {
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun test tools/sap-adt-mcp-launcher/src"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx tsc -p tools/sap-adt-mcp-launcher/tsconfig.json --noEmit"
+      }
+    }
+  }
+}
