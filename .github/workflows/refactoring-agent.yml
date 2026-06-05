@@ -58,6 +58,15 @@ jobs:
           # Flatten CR/LF so a comment can't smuggle multi-line instructions
           # past the action's CLI parsing (e.g. `/cs-agent\nrm -rf /`).
           rest="$(printf '%s' "$rest" | tr -d '\r\n')"
+          # Defense in depth: reject if stripping didn't consume the prefix
+          # (near-miss like `/cs-agent-foo` where the `if:` guard would have
+          # blocked it, but belt-and-suspenders).
+          case "$rest" in
+            /cs-agent*)
+              echo "Refusing /cs-agent command: prefix not cleanly stripped" >&2
+              exit 1
+              ;;
+          esac
           # Allowlist: documented command shape is `skill:<name>` or free-form
           # args. Permit only alphanumerics, `.:,_=+/-`, and spaces so shell
           # metacharacters (` & ; | < > ( ) { } [ ] * ? ~ # \ ` $ ` etc.) and
