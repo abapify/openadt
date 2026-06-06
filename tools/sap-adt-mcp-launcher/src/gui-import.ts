@@ -14,7 +14,7 @@ import {
 } from "./openadt-import.ts";
 import { DESTINATION_FILE, SEMANTIC_CACHE_SUFFIX } from "./cache-paths.ts";
 import { DEFAULT_WORKSPACE } from "./config.ts";
-import { isVsCodeAdtWorkspacePath } from "./runtime-env.ts";
+import { isVsCodeAdtWorkspacePath, type WorkspacePath } from "./runtime-env.ts";
 import type { DestinationImportMode } from "./types.ts";
 
 /** VS Code / Cursor virtual workspace folder scheme for SAP ADT destinations. */
@@ -452,10 +452,13 @@ function importFromOpenAdt(
 /** Avoid `-data` = VS Code adtWorkspace while VS Code may hold the same Eclipse workspace. */
 function resolveAdtLscDataWorkspace(req: DestinationImportRequest): string {
   const { workspace, explicitWorkspace } = req;
-  if (explicitWorkspace && !isVsCodeAdtWorkspacePath(workspace)) {
+  if (
+    explicitWorkspace &&
+    !isVsCodeAdtWorkspacePath(workspace as WorkspacePath)
+  ) {
     return workspace;
   }
-  if (isVsCodeAdtWorkspacePath(workspace)) {
+  if (isVsCodeAdtWorkspacePath(workspace as WorkspacePath)) {
     return DEFAULT_WORKSPACE;
   }
   return workspace === DEFAULT_WORKSPACE || !explicitWorkspace

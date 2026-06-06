@@ -8,20 +8,23 @@ import {
   Env,
   isVsCodeAdtWorkspacePath,
   loadOpenAdtRuntimePaths,
+  type WorkspacePath,
 } from "./runtime-env.ts";
 
 describe("isVsCodeAdtWorkspacePath", () => {
   test("detects VS Code workspaceStorage adtWorkspace", () => {
     expect(
       isVsCodeAdtWorkspacePath(
-        "C:\\Users\\me\\AppData\\Roaming\\Code\\User\\workspaceStorage\\abc\\SAPSE.adt-vscode\\adtWorkspace",
+        "C:\\Users\\me\\AppData\\Roaming\\Code\\User\\workspaceStorage\\abc\\SAPSE.adt-vscode\\adtWorkspace" as WorkspacePath,
       ),
     ).toBe(true);
   });
 
   test("rejects openadt default workspace", () => {
     expect(
-      isVsCodeAdtWorkspacePath("C:\\Users\\me\\.openadt\\adt-ls-workspace"),
+      isVsCodeAdtWorkspacePath(
+        "C:\\Users\\me\\.openadt\\adt-ls-workspace" as WorkspacePath,
+      ),
     ).toBe(false);
   });
 });
@@ -41,9 +44,9 @@ describe("Env", () => {
   test("string returns trimmed value", () => {
     process.env.OPENADT_TEST_GETENV = "  hello  ";
     try {
-      expect(Env.fromProcess().string(envVar("OPENADT_TEST_GETENV"))).toBe(
-        "hello",
-      );
+      expect(
+        Env.fromProcess().string({ name: envVar("OPENADT_TEST_GETENV") }),
+      ).toBe("hello");
     } finally {
       delete process.env.OPENADT_TEST_GETENV;
     }
@@ -52,7 +55,8 @@ describe("Env", () => {
   test("string returns default when unset", () => {
     delete process.env.OPENADT_TEST_GETENV_MISSING;
     expect(
-      Env.fromProcess().string(envVar("OPENADT_TEST_GETENV_MISSING"), {
+      Env.fromProcess().string({
+        name: envVar("OPENADT_TEST_GETENV_MISSING"),
         default: "fallback",
       }),
     ).toBe("fallback");
@@ -61,7 +65,8 @@ describe("Env", () => {
   test("string throws when required and missing", () => {
     delete process.env.OPENADT_TEST_GETENV_MISSING;
     expect(() =>
-      Env.fromProcess().string(envVar("OPENADT_TEST_GETENV_MISSING"), {
+      Env.fromProcess().string({
+        name: envVar("OPENADT_TEST_GETENV_MISSING"),
         required: true,
       }),
     ).toThrow(/Missing required/);
@@ -79,7 +84,8 @@ describe("Env", () => {
     process.env.OPENADT_TEST_PORT = input;
     try {
       const result = () =>
-        Env.fromProcess().integer(envVar("OPENADT_TEST_PORT"), {
+        Env.fromProcess().integer({
+          name: envVar("OPENADT_TEST_PORT"),
           min: 1,
           max: 65535,
         });
@@ -96,7 +102,8 @@ describe("Env", () => {
   test("integer returns undefined when unset", () => {
     delete process.env.OPENADT_TEST_PORT_MISSING;
     expect(
-      Env.fromProcess().integer(envVar("OPENADT_TEST_PORT_MISSING"), {
+      Env.fromProcess().integer({
+        name: envVar("OPENADT_TEST_PORT_MISSING"),
         min: 1,
         max: 65535,
       }),
@@ -106,21 +113,27 @@ describe("Env", () => {
   test("path returns undefined when mustExist and missing", () => {
     process.env.OPENADT_TEST_PATH = "/nonexistent/openadt-test";
     expect(
-      Env.fromProcess().path(envVar("OPENADT_TEST_PATH"), { mustExist: true }),
+      Env.fromProcess().path({
+        name: envVar("OPENADT_TEST_PATH"),
+        mustExist: true,
+      }),
     ).toBeUndefined();
     delete process.env.OPENADT_TEST_PATH;
   });
 
   test("set updates keyByUpper so subsequent lookups hit the new value", () => {
     const env = new Env({});
-    env.set(envVar("LOCALAPPDATA"), "C:\\Users\\me\\AppData\\Local");
+    env.set({
+      name: envVar("LOCALAPPDATA"),
+      value: "C:\\Users\\me\\AppData\\Local",
+    });
     expect(env.getTrimmed(envVar("LOCALAPPDATA"))).toBe(
       "C:\\Users\\me\\AppData\\Local",
     );
     expect(env.getTrimmed(envVar("localappdata"))).toBe(
       "C:\\Users\\me\\AppData\\Local",
     );
-    expect(env.hasNonEmpty(envVar("LOCALAPPDATA"))).toBe(true);
+    expect(env.getTrimmed(envVar("LOCALAPPDATA"))).toBeDefined();
   });
 });
 
@@ -139,7 +152,7 @@ describe("loadOpenAdtRuntimePaths", () => {
           'sapcrypto = "C:\\\\SAP\\\\sapcrypto.dll"',
         ].join("\n"),
       );
-      expect(loadOpenAdtRuntimePaths(path)).toEqual({
+      expect(loadOpenAdtRuntimePaths({ configPath: path })).toEqual({
         jcoNativeDir: "C:\\SAP\\jco",
         sapcrypto: "C:\\SAP\\sapcrypto.dll",
       });
@@ -161,7 +174,9 @@ describe("loadOpenAdtRuntimePaths", () => {
           'jco_native_dir = "C:\\\\new\\\\jco"',
         ].join("\n"),
       );
-      expect(loadOpenAdtRuntimePaths(path).jcoNativeDir).toBe("C:\\new\\jco");
+      expect(loadOpenAdtRuntimePaths({ configPath: path }).jcoNativeDir).toBe(
+        "C:\\new\\jco",
+      );
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }

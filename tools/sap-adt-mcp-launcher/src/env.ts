@@ -1,0 +1,129 @@
+import { existsSync } from "node:fs";
+
+/** Branded env-var name — prevents accidental use of raw strings while remaining type-compatible. */
+export type EnvVarName = string & { readonly __envVarName: unique symbol };
+
+/** Create a typed env-var name constant. */
+export const envVar = (name: string): EnvVarName => name as EnvVarName;
+
+export type WindowsEnvDefaults = Record<EnvVarName, string>;
+
+/** Branded workspace path — distinguishes filesystem paths from env-var names at the type level. */
+export type WorkspacePath = string & {
+  readonly __workspacePath: unique symbol;
+};
+
+export type GetStringOpts = {
+  name: EnvVarName;
+  default?: string;
+  required?: boolean;
+};
+
+export type GetIntOpts = {
+  name: EnvVarName;
+  min?: number;
+  max?: number;
+};
+
+export type GetPathOpts = {
+  name: EnvVarName;
+  mustExist?: boolean;
+};
+
+export type SetEnvOpts = {
+  name: EnvVarName;
+  value: string;
+};
+
+/** Typed accessor over `NodeJS.ProcessEnv` (Windows keys are case-insensitive). */
+export class Env {
+  private readonly lookup: Map<string, string>;
+
+  static fromProcess(): Env {
+    return new Env({ ...process.env });
+  }
+
+  constructor(env: NodeJS.ProcessEnv) {
+    this.lookup = new Map();
+    for (const key of Object.keys(env)) {
+      this.lookup.set(key.toUpperCase(), key);
+    }
+    this.env = env;
+  }
+
+  private readonly env: NodeJS.ProcessEnv;
+
+  getTrimmed(name: EnvVarName): string | undefined {
+    const key = this.lookup.get(name.toUpperCase());
+    const value = key === undefined ? undefined : this.env[key];
+    const trimmed = typeof value === "string" ? value.trim() : undefined;
+    return trimmed || undefined;
+  }
+
+  set(opts: SetEnvOpts): void {
+    const key = this.lookup.get(opts.name.toUpperCase()) ?? opts.name;
+    this.env[key] = opts.value;
+    this.lookup.set(key.toUpperCase(), key);
+  }
+
+  /** Read a string env var. `default` applies when unset or blank; `required` throws otherwise. */
+  string(opts: GetStringOpts): string | undefined {
+    const raw = this.getTrimmed(opts.name);
+    if (raw) {
+      return raw;
+    }
+    if (opts.default !== undefined) {
+      return opts.default;
+    }
+    if (opts.required) {
+      throw new Error(`Missing required env var ${opts.name}`);
+    }
+    return undefined;
+  }
+
+  /** Parse an env var as an integer within `[min, max]`. Returns undefined when unset/blank. */
+  integer(opts: GetIntOpts): number | undefined {
+    const raw = this.getTrimmed(opts.name);
+    if (!raw) {
+      return undefined;
+    }
+    const value = Number(raw);
+    if (!Number.isInteger(value)) {
+      throw new Error(`Env ${opts.name}=${raw} is not an integer`);
+    }
+    if (opts.min !== undefined && value < opts.min) {
+      throw new Error(`Env ${opts.name}=${value} below min ${opts.min}`);
+    }
+    if (opts.max !== undefined && value > opts.max) {
+      throw new Error(`Env ${opts.name}=${value} above max ${opts.max}`);
+    }
+    return value;
+  }
+
+  /** Read a filesystem path env var; reject when `mustExist` and the path is absent. */
+  path(opts: GetPathOpts): string | undefined {
+    const raw = this.getTrimmed(opts.name);
+    if (!raw) {
+      return undefined;
+    }
+    if (opts.mustExist && !existsSync(raw)) {
+      return undefined;
+    }
+    return raw;
+  }
+
+  prependPath(dir: EnvVarName): void {
+    const sep = process.platform === "win32" ? ";" : ":";
+    const pathKey =
+      Object.keys(this.env).find((k) => k.toUpperCase() === "PATH") ?? "PATH";
+    const current = this.env[pathKey] ?? "";
+    if (
+      current
+        .split(sep)
+        .some((entry) => entry.toLowerCase() === dir.toLowerCase())
+    ) {
+      return;
+    }
+    this.env[pathKey] = current ? `${dir}${sep}${current}` : dir;
+  }
+}

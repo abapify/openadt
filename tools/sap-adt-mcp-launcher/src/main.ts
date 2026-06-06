@@ -22,7 +22,7 @@ import {
 } from "./endpoint-store.ts";
 import { resolveDestinationImport } from "./gui-import.ts";
 import { createMcpLog, eclipseWorkspaceLogPath } from "./log.ts";
-import { isVsCodeAdtWorkspacePath } from "./runtime-env.ts";
+import { isVsCodeAdtWorkspacePath, type WorkspacePath } from "./runtime-env.ts";
 import { connectAdtLanguageServer, disposeLspSession } from "./lsp-client.ts";
 import { killProcessTree } from "./process.ts";
 import {
@@ -123,7 +123,7 @@ function printImportNotices(
   }
   if (
     cfg.explicitWorkspace &&
-    isVsCodeAdtWorkspacePath(cfg.workspace) &&
+    isVsCodeAdtWorkspacePath(cfg.workspace as WorkspacePath) &&
     gui.workspace !== cfg.workspace
   ) {
     console.error(
