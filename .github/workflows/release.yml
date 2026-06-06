@@ -20,6 +20,11 @@ on:
         description: Pre-release id (rc, beta, alpha) — only for prerelease/prepatch/preminor/premajor bumps
         required: false
         type: string
+      draft:
+        description: Create as draft release — publish manually to trigger the Publish workflow
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -30,7 +35,7 @@ concurrency:
 
 jobs:
   bump:
-    name: Bump version, tag, and create release
+    name: Bump version, tag, and create ${{ inputs.draft == true && 'draft ' || '' }}release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -67,6 +72,7 @@ jobs:
           git push origin "${{ steps.bump.outputs.tag }}"
           gh release create "${{ steps.bump.outputs.tag }}" \
             --title "${{ steps.bump.outputs.tag }}" \
-            --generate-notes
+            --generate-notes \
+            ${{ inputs.draft == true && '--draft' || '' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
