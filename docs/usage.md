@@ -19,6 +19,7 @@ Overview: [README.md](../README.md). Specs: [specs/README.md](../specs/README.md
 | `proxy` / IDE clients        | [Local proxy](#local-proxy)                        |
 | ABAP FS                      | [integrations/abap-fs.md](integrations/abap-fs.md) |
 | WSL / devcontainer           | [WSL and devcontainers](#wsl-and-devcontainers)    |
+| MCP (AI agents)              | [MCP](#mcp)                                        |
 | Problems                     | [Troubleshooting](#troubleshooting)                |
 | Sharing logs safely          | [Security](#security)                              |
 
@@ -240,6 +241,138 @@ export OPENADT_MYSAPSSO2="<ticket-value>"
 
 Contributors using devcontainers: [contributing.md#devcontainer](contributing.md#devcontainer).
 
+<a id="mcp"></a>
+
+## MCP
+
+`openadt mcp serve` starts the **official SAP ADT MCP server** (shipped inside the ABAP Development Tools for VS Code extension) and exposes it to any MCP client — Cursor, Claude Desktop, Devin, or a custom agent.
+
+OpenADT does not implement MCP tools itself. It spawns `adt-lsc` from the extension, completes the LSP handshake, and bridges the SAP HTTP MCP endpoint to whichever transport your agent expects.
+
+SAP ADT MCP tools reference: <https://help.sap.com/docs/abap-cloud/abap-development-tools-for-visual-studio-code/mcp-tools>
+
+### Prerequisites
+
+**1. Install Visual Studio Code**
+
+> <https://code.visualstudio.com/download>
+
+VS Code does not need to stay open during normal operation — the install makes the `adt-lsc` binary available on disk.
+
+**2. Install ABAP Development Tools for VS Code**
+
+> Marketplace: <https://marketplace.visualstudio.com/items?itemName=SAPSE.adt-vscode>
+
+Quick install — press `Ctrl+P` in VS Code and run:
+
+```
+ext install SAPSE.adt-vscode
+```
+
+This extension provides `adt-lsc` and the licensed ADT packages. OpenADT cannot redistribute them due to the SAP Developer License.
+
+**3. Configure a destination in VS Code** (first time only)
+
+1. Open the Command Palette (`Ctrl+Shift+P`).
+2. Run **ABAP: New Destination**.
+3. Choose **RFC** (on-premise / private cloud) or **HTTP** (public cloud).
+4. Enter your connection details (host, client, language).
+
+The destination is stored in `~/.adtls/destinations.json` and picked up automatically by `openadt mcp serve`.
+
+### Starting the MCP server
+
+```bash
+openadt mcp serve
+```
+
+By default this listens on port `2236`. Flags:
+
+| Flag            | Default | Description                                               |
+| --------------- | ------- | --------------------------------------------------------- |
+| `--port`        | `2236`  | HTTP port for the MCP endpoint                            |
+| `--stdio`       | off     | stdio transport (JSON-RPC on stdin/stdout) for CLI agents |
+| `--destination` | —       | Pre-select a destination at startup                       |
+| `--verbose`     | off     | LSP trace log → `~/.openadt/logs/mcp-serve.log`           |
+| `--show-token`  | off     | Print the Bearer token to stdout                          |
+
+```bash
+# HTTP mode — agent connects to http://localhost:2236/mcp
+openadt mcp serve --port 2236
+
+# stdio mode — agent connects via stdin/stdout (e.g. Devin CLI, Claude Desktop)
+openadt mcp serve --stdio
+
+# pre-select a destination and show the token
+openadt mcp serve --destination DEV --show-token
+```
+
+### Configuring your agent (`mcp.json`)
+
+#### Cursor
+
+`.cursor/mcp.json` in your project root (or `~/.cursor/mcp.json` globally):
+
+```json
+{
+  "mcpServers": {
+    "sap-adt": {
+      "command": "openadt",
+      "args": ["mcp", "serve", "--stdio"]
+    }
+  }
+}
+```
+
+#### Claude Desktop
+
+`claude_desktop_config.json` (see Claude Desktop settings for the exact path):
+
+```json
+{
+  "mcpServers": {
+    "sap-adt": {
+      "command": "openadt",
+      "args": ["mcp", "serve", "--stdio"]
+    }
+  }
+}
+```
+
+#### Devin CLI
+
+`.devin/config.json` in your project root:
+
+```json
+{
+  "mcpServers": {
+    "sap-adt": {
+      "command": "openadt",
+      "args": ["mcp", "serve", "--stdio"]
+    }
+  }
+}
+```
+
+#### HTTP mode (any agent that supports HTTP MCP)
+
+Start the server once and keep it running:
+
+```bash
+openadt mcp serve --port 2236 --show-token
+# prints: Bearer <token>
+```
+
+Then point your agent at `http://localhost:2236/mcp` with `Authorization: Bearer <token>`.
+
+### Checking status
+
+```bash
+openadt mcp status --port 2236   # is the server running?
+openadt mcp list                  # list running MCP servers and their ports
+openadt mcp print-config --port 2236  # print agent-ready HTTP client config
+```
+
 <a id="troubleshooting"></a>
 
 ## Troubleshooting
@@ -264,4 +397,4 @@ Before sharing logs, config, or screenshots:
 - Use fictional examples: `DEV`, `DEVELOPER`, `dev-ms.example.com`.
 - Do not commit SAP binaries, `.openadt/`, or generated devcontainer paths.
 
-MCP: [tools/sap-adt-mcp-launcher](../tools/sap-adt-mcp-launcher/), [specs/mcp.md](../specs/mcp.md).
+MCP: see [MCP](#mcp) above. Technical spec: [specs/mcp.md](../specs/mcp.md).
