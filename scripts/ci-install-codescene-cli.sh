@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # Non-interactive CodeScene CLI install for CI (install-cs-tool.sh prompts for /dev/tty).
 # Docs: https://codescene.io/docs/cli/index.html
+# Note: the versioned download endpoint requires a CS_ACCESS_TOKEN header (403 otherwise),
+# so we rely on the redirect-stable "latest" channel here and rely on the GitHub App /
+# quality-gate profile for deterministic findings. Override locally with CS_CLI_VERSION
+# if your token is exposed to the runner.
 set -euo pipefail
 
-# Pin the CLI version for deterministic CI runs; override locally with CS_CLI_VERSION.
-version="${CS_CLI_VERSION:-2.4.4}"
+version="${CS_CLI_VERSION:-latest}"
 arch="amd64"
 case "$(uname -m)" in
   aarch64 | arm64) arch="aarch64" ;;
