@@ -47,19 +47,27 @@ function isValidPort(port: number): boolean {
   return Number.isInteger(port) && port >= PORT_MIN && port <= PORT_MAX;
 }
 
-async function pickMcpPort(): Promise<number> {
-  const explicit = process.env.OPENADT_MCP_PORT?.trim();
-  if (!explicit) {
-    return bindEphemeralPort();
+/** Parse `OPENADT_MCP_PORT` if it is a valid port; log a warning and return undefined otherwise. */
+function parseExplicitPort(raw: string | undefined): number | undefined {
+  if (!raw) {
+    return undefined;
   }
-  const port = Number(explicit);
+  const port = Number(raw);
   if (!isValidPort(port)) {
     console.error(
-      `[openadt-mcp] Invalid OPENADT_MCP_PORT=${explicit} (expected integer ${PORT_MIN}-${PORT_MAX}); falling back to ephemeral.`,
+      `[openadt-mcp] Invalid OPENADT_MCP_PORT=${raw} (expected integer ${PORT_MIN}-${PORT_MAX}); falling back to ephemeral.`,
     );
-    return bindEphemeralPort();
+    return undefined;
   }
   return port;
+}
+
+async function pickMcpPort(): Promise<number> {
+  const explicit = parseExplicitPort(process.env.OPENADT_MCP_PORT?.trim());
+  if (explicit !== undefined) {
+    return explicit;
+  }
+  return bindEphemeralPort();
 }
 
 function bindEphemeralPort(): Promise<number> {

@@ -38,26 +38,25 @@ abstract class McpDecoder extends Transform {
     super({ readableObjectMode: true });
   }
 
-  override _transform(
-    chunk: Buffer,
-    _encoding: BufferEncoding,
-    callback: TransformCallback,
-  ): void {
+  private safeCall(step: () => void, callback: TransformCallback): void {
     try {
-      this.onChunk(chunk);
+      step();
       callback();
     } catch (err) {
       callback(err instanceof Error ? err : new Error(String(err)));
     }
   }
 
+  override _transform(
+    chunk: Buffer,
+    _encoding: BufferEncoding,
+    callback: TransformCallback,
+  ): void {
+    this.safeCall(() => this.onChunk(chunk), callback);
+  }
+
   override _flush(callback: TransformCallback): void {
-    try {
-      this.onEnd();
-      callback();
-    } catch (err) {
-      callback(err instanceof Error ? err : new Error(String(err)));
-    }
+    this.safeCall(() => this.onEnd(), callback);
   }
 
   protected abstract onChunk(chunk: Buffer): void;

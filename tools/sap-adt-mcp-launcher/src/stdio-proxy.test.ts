@@ -34,19 +34,23 @@ function mockStdoutCapture(): {
 describe("parseMcpHttpResponseBody", () => {
   test("parses application/json body", () => {
     const body = '{"jsonrpc":"2.0","id":1,"result":{}}';
-    expect(parseMcpHttpResponseBody("application/json", body)).toEqual([body]);
+    expect(
+      parseMcpHttpResponseBody({ contentType: "application/json", body }),
+    ).toEqual([body]);
   });
 
   test("parses SSE data lines", () => {
     const sse =
       'event: message\r\ndata: {"jsonrpc":"2.0","id":1,"result":{}}\r\n\r\n';
-    expect(parseMcpHttpResponseBody("text/event-stream", sse)).toEqual([
-      '{"jsonrpc":"2.0","id":1,"result":{}}',
-    ]);
+    expect(
+      parseMcpHttpResponseBody({ contentType: "text/event-stream", body: sse }),
+    ).toEqual(['{"jsonrpc":"2.0","id":1,"result":{}}']);
   });
 
   test("returns empty for blank body", () => {
-    expect(parseMcpHttpResponseBody("application/json", "  ")).toEqual([]);
+    expect(
+      parseMcpHttpResponseBody({ contentType: "application/json", body: "  " }),
+    ).toEqual([]);
   });
 });
 

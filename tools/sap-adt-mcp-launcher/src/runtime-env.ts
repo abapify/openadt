@@ -219,56 +219,27 @@ export function ensureMinimalProcessEnv(
   }
   const view = new Env(env);
   const home = homedir();
-  ensureHomeProfile(view, home);
-  ensureSystemRoot(view);
-  ensureAppData(view, home);
-  const temp = ensureTempDir(view, home);
-  ensureTmpMirror(view, temp);
+  const localAppData = view.string("LOCALAPPDATA") ?? join(home, "AppData", "Local");
+  const appData = view.string("APPDATA") ?? join(home, "AppData", "Roaming");
+  const temp = view.string("TEMP") ?? join(localAppData, "Temp");
+  const systemRoot =
+    view.string("SystemRoot") ?? view.string("WINDIR") ?? "C:\\Windows";
+
+  const defaults: ReadonlyArray<readonly [string, string]> = [
+    ["HOME", home],
+    ["USERPROFILE", home],
+    ["APPDATA", appData],
+    ["LOCALAPPDATA", localAppData],
+    ["TEMP", temp],
+    ["TMP", temp],
+    ["SystemRoot", systemRoot],
+  ];
+  for (const [name, value] of defaults) {
+    if (!view.hasNonEmpty(name)) {
+      view.set(name, value);
+    }
+  }
   return env;
-}
-
-function ensureHomeProfile(view: Env, home: string): void {
-  if (!view.hasNonEmpty("USERPROFILE")) {
-    view.set("USERPROFILE", home);
-  }
-  if (!view.hasNonEmpty("HOME")) {
-    view.set("HOME", home);
-  }
-}
-
-function ensureSystemRoot(view: Env): void {
-  if (view.hasNonEmpty("SystemRoot") || view.hasNonEmpty("WINDIR")) {
-    return;
-  }
-  view.set("SystemRoot", "C:\\Windows");
-}
-
-function ensureAppData(view: Env, home: string): void {
-  if (!view.hasNonEmpty("APPDATA")) {
-    view.set("APPDATA", join(home, "AppData", "Roaming"));
-  }
-  if (!view.hasNonEmpty("LOCALAPPDATA")) {
-    view.set("LOCALAPPDATA", join(home, "AppData", "Local"));
-  }
-}
-
-function ensureTempDir(view: Env, home: string): string {
-  const existing = view.getTrimmed("TEMP");
-  if (existing) {
-    return existing;
-  }
-  const localAppData =
-    view.getTrimmed("LOCALAPPDATA") ?? join(home, "AppData", "Local");
-  const temp = join(localAppData, "Temp");
-  view.set("TEMP", temp);
-  return temp;
-}
-
-function ensureTmpMirror(view: Env, temp: string): void {
-  if (view.hasNonEmpty("TMP")) {
-    return;
-  }
-  view.set("TMP", temp);
 }
 
 function prependPath(env: NodeJS.ProcessEnv, dir: string): void {

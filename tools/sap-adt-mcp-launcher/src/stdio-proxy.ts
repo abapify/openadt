@@ -7,10 +7,13 @@ import {
 import { mcpUrl } from "./mcp.ts";
 
 /** Parse MCP HTTP response body (JSON or SSE `data:` lines). */
-export function parseMcpHttpResponseBody(
-  contentType: string,
-  body: string,
-): string[] {
+export function parseMcpHttpResponseBody({
+  contentType,
+  body,
+}: {
+  contentType: string;
+  body: string;
+}): string[] {
   const trimmed = body.trim();
   if (!trimmed) {
     return [];
@@ -129,7 +132,7 @@ export async function postMcpHttpMessage(
   const nextSessionId = res.headers.get("Mcp-Session-Id") ?? endpoint.sessionId;
   const text = await res.text();
   const contentType = res.headers.get("content-type") ?? "";
-  const messages = parseMcpHttpResponseBody(contentType, text);
+  const messages = parseMcpHttpResponseBody({ contentType, body: text });
   return new McpHttpResponse(messages, nextSessionId ?? undefined, res.status);
 }
 

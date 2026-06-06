@@ -462,12 +462,3 @@ function resolveAdtLscDataWorkspace(req: DestinationImportRequest): string {
     ? DEFAULT_WORKSPACE
     : workspace;
 }
-
-/** @deprecated use resolveDestinationImport */
-export function resolveServeFromGuiImport(
-  workspace: string,
-  importFrom: DestinationImportMode,
-  explicitWorkspace: boolean,
-) {
-  return resolveDestinationImport(workspace, importFrom, explicitWorkspace);
-}
