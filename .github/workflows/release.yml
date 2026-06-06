@@ -78,6 +78,8 @@ jobs:
     name: Build distribution artifacts
     needs: bump
     runs-on: windows-latest
+    outputs:
+      sha256: ${{ steps.checksum.outputs.sha256 }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -109,6 +111,14 @@ jobs:
         env:
           OPENADT_PACKAGE_WIN_EXE: "1"
         run: bun run package:release -- --version=${{ needs.bump.outputs.version }}
+
+      - name: Capture checksum as job output
+        id: checksum
+        shell: bash
+        run: |
+          sha256=$(awk '{print tolower($1)}' "packaging/dist/openadt-${{ needs.bump.outputs.version }}.zip.sha256")
+          echo "sha256=${sha256}" >> "$GITHUB_OUTPUT"
+          echo "SHA256: ${sha256}"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -145,7 +155,7 @@ jobs:
 
   sync:
     name: Sync Scoop and Homebrew
-    needs: [bump, create]
+    needs: [bump, build, create]
     if: ${{ inputs.draft != true }}
     runs-on: ubuntu-latest
     steps:
@@ -163,11 +173,8 @@ jobs:
         run: |
           tag="${{ needs.bump.outputs.tag }}"
           version="${{ needs.bump.outputs.version }}"
-          gh release download "${tag}" \
-            --repo abapify/openadt \
-            --pattern "openadt-${version}.zip.sha256" \
-            --dir /tmp/release-assets
-          sha256="$(awk '{print $1}' /tmp/release-assets/openadt-${version}.zip.sha256 | tr '[:upper:]' '[:lower:]')"
+          sha256="${{ needs.build.outputs.sha256 }}"
+          echo "Patching with SHA256: ${sha256}"
           jq --arg sha "${sha256}" \
              --arg ver "${version}" \
              --arg url "https://github.com/abapify/openadt/releases/download/${tag}/openadt-${version}.zip" \
@@ -175,8 +182,8 @@ jobs:
              packaging/scoop/openadt.json > /tmp/openadt.json
           mv /tmp/openadt.json packaging/scoop/openadt.json
           sed -i "s/sha256 \"[^\"]*\"/sha256 \"${sha256}\"/" Formula/openadt.rb
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          echo "--- Patched scoop manifest ---"
+          cat packaging/scoop/openadt.json
 
       - name: Create packaging sync token (GitHub App)
         id: packaging-sync-token
