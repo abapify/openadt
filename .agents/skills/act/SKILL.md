@@ -170,8 +170,15 @@ ad-hoc `gh` calls. They collapse the typical 30+ tool calls per `/act` into ~10.
 | ---------------------------- | --------------------------------------------------------- | ------------------------------------------- |
 | **PR state + open threads**  | `bash scripts/act/pr-state.sh OWNER REPO PR`              | `gh pr view --json ...` ×4 + `gh pr checks` |
 | **Verify a CLI claim**       | `bun scripts/derive-cli-surface.ts --check "openadt X"`   | `grep` across `apps/**.java` + reads        |
-| **Post N thread replies**    | `bash scripts/act/reply-threads.sh --file replies.tsv`    | N × `gh api graphql addPullRequestReview…` |
+| **Post N thread replies**    | `bash scripts/act/reply-threads.sh --file /tmp/agent_*/replies.tsv` | N × `gh api graphql addPullRequestReview…` |
 | **Resolve open threads (P4)**| `bash .agents/skills/act/resolve-open-threads.sh OWNER REPO PR` | unchanged                             |
+
+**Scratch artifacts (e.g. `replies.tsv`) MUST live outside the worktree** —
+use an absolute path under the cloud-agent pre-approved `/tmp/agent_*/`. The
+pre-commit `nx format:write --uncommitted && git update-index --again` hook
+re-stages any scratch file you leave at the worktree root, and `.gitignore`
+allowlists turn into an ever-growing list. `reply-threads.sh --file` accepts
+absolute paths; nothing else has to change.
 
 **`replies.tsv` format** (one row per thread). TAB separates the thread ID
 from the body; newlines and tabs in the body must be escaped as `\n` and
