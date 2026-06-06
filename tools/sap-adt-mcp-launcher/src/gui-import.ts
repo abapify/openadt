@@ -398,10 +398,10 @@ function importFromAdtls(
   const store = loadAdtlsDestinationsStore();
   const materialized = store
     ? materializeAdtlsDestinations(dataWorkspace, store)
-    : adtls.destinations.map((d) => ({
-        ...d,
-        adtWorkspacePath: dataWorkspace,
-      }));
+    : [];
+  if (materialized.length === 0) {
+    return undefined;
+  }
   return new DestinationImportResult({
     workspace: dataWorkspace,
     workspaceFolderUris: materialized.map((d) => d.workspaceFolderUri),

@@ -139,7 +139,19 @@ function drainStdoutWritable(): Promise<void> {
     return Promise.resolve();
   }
   return new Promise<void>((resolve) => {
-    process.stdout.once("drain", resolve);
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      process.stdout.off("drain", finish);
+      process.stdout.off("close", finish);
+      process.stdout.off("error", finish);
+      resolve();
+    };
+    process.stdout.once("drain", finish);
+    process.stdout.once("close", finish);
+    process.stdout.once("error", finish);
+    setTimeout(finish, 250).unref();
   });
 }
 
