@@ -22,13 +22,13 @@
 
 ## Root Cause (symptoms vs reality)
 
-| Symptom | Actual cause |
-|--------|----------------|
-| Verify script stuck on `tools/list` | Byte framing bug in test client |
-| Agent timeout ~65s | NDJSON stdin not parsed by Content-Length decoder |
-| Agent Connection closed ~12s | Process exit after logon error before flush (fixed) or port-in-use |
-| `taskkill ENOENT` | Agent CLI minimal PATH |
-| Logon failure | Local SAP SNC/JCo runtime, not MCP protocol |
+| Symptom                             | Actual cause                                                       |
+| ----------------------------------- | ------------------------------------------------------------------ |
+| Verify script stuck on `tools/list` | Byte framing bug in test client                                    |
+| Agent timeout ~65s                  | NDJSON stdin not parsed by Content-Length decoder                  |
+| Agent Connection closed ~12s        | Process exit after logon error before flush (fixed) or port-in-use |
+| `taskkill ENOENT`                   | Agent CLI minimal PATH                                             |
+| Logon failure                       | Local SAP SNC/JCo runtime, not MCP protocol                        |
 
 ## Current Status
 
@@ -81,4 +81,5 @@ Agent (NDJSON) ──► mcp-stdio-entry (pipe + runtime env)
 IDE MCP uses same entry; first stdin byte `{` vs `Content-Length` selects reply format.
 
 ---
-*Note: This session log is anonymized for public sharing.*
+
+_Note: This session log is anonymized for public sharing._

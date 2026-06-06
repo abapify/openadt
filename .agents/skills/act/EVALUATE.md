@@ -4,7 +4,7 @@ Run **after P4 resolve**, before claiming merge-ready. Takes ~2 minutes.
 
 ## 1. Session retrospective (required if anything went wrong)
 
-Answer in your closing summary or append to [RETROSPECT.md](RETROSPECT.md):
+Answer in your closing summary or write to `.agents/memory/experience/` per [memory-bank](../memory-bank/SKILL.md). Then run `/retrospect --plan` ([retrospect](../retrospect/SKILL.md)) to produce [backlog](../backlog/SKILL.md) items:
 
 - [ ] Did we confuse review tools (Codacy vs GitHub Code Scanning vs Dependabot vs Copilot review)?
 - [ ] Did we resolve threads without code fixes or in-thread replies?
@@ -22,7 +22,7 @@ If **any** box is “yes”: write **what / root cause / prevention** and update
 
 ## 3. Durable knowledge (optional unless retrospective triggered)
 
-- [ ] Workflow/process lesson → [SKILL.md](SKILL.md) (and RETROSPECT.md if recurring)
+- [ ] Workflow/process lesson → [SKILL.md](SKILL.md) (and `.agents/memory/experience/` if recurring)
 - [ ] API/tool confusion → [REVIEW.md](../../../REVIEW.md)
 - [ ] Codacy/domain false positive → [review.md](../../../.codacy/instructions/review.md)
 

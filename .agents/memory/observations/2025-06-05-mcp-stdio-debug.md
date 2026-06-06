@@ -1,19 +1,23 @@
 # SAP MCP Debug Session - Checkpoint 3
+
 Date: 2025-06-05
 
 ## Modified Files
 
 ### 1. tools/sap-adt-mcp-launcher/src/stdio-proxy.ts
+
 - Changed bridge.run() to be async (non-blocking)
 - Fixed failPending reference in then() block
 - Allows stdio to queue requests while SAP logon proceeds
 
-### 2. tools/sap-adt-mcp-launcher/src/main.ts  
+### 2. tools/sap-adt-mcp-launcher/src/main.ts
+
 - Always sync logon BEFORE MCP start (line ~383)
 - Changed: ensureLoggedOnIds: destinationIds (not conditional on cfg.stdio)
 - This bypasses SAP MCP's 30s request timeout
 
 ### 3. scripts/test-mcp-stdio.mjs
+
 - Added --import-from=adtls flag (line ~34)
 - Increased timeout from 120s to 300s (5 minutes)
 - Critical for destination import from ~/.adtls/
@@ -21,14 +25,17 @@ Date: 2025-06-05
 ## Critical Findings from Decompiled SAP MCP
 
 ### ADTMCPServer.java:132
+
 ```java
 .requestTimeout(Duration.ofSeconds(30L))
 ```
+
 SAP MCP server has HARD CODED 30-second request timeout!
 
 ### Server Capabilities
+
 - resources: true
-- prompts: true  
+- prompts: true
 - tools: true
 - logging: true
 
@@ -57,8 +64,9 @@ bun run test:mcp:stdio
 ✅ Synchronous logon before MCP start implemented
 ✅ Test script updated with proper flags
 ⚠️ SSO window doesn't appear in terminal mode - workarounds:
-   1. Pre-logon via VS Code ADT (creates SSO ticket)
-   2. Switch destination to basic auth (user/password)
+
+1.  Pre-logon via VS Code ADT (creates SSO ticket)
+2.  Switch destination to basic auth (user/password)
 
 ## Next Steps
 
@@ -81,4 +89,5 @@ devin -p "What ABAP tools are available?"
 ```
 
 ---
-*Note: This session log is anonymized for public sharing. Real system IDs, usernames, and paths have been replaced with placeholders.*
+
+_Note: This session log is anonymized for public sharing. Real system IDs, usernames, and paths have been replaced with placeholders._

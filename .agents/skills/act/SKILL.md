@@ -124,8 +124,11 @@ Resolve outdated threads too, but only after the underlying comment was handled 
 
 Follow [EVALUATE.md](EVALUATE.md). Durable sinks: [REVIEW.md](../../../REVIEW.md).
 
-1. **Retrospective** — if anything went wrong: brief summary; append pattern to [RETROSPECT.md](RETROSPECT.md) when it may recur.
-2. **Cycle guard** — if any signal fires, **do not merge**; escalate to the user with evidence:
+1. **Retain** — record what happened using the [memory-bank skill](../memory-bank/SKILL.md):
+   - Mistake or debugging session → `.agents/memory/experience/`
+   - Observable project fact → `.agents/memory/facts/`
+2. **Retrospect** — run `/retrospect --plan` ([retrospect skill](../retrospect/SKILL.md)) to record experience and create actionable [backlog](../backlog/SKILL.md) items.
+3. **Cycle guard** — if any signal fires, **do not merge**; escalate to the user with evidence:
 
    - A review thread was **reopened** after an earlier resolve on this PR.
    - The **same rule/alert** (Codacy, Semgrep, Code Scanning) was flagged **2+ times** after a fix commit — verify fix on current HEAD before another merge attempt.
