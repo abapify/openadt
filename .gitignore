@@ -65,12 +65,3 @@ packaging/windows/launcher/obj/
 .codacy/codacy.yaml
 __pycache__/
 .env
-
-# /act scratch artifacts — these are written by `scripts/act/reply-threads.sh --file`
-# at the worktree root and the pre-commit `nx format:write --uncommitted` step will
-# re-stage them after `git restore --staged`. Either `rm` before commit or pass an
-# absolute path outside the worktree (e.g. `/tmp/agent_*/replies.tsv`).
-/replies.tsv
-/replies-new.tsv
-/replies-update.tsv
-/reply-update.tsv
