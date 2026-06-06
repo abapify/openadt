@@ -116,10 +116,10 @@ Need to add a system that isn't in SAP GUI or Eclipse? `openadt config destinati
 
 `openadt mcp serve` starts the **official SAP ADT MCP server** (from the SAP ADT VS Code extension) and exposes it to any agent. Two transports:
 
-| Transport | How to connect                                                        | Use when                                      |
-| --------- | --------------------------------------------------------------------- | --------------------------------------------- |
-| **stdio** | `command: "openadt"`, `args: ["mcp","serve","--stdio"]`               | CLI agents (Cursor, Devin, Claude Desktop…)   |
-| **HTTP**  | `http://localhost:2236/mcp` + `Authorization: Bearer <token>`         | IDEs / agents that speak Streamable HTTP MCP  |
+| Transport | How to connect                                                | Use when                                     |
+| --------- | ------------------------------------------------------------- | -------------------------------------------- |
+| **stdio** | `command: "openadt"`, `args: ["mcp","serve","--stdio"]`       | CLI agents (Cursor, Devin, Claude Desktop…)  |
+| **HTTP**  | `http://localhost:2236/mcp` + `Authorization: Bearer <token>` | IDEs / agents that speak Streamable HTTP MCP |
 
 One-time setup: install the [SAP ADT VS Code extension](https://marketplace.visualstudio.com/items?itemName=SAPSE.adt-vscode) — OpenADT drives it headlessly, VS Code does not need to stay open.
 
@@ -140,23 +140,23 @@ One-time setup: install the [SAP ADT VS Code extension](https://marketplace.visu
 
 ## 🩺 Troubleshooting
 
-| Problem                                      | Fix                                                                       |
-| -------------------------------------------- | ------------------------------------------------------------------------- |
-| `JCo jar not configured`                    | Run `openadt config bootstrap`; check `~/.openadt/local.openadt.toml`     |
-| `no sapjco3 in java.library.path`            | Use the OS that owns the native lib (Windows = `sapjco3.dll`)            |
-| `GSS-API: No credentials` (SNC)              | Install Secure Login on Windows or set up `SECUDIR` on Linux              |
-| `Connection refused` on the proxy            | Start `openadt proxy` first; check the `--listen` port                    |
-| Want more detail                             | `export OPENADT_VERBOSE=true` (PowerShell: `$env:OPENADT_VERBOSE="true"`) |
+| Problem                           | Fix                                                                       |
+| --------------------------------- | ------------------------------------------------------------------------- |
+| `JCo jar not configured`          | Run `openadt config bootstrap`; check `~/.openadt/local.openadt.toml`     |
+| `no sapjco3 in java.library.path` | Use the OS that owns the native lib (Windows = `sapjco3.dll`)             |
+| `GSS-API: No credentials` (SNC)   | Install Secure Login on Windows or set up `SECUDIR` on Linux              |
+| `Connection refused` on the proxy | Start `openadt proxy` first; check the `--listen` port                    |
+| Want more detail                  | `export OPENADT_VERBOSE=true` (PowerShell: `$env:OPENADT_VERBOSE="true"`) |
 
 ---
 
 ## 📖 Docs
 
-| If you want to…                                  | Read                                              |
-| ------------------------------------------------ | ------------------------------------------------- |
-| Use the installed CLI                            | [docs/usage.md](docs/usage.md)                    |
-| Set up VS Code ABAP FS via the proxy             | [docs/integrations/abap-fs.md](docs/integrations/abap-fs.md) |
-| Build from a clone                               | [docs/contributing.md](docs/contributing.md)      |
-| See the full command / config reference          | [specs/cli.md](specs/cli.md) · [specs/config.md](specs/config.md) |
+| If you want to…                         | Read                                                              |
+| --------------------------------------- | ----------------------------------------------------------------- |
+| Use the installed CLI                   | [docs/usage.md](docs/usage.md)                                    |
+| Set up VS Code ABAP FS via the proxy    | [docs/integrations/abap-fs.md](docs/integrations/abap-fs.md)      |
+| Build from a clone                      | [docs/contributing.md](docs/contributing.md)                      |
+| See the full command / config reference | [specs/cli.md](specs/cli.md) · [specs/config.md](specs/config.md) |
 
 [Apache License 2.0](LICENSE). SAP trademarks belong to their respective owners; this project is not affiliated with SAP SE.
