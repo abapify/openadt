@@ -149,15 +149,11 @@ export class McpNdjsonDecoder extends McpDecoder {
       this.buffer = this.buffer.slice(newline + 1);
       const line = rawLine.trim();
       if (line) {
-        this.emitLine(line);
+        assertValidJson(line);
+        this.push(line);
       }
       newline = this.buffer.indexOf("\n");
     }
-  }
-
-  private emitLine(line: string): void {
-    this.assertValidJson(line);
-    this.push(line);
   }
 
   /** After draining lines, decide what to do with whatever remains in the buffer. */
@@ -168,21 +164,13 @@ export class McpNdjsonDecoder extends McpDecoder {
       return;
     }
     if (trimmed.startsWith("{")) {
-      this.assertValidJson(trimmed);
+      assertValidJson(trimmed);
       this.push(trimmed);
       return;
     }
     throw new Error(
       `Non-JSON trailing data in NDJSON stream: ${trimmed.slice(0, 100)}`,
     );
-  }
-
-  private assertValidJson(line: string): void {
-    try {
-      JSON.parse(line);
-    } catch (err) {
-      throw new InvalidNdjsonError(err);
-    }
   }
 }
 
@@ -194,6 +182,14 @@ class InvalidNdjsonError extends Error {
         cause instanceof Error ? cause.message : String(cause)
       }`,
     );
+  }
+}
+
+function assertValidJson(line: string): void {
+  try {
+    JSON.parse(line);
+  } catch (err) {
+    throw new InvalidNdjsonError(err);
   }
 }
 
@@ -215,6 +211,10 @@ export class McpStdioDecoder extends Transform {
     return this.mode === "pending" ? undefined : this.mode;
   }
 
+  private get activeSink(): McpFrameDecoder | McpNdjsonDecoder {
+    return this.mode === "ndjson" ? this.ndjson : this.framed;
+  }
+
   override _transform(
     chunk: Buffer,
     encoding: BufferEncoding,
@@ -224,13 +224,11 @@ export class McpStdioDecoder extends Transform {
       this.mode = detectMcpStdioTransport(chunk);
       this.emit("transport", this.mode);
     }
-    const sink = this.mode === "ndjson" ? this.ndjson : this.framed;
-    sink.write(chunk, encoding, callback);
+    this.activeSink.write(chunk, encoding, callback);
   }
 
   override _flush(callback: TransformCallback): void {
-    const sink = this.mode === "ndjson" ? this.ndjson : this.framed;
-    sink.end(callback);
+    this.activeSink.end(callback);
   }
 }
 
@@ -247,15 +245,19 @@ export class McpStdioEncoder extends Transform {
     this.mode = mode;
   }
 
+  private encodeBody(body: string): Buffer {
+    return this.mode === "ndjson"
+      ? encodeNdjsonLine(body)
+      : frameMcpMessage(body);
+  }
+
   override _transform(
     body: string,
     _encoding: BufferEncoding,
     callback: TransformCallback,
   ): void {
     try {
-      this.push(
-        this.mode === "ndjson" ? encodeNdjsonLine(body) : frameMcpMessage(body),
-      );
+      this.push(this.encodeBody(body));
       callback();
     } catch (err) {
       callback(err instanceof Error ? err : new Error(String(err)));

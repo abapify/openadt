@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   buildAdtLscSpawnRuntime,
+  envVar,
   Env,
   isVsCodeAdtWorkspacePath,
   loadOpenAdtRuntimePaths,
@@ -40,7 +41,9 @@ describe("Env", () => {
   test("string returns trimmed value", () => {
     process.env.OPENADT_TEST_GETENV = "  hello  ";
     try {
-      expect(Env.fromProcess().string("OPENADT_TEST_GETENV")).toBe("hello");
+      expect(Env.fromProcess().string(envVar("OPENADT_TEST_GETENV"))).toBe(
+        "hello",
+      );
     } finally {
       delete process.env.OPENADT_TEST_GETENV;
     }
@@ -49,7 +52,7 @@ describe("Env", () => {
   test("string returns default when unset", () => {
     delete process.env.OPENADT_TEST_GETENV_MISSING;
     expect(
-      Env.fromProcess().string("OPENADT_TEST_GETENV_MISSING", {
+      Env.fromProcess().string(envVar("OPENADT_TEST_GETENV_MISSING"), {
         default: "fallback",
       }),
     ).toBe("fallback");
@@ -58,7 +61,7 @@ describe("Env", () => {
   test("string throws when required and missing", () => {
     delete process.env.OPENADT_TEST_GETENV_MISSING;
     expect(() =>
-      Env.fromProcess().string("OPENADT_TEST_GETENV_MISSING", {
+      Env.fromProcess().string(envVar("OPENADT_TEST_GETENV_MISSING"), {
         required: true,
       }),
     ).toThrow(/Missing required/);
@@ -76,7 +79,10 @@ describe("Env", () => {
     process.env.OPENADT_TEST_PORT = input;
     try {
       const result = () =>
-        Env.fromProcess().integer("OPENADT_TEST_PORT", { min: 1, max: 65535 });
+        Env.fromProcess().integer(envVar("OPENADT_TEST_PORT"), {
+          min: 1,
+          max: 65535,
+        });
       if (throws) {
         expect(result).toThrow(throws);
       } else {
@@ -90,7 +96,7 @@ describe("Env", () => {
   test("integer returns undefined when unset", () => {
     delete process.env.OPENADT_TEST_PORT_MISSING;
     expect(
-      Env.fromProcess().integer("OPENADT_TEST_PORT_MISSING", {
+      Env.fromProcess().integer(envVar("OPENADT_TEST_PORT_MISSING"), {
         min: 1,
         max: 65535,
       }),
@@ -100,21 +106,21 @@ describe("Env", () => {
   test("path returns undefined when mustExist and missing", () => {
     process.env.OPENADT_TEST_PATH = "/nonexistent/openadt-test";
     expect(
-      Env.fromProcess().path("OPENADT_TEST_PATH", { mustExist: true }),
+      Env.fromProcess().path(envVar("OPENADT_TEST_PATH"), { mustExist: true }),
     ).toBeUndefined();
     delete process.env.OPENADT_TEST_PATH;
   });
 
   test("set updates keyByUpper so subsequent lookups hit the new value", () => {
     const env = new Env({});
-    env.set("LOCALAPPDATA", "C:\\Users\\me\\AppData\\Local");
-    expect(env.getTrimmed("LOCALAPPDATA")).toBe(
+    env.set(envVar("LOCALAPPDATA"), "C:\\Users\\me\\AppData\\Local");
+    expect(env.getTrimmed(envVar("LOCALAPPDATA"))).toBe(
       "C:\\Users\\me\\AppData\\Local",
     );
-    expect(env.getTrimmed("localappdata")).toBe(
+    expect(env.getTrimmed(envVar("localappdata"))).toBe(
       "C:\\Users\\me\\AppData\\Local",
     );
-    expect(env.hasNonEmpty("LOCALAPPDATA")).toBe(true);
+    expect(env.hasNonEmpty(envVar("LOCALAPPDATA"))).toBe(true);
   });
 });
 

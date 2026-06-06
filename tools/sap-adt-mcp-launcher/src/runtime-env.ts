@@ -12,6 +12,14 @@ export type AdtLscSpawnRuntime = {
   jvmArgs: string[];
 };
 
+/** Branded env-var name — prevents accidental use of raw strings while remaining type-compatible. */
+export type EnvVarName = string & { readonly __envVarName: unique symbol };
+
+/** Create a typed env-var name constant. */
+export const envVar = (name: string): EnvVarName => name as EnvVarName;
+
+export type WindowsEnvDefaults = Record<EnvVarName, string>;
+
 const LOCAL_CONFIG = join(homedir(), ".openadt", "local.openadt.toml");
 
 export type GetEnvStringOptions = {
@@ -50,25 +58,25 @@ export class Env {
     return this.lookup.get(name.toUpperCase()) ?? name;
   }
 
-  hasNonEmpty(name: string): boolean {
+  hasNonEmpty(name: EnvVarName): boolean {
     return Boolean(this.getTrimmed(name));
   }
 
-  getTrimmed(name: string): string | undefined {
+  getTrimmed(name: EnvVarName): string | undefined {
     const key = this.lookup.get(name.toUpperCase());
     const value = key === undefined ? undefined : this.env[key];
     const trimmed = typeof value === "string" ? value.trim() : undefined;
     return trimmed || undefined;
   }
 
-  set(name: string, value: string): void {
+  set(name: EnvVarName, value: string): void {
     const key = this.existingKey(name);
     this.env[key] = value;
     this.lookup.set(key.toUpperCase(), key);
   }
 
   /** Read a string env var. `default` applies when unset or blank; `required` throws otherwise. */
-  string(name: string, opts: GetEnvStringOptions = {}): string | undefined {
+  string(name: EnvVarName, opts: GetEnvStringOptions = {}): string | undefined {
     const raw = this.getTrimmed(name);
     if (raw) {
       return raw;
@@ -83,7 +91,7 @@ export class Env {
   }
 
   /** Parse an env var as an integer within `[min, max]`. Returns undefined when unset/blank. */
-  integer(name: string, opts: GetEnvIntOptions = {}): number | undefined {
+  integer(name: EnvVarName, opts: GetEnvIntOptions = {}): number | undefined {
     const raw = this.getTrimmed(name);
     if (!raw) {
       return undefined;
@@ -102,7 +110,7 @@ export class Env {
   }
 
   /** Read a filesystem path env var; reject when `mustExist` and the path is absent. */
-  path(name: string, opts: GetEnvPathOptions = {}): string | undefined {
+  path(name: EnvVarName, opts: GetEnvPathOptions = {}): string | undefined {
     const raw = this.getTrimmed(name);
     if (!raw) {
       return undefined;
@@ -199,7 +207,7 @@ export function isSecureLoginSecudir(candidate: string): boolean {
 
 function secudirCandidates(env: Env): string[] {
   const home = homedir();
-  const appData = env.string("APPDATA") ?? "";
+  const appData = env.string(envVar("APPDATA")) ?? "";
   const candidates: string[] = [];
   if (appData) {
     candidates.push(join(appData, "SAP", "Common"));
@@ -210,6 +218,29 @@ function secudirCandidates(env: Env): string[] {
   return candidates;
 }
 
+/** Resolve Windows profile directory defaults from the given env view. */
+export function resolveWindowsEnvDefaults(view: Env): WindowsEnvDefaults {
+  const home = homedir();
+  const localAppData =
+    view.string(envVar("LOCALAPPDATA")) ?? join(home, "AppData", "Local");
+  const appData =
+    view.string(envVar("APPDATA")) ?? join(home, "AppData", "Roaming");
+  const temp = view.string(envVar("TEMP")) ?? join(localAppData, "Temp");
+  const systemRoot =
+    view.string(envVar("SystemRoot")) ??
+    view.string(envVar("WINDIR")) ??
+    "C:\\Windows";
+  return {
+    [envVar("HOME")]: home,
+    [envVar("USERPROFILE")]: home,
+    [envVar("APPDATA")]: appData,
+    [envVar("LOCALAPPDATA")]: localAppData,
+    [envVar("TEMP")]: temp,
+    [envVar("TMP")]: temp,
+    [envVar("SystemRoot")]: systemRoot,
+  } as WindowsEnvDefaults;
+}
+
 /** Cursor agent CLI passes a stripped env; fill Windows profile dirs for SECUDIR/JCo. */
 export function ensureMinimalProcessEnv(
   env: NodeJS.ProcessEnv,
@@ -218,26 +249,10 @@ export function ensureMinimalProcessEnv(
     return env;
   }
   const view = new Env(env);
-  const home = homedir();
-  const localAppData =
-    view.string("LOCALAPPDATA") ?? join(home, "AppData", "Local");
-  const appData = view.string("APPDATA") ?? join(home, "AppData", "Roaming");
-  const temp = view.string("TEMP") ?? join(localAppData, "Temp");
-  const systemRoot =
-    view.string("SystemRoot") ?? view.string("WINDIR") ?? "C:\\Windows";
-
-  const defaults: ReadonlyArray<readonly [string, string]> = [
-    ["HOME", home],
-    ["USERPROFILE", home],
-    ["APPDATA", appData],
-    ["LOCALAPPDATA", localAppData],
-    ["TEMP", temp],
-    ["TMP", temp],
-    ["SystemRoot", systemRoot],
-  ];
-  for (const [name, value] of defaults) {
-    if (!view.hasNonEmpty(name)) {
-      view.set(name, value);
+  const defaults = resolveWindowsEnvDefaults(view);
+  for (const [name, value] of Object.entries(defaults)) {
+    if (!view.hasNonEmpty(envVar(name))) {
+      view.set(envVar(name), value);
     }
   }
   return env;

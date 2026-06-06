@@ -38,7 +38,11 @@ import {
   waitForMcpHttp,
 } from "./mcp.ts";
 import { MARKETPLACE_URL, type McpServeConfig } from "./types.ts";
-import { createStdioMcpBridge, type StdioMcpBridge } from "./stdio-proxy.ts";
+import {
+  createStdioMcpBridge,
+  McpHttpEndpoint,
+  type StdioMcpBridge,
+} from "./stdio-proxy.ts";
 
 const EXIT_OK = 0;
 const EXIT_NO_EXTENSION = 1;
@@ -394,7 +398,9 @@ async function runStdioBridgeOrHttpLoop(
   session: LspSession,
   started: { port: number; token: string },
 ): Promise<void> {
-  const runPromise = bridge.run(started.port, started.token);
+  const runPromise = bridge.run(
+    McpHttpEndpoint.forConfig(started.port, started.token),
+  );
   await Promise.race([
     runPromise,
     waitForIdleHttpServe(session).then(() => runPromise),
