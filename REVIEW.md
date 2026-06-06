@@ -42,7 +42,7 @@ Before claiming “N issues fixed”: name the **source**, query it on **current
 | Layer                                       | Role                                                                                                         | Blocks merge?                      |
 | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ---------------------------------- |
 | **GitHub App** (`codescene-delta-analysis`) | Official delta comment, per-finding **Suppress** links, quality-gate profile (e.g. Pay Down Tech Debt)       | Yes, when required in branch rules |
-| **CLI** (`CodeScene delta` job)             | `cs delta` → JSON artifact + job summary; final step `--error-on-warnings` turns the job **red** on findings | Yes, when required in branch rules |
+| **CLI** (`CodeScene delta` job)             | One `cs delta` with `--output-format json --error-on-warnings` → artifact + summary; job **red** on findings | Yes, when required in branch rules |
 
 Workflow: [`.github/workflows/codescene-delta.yml`](.github/workflows/codescene-delta.yml). Install: [`scripts/ci-install-codescene-cli.sh`](scripts/ci-install-codescene-cli.sh). Summary: [`scripts/ci-codescene-delta-summary.sh`](scripts/ci-codescene-delta-summary.sh). Runs on `pull_request` only; compares `origin/<base>` to `HEAD` (`fetch-depth: 0`).
 
@@ -51,8 +51,7 @@ Agents: `gh pr checks` for red/green; `gh run download -n codescene-delta-pr-<N>
 Local equivalent (`CS_ACCESS_TOKEN` + [CLI install](https://codescene.io/docs/cli/index.html)):
 
 ```bash
-cs delta main HEAD --output-format json --pretty > codescene-delta.json
-cs delta main HEAD --error-on-warnings   # same gate as CI final step
+cs delta main HEAD --output-format json --pretty --error-on-warnings > codescene-delta.json
 ```
 
 Do **not** treat a green `CI / main` job as “CodeScene passed” — check the App and/or `CodeScene delta` if required.

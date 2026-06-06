@@ -26,16 +26,17 @@ jobs:
       - name: Install CodeScene CLI
         run: bash scripts/ci-install-codescene-cli.sh
 
-      - name: Delta analysis (JSON)
+      - name: Delta analysis
         env:
           CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
         run: |
+          set +e
           cs delta "origin/${{ github.base_ref }}" HEAD \
-            --output-format json --pretty > codescene-delta.json
-
-      - name: Job summary
-        if: always() && hashFiles('codescene-delta.json') != ''
-        run: bash scripts/ci-codescene-delta-summary.sh codescene-delta.json
+            --output-format json --pretty --error-on-warnings > codescene-delta.json
+          ec=$?
+          set -e
+          bash scripts/ci-codescene-delta-summary.sh codescene-delta.json
+          exit "${ec}"
 
       - uses: actions/upload-artifact@v7
         if: always() && hashFiles('codescene-delta.json') != ''
@@ -43,8 +44,3 @@ jobs:
           name: codescene-delta-pr-${{ github.event.pull_request.number }}
           path: codescene-delta.json
           retention-days: 14
-
-      - name: Gate (fail on code-health findings)
-        env:
-          CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
-        run: cs delta "origin/${{ github.base_ref }}" HEAD --error-on-warnings
