@@ -46,6 +46,8 @@ Before claiming “N issues fixed”: name the **source**, query it on **current
 
 Workflow: [`.github/workflows/codescene-delta.yml`](.github/workflows/codescene-delta.yml). CI runner: [`scripts/ci-codescene-delta.sh`](scripts/ci-codescene-delta.sh) (`codescene/codescene-mcp` image, `--entrypoint cs` — no runtime download from `downloads.codescene.io`). Local install (optional): [`scripts/ci-install-codescene-cli.sh`](scripts/ci-install-codescene-cli.sh). Runs on `pull_request` only; compares `origin/<base>` to `HEAD` (`fetch-depth: 0`).
 
+**Required secret:** `CS_ACCESS_TOKEN` — [CodeScene PAT](https://codescene.io/users/me/pat) in _Settings → Secrets and variables → Actions_. If missing, the workflow fails immediately with `CodeScene CI not configured`; if invalid/expired, `CodeScene PAT rejected (403)`.
+
 Agents: `gh pr checks` for red/green; `gh run view <id> --log-failed` for delta output.
 
 Local equivalent (`CS_ACCESS_TOKEN` + [CLI install](https://codescene.io/docs/cli/index.html)):
