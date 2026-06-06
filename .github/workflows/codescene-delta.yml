@@ -1,0 +1,62 @@
+# CodeScene CLI delta — advisory report + blocking gate (PR only).
+# Complements the CodeScene GitHub App (suppress links, quality-gate profile in codescene.io).
+# Docs: https://codescene.io/docs/cli/index.html
+# Secret: CS_ACCESS_TOKEN (same PAT as .github/workflows/refactoring-agent.yml)
+name: CodeScene delta
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codescene-delta-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  report:
+    name: CodeScene delta (report)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install CodeScene CLI
+        run: curl -fsSL https://downloads.codescene.io/enterprise/cli/install-cs-tool.sh | sh
+
+      - name: Delta analysis (human-readable, advisory)
+        env:
+          CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
+        run: cs delta "origin/${{ github.base_ref }}" HEAD --verbose
+
+      - name: Delta analysis (JSON artifact)
+        env:
+          CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
+        run: |
+          cs delta "origin/${{ github.base_ref }}" HEAD \
+            --output-format json --pretty > codescene-delta.json
+
+      - uses: actions/upload-artifact@v7
+        if: always() && hashFiles('codescene-delta.json') != ''
+        with:
+          name: codescene-delta-pr-${{ github.event.pull_request.number }}
+          path: codescene-delta.json
+          retention-days: 14
+
+  gate:
+    name: CodeScene delta (gate)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install CodeScene CLI
+        run: curl -fsSL https://downloads.codescene.io/enterprise/cli/install-cs-tool.sh | sh
+
+      - name: Delta analysis (blocking)
+        env:
+          CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
+        run: cs delta "origin/${{ github.base_ref }}" HEAD --error-on-warnings
