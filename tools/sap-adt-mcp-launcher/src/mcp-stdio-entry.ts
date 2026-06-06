@@ -20,7 +20,7 @@ function resolveLauncher(): { runtime: string; launcher: string } {
   for (const ext of [".mjs", ".js"]) {
     const built = join(here, `main${ext}`);
     if (existsSync(built)) {
-      return { runtime: process.execPath, launcher: built };
+      return { runtime: resolveBun(), launcher: built };
     }
   }
   const repoRoot = join(here, "..", "..", "..");
@@ -201,7 +201,7 @@ const child: ChildProcessWithoutNullStreams = spawn(
 child.on("error", (err) => {
   console.error(
     `[openadt-mcp] failed to spawn ${runtime}: ${err.message}\n` +
-      "Install Bun (https://bun.sh) or set OPENADT_BUN to your bun executable.",
+      "Install Bun (https://bun.sh) or set OPENADT_BUN to your bun executable path.",
   );
   process.exit(1);
 });

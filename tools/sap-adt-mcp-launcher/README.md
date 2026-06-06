@@ -33,10 +33,10 @@ bun tools/sap-adt-mcp-launcher/src/main.ts print-config --port 2236
 ### From built output (release)
 
 ```bash
-node tools/sap-adt-mcp-launcher/dist/main.js serve
-node tools/sap-adt-mcp-launcher/dist/main.js status --port 2236
-node tools/sap-adt-mcp-launcher/dist/main.js list
-node tools/sap-adt-mcp-launcher/dist/main.js print-config --port 2236
+bun tools/sap-adt-mcp-launcher/dist/main.mjs serve
+bun tools/sap-adt-mcp-launcher/dist/main.mjs status --port 2236
+bun tools/sap-adt-mcp-launcher/dist/main.mjs list
+bun tools/sap-adt-mcp-launcher/dist/main.mjs print-config --port 2236
 ```
 
 Each running `serve` stores url+token in `~/.openadt/mcp/endpoints/<port>.json`. With multiple servers, use `list` then `print-config --port <port>` for agent-neutral HTTP client JSON.

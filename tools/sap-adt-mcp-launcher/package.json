@@ -6,7 +6,7 @@
     "build": "tsdown",
     "build:check": "tsc --noEmit"
   },
-  "dependencies": {
+  "devDependencies": {
     "uuid": "^11.1.0",
     "vscode-jsonrpc": "^8.2.1"
   }

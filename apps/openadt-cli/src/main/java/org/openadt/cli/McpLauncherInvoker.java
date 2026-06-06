@@ -13,7 +13,11 @@ import java.util.Locale;
 /** Delegates {@code openadt mcp *} to the Bun SAP ADT MCP launcher. */
 final class McpLauncherInvoker {
     private static final String[] LAUNCHER_REL_PATHS = {
+        "sap-adt-mcp-launcher/dist/main.mjs",
+        "sap-adt-mcp-launcher/dist/main.js",
         "sap-adt-mcp-launcher/src/main.ts",
+        "tools/sap-adt-mcp-launcher/dist/main.mjs",
+        "tools/sap-adt-mcp-launcher/dist/main.js",
         "tools/sap-adt-mcp-launcher/src/main.ts",
     };
     private static final int CWD_WALK_MAX_DEPTH = 8;

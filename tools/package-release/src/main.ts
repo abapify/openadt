@@ -182,10 +182,13 @@ const buildMcp = spawnSync("bun", ["run", "build"], {
   cwd: mcpLauncherSrc,
   stdio: "pipe",
 });
-if (buildMcp.status !== 0) {
+if (buildMcp.status !== 0 || buildMcp.error) {
   const stderr = buildMcp.stderr?.toString().trim();
+  const stdout = buildMcp.stdout?.toString().trim();
+  const cause = buildMcp.error ? ` (${buildMcp.error.message})` : "";
+  const output = [stderr, stdout].filter(Boolean).join("\n");
   throw new Error(
-    `Failed to build MCP launcher with tsdown${stderr ? `: ${stderr}` : ""}`,
+    `Failed to build MCP launcher with tsdown${cause}${output ? `: ${output}` : ""}`,
   );
 }
 
