@@ -3,7 +3,9 @@
 | Skill | Trigger |
 | --- | --- |
 | [act](act/SKILL.md) | `/act` on PR |
-| [memory-usage](memory-usage/SKILL.md) | Store/retrieve session context |
+| [memory-bank](memory-bank/SKILL.md) | `/remember` — unified agent memory (`.agents/memory/`) |
+| [retrospect](retrospect/SKILL.md) | `/retrospect` — reflect, record experience, create backlog items |
+| [backlog](backlog/SKILL.md) | Actionable improvement items (`.agents/backlog/`) |
 | [openadt-product](openadt-product/SKILL.md) | fetch, proxy, MCP, transport |
 | [openadt-sdd](openadt-sdd/SKILL.md) | spec → test → code |
 | [openadt-sap-sdk-apis](openadt-sap-sdk-apis/SKILL.md) | SDK APIs |
