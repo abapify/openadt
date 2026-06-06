@@ -31,12 +31,28 @@ Workflows use current stable major tags: `actions/checkout@v6`, `actions/setup-j
 
 ## Release workflow
 
+Two workflows implement the release pipeline. Either can trigger a publish independently.
+
+### `release.yml` — bump and tag (manual trigger)
+
 Manual **Release** workflow (Actions → Release → Run workflow):
 
 1. Choose **version bump**: `patch`, `minor`, `major`, `prerelease`, `prepatch`, `preminor`, `premajor`
 2. Optionally set **prerelease id** (`rc`, `beta`, `alpha`) — required only for `prerelease`, `prepatch`, `preminor`, and `premajor` (omit for `patch` / `minor` / `major`)
-3. Job `bump` reads the latest `v*` tag (or `pom.xml` baseline), bumps `pom.xml`, Homebrew `STABLE`, Scoop `openadt.json`, and syncs `Formula/openadt.rb`, then commits and pushes the version-bump commit
-4. Job `publish` checks out that bump commit, builds, runs `package:release`, commits homebrew/scoop checksum updates (including `Formula/openadt.rb`), tags `vX.Y.Z`, pushes, syncs Scoop/Homebrew external repos via **abapify-bro** app token (or legacy PAT secrets), optional legacy `scoop-bucket` branch on this repo, and publishes GitHub Release assets
+3. Job `bump` reads the latest `v*` tag (or `pom.xml` baseline), bumps `pom.xml`, Homebrew `STABLE`, Scoop `openadt.json`, and syncs `Formula/openadt.rb`, then commits, pushes the version-bump commit, creates `vX.Y.Z` tag, and publishes a GitHub Release (no assets yet)
+
+### `publish.yml` — build and distribute (on: release published)
+
+Fires automatically on any published GitHub Release, whether created by `release.yml` or manually via UI / `gh release create`.
+
+1. Checks out the release tag
+2. Builds the distribution jar (`mvnw -Pdistribution`)
+3. Runs `package:release` — packages zip, builds Windows `.exe` launcher, computes sha256, updates `packaging/scoop/openadt.json` and `Formula/openadt.rb` in the working tree
+4. Uploads `openadt-X.Y.Z.zip` and `openadt-X.Y.Z.zip.sha256` as release assets
+5. Syncs Scoop and Homebrew external repos via **abapify-bro** app token (or legacy PAT secrets)
+6. Dispatches update events to `abapify/scoop-bucket` and `abapify/homebrew-openadt`
+
+Checksum files are authoritative in the release assets; the working-tree writes by `package:release` are consumed by sync scripts in the same job and are not committed back to `main`.
 
 Local dry-run (no git writes):
 

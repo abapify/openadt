@@ -30,12 +30,8 @@ concurrency:
 
 jobs:
   bump:
-    name: Bump version files
+    name: Bump version, tag, and create release
     runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.bump.outputs.version }}
-      tag: ${{ steps.bump.outputs.tag }}
-      bump_sha: ${{ steps.bump_commit.outputs.sha }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -53,14 +49,13 @@ jobs:
             --bump="${{ inputs.version_bump }}" \
             --prerelease-id="${{ inputs.prerelease_id }}"
 
-      - name: Commit version bump (no tag yet)
-        id: bump_commit
+      - name: Commit version bump and create release
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           # Formula/ is intentionally NOT staged here: the bump step writes a
           # PLACEHOLDER sha256, which would publish a broken tap formula to
-          # `main` before the checksum step in `publish` refreshes it.
+          # `main` before the publish workflow computes the real checksum.
           git add pom.xml apps/*/pom.xml packaging/
           if git diff --cached --quiet; then
             echo "No version changes to commit."
@@ -68,118 +63,10 @@ jobs:
           fi
           git commit -m "chore(release): prepare ${{ steps.bump.outputs.tag }}"
           git push origin HEAD:${{ github.ref_name }}
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
-  publish:
-    name: Build, tag, and publish release
-    needs: bump
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-          ref: ${{ needs.bump.outputs.bump_sha }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-
-      - run: bun install --frozen-lockfile
-
-      - uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: "8.0.x"
-
-      - uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: "21"
-
-      - name: Build distribution jar
-        shell: bash
-        run: |
-          chmod +x ./mvnw
-          ./mvnw -q -f pom.xml -pl apps/openadt-cli -am -Pdistribution -Dopenadt.distribution=true package -Dmaven.test.skip=true
-
-      - name: Package zip and refresh homebrew or scoop checksums
+          git tag "${{ steps.bump.outputs.tag }}"
+          git push origin "${{ steps.bump.outputs.tag }}"
+          gh release create "${{ steps.bump.outputs.tag }}" \
+            --title "${{ steps.bump.outputs.tag }}" \
+            --generate-notes
         env:
-          OPENADT_PACKAGE_WIN_EXE: "1"
-        run: bun run package:release -- --version=${{ needs.bump.outputs.version }}
-
-      - name: Commit checksums, create tag, push
-        shell: bash
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add packaging/ Formula/
-          if ! git diff --cached --quiet; then
-            git commit -m "chore(release): checksums for ${{ needs.bump.outputs.tag }}"
-          fi
-          git tag "${{ needs.bump.outputs.tag }}"
-          git pull --rebase origin "${{ github.ref_name }}"
-          git push origin HEAD:${{ github.ref_name }}
-          git push origin "${{ needs.bump.outputs.tag }}"
-
-      - name: Create packaging sync token (GitHub App)
-        id: packaging-sync-token
-        env:
-          ABAPIFY_BRO_APP_PRIVATE_KEY: ${{ secrets.ABAPIFY_BRO_APP_PRIVATE_KEY }}
-        if: vars.ABAPIFY_BRO_APP_CLIENT_ID != '' && env.ABAPIFY_BRO_APP_PRIVATE_KEY != ''
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          client-id: ${{ vars.ABAPIFY_BRO_APP_CLIENT_ID }}
-          private-key: ${{ secrets.ABAPIFY_BRO_APP_PRIVATE_KEY }}
-          owner: abapify
-          repositories: scoop-bucket,homebrew-openadt
-
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3
-        with:
-          tag_name: ${{ needs.bump.outputs.tag }}
-          name: ${{ needs.bump.outputs.tag }}
-          files: |
-            packaging/dist/openadt-${{ needs.bump.outputs.version }}.zip
-            packaging/dist/openadt-${{ needs.bump.outputs.version }}.zip.sha256
-          generate_release_notes: true
-
-      - name: Sync scoop bucket manifests
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_TOKEN: ${{ steps.packaging-sync-token.outputs.token }}
-          OPENADT_SCOOP_BUCKET_TOKEN: ${{ steps.packaging-sync-token.outputs.token || secrets.OPENADT_SCOOP_BUCKET_TOKEN }}
-        run: bash tools/sync-scoop-bucket/sync.sh
-
-      - name: Trigger abapify/scoop-bucket mirror
-        shell: bash
-        env:
-          GH_TOKEN: ${{ steps.packaging-sync-token.outputs.token || secrets.OPENADT_SCOOP_BUCKET_TOKEN }}
-          RELEASE_VERSION: ${{ needs.bump.outputs.version }}
-        run: |
-          if [ -z "${GH_TOKEN}" ]; then
-            echo "Skipping scoop-bucket dispatch (configure ABAPIFY_BRO app or OPENADT_SCOOP_BUCKET_TOKEN)."
-            exit 0
-          fi
-          gh api repos/abapify/scoop-bucket/dispatches \
-            -f event_type=openadt-release \
-            -f "client_payload[version]=${RELEASE_VERSION}"
-
-      - name: Sync Homebrew tap formula
-        shell: bash
-        env:
-          GH_TOKEN: ${{ steps.packaging-sync-token.outputs.token }}
-          OPENADT_HOMEBREW_TAP_TOKEN: ${{ steps.packaging-sync-token.outputs.token || secrets.OPENADT_HOMEBREW_TAP_TOKEN }}
-        run: bash tools/sync-homebrew-tap/sync.sh
-
-      - name: Trigger abapify/homebrew-openadt mirror
-        shell: bash
-        env:
-          GH_TOKEN: ${{ steps.packaging-sync-token.outputs.token || secrets.OPENADT_HOMEBREW_TAP_TOKEN }}
-          RELEASE_VERSION: ${{ needs.bump.outputs.version }}
-        run: |
-          if [ -z "${GH_TOKEN}" ]; then
-            echo "Skipping homebrew-openadt dispatch (configure ABAPIFY_BRO app or OPENADT_HOMEBREW_TAP_TOKEN)."
-            exit 0
-          fi
-          gh api repos/abapify/homebrew-openadt/dispatches \
-            -f event_type=openadt-release \
-            -f "client_payload[version]=${RELEASE_VERSION}"
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
