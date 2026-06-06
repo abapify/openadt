@@ -31,7 +31,7 @@ class Openadt < Formula
       odie "Could not find openadt.jar in release zip (tried: #{candidates.join(', ')})" if jar.nil?
       libexec.install jar => "openadt.jar"
 
-      # Install MCP launcher if present (dependencies are bundled during build)
+      # Install MCP launcher if present (built with tsdown, no runtime node_modules needed)
       mcp_launcher = "openadt-#{version}/sap-adt-mcp-launcher"
       if Dir.exist?(mcp_launcher)
         libexec.install mcp_launcher => "sap-adt-mcp-launcher"
