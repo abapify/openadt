@@ -94,7 +94,7 @@ export async function probeMcpHttp(
       signal: AbortSignal.timeout(10_000),
     });
     await drainHttpResponse(res);
-    return res.status > 0;
+    return true;
   } catch {
     return false;
   }
