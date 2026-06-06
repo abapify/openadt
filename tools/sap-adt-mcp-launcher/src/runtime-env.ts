@@ -43,6 +43,10 @@ export function loadOpenAdtRuntimePaths(opts?: {
   if (!existsSync(configPath)) {
     return {};
   }
+  return parseTomlConfig(configPath);
+}
+
+function parseTomlConfig(configPath: string): OpenAdtRuntimePaths {
   try {
     const parsed = Bun.TOML.parse(readFileSync(configPath, "utf8")) as {
       runtime?: { jco_native_dir?: string; sapcrypto?: string };

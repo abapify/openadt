@@ -87,17 +87,7 @@ export class Env {
     if (!raw) {
       return undefined;
     }
-    const value = Number(raw);
-    if (!Number.isInteger(value)) {
-      throw new Error(`Env ${opts.name}=${raw} is not an integer`);
-    }
-    if (opts.min !== undefined && value < opts.min) {
-      throw new Error(`Env ${opts.name}=${value} below min ${opts.min}`);
-    }
-    if (opts.max !== undefined && value > opts.max) {
-      throw new Error(`Env ${opts.name}=${value} above max ${opts.max}`);
-    }
-    return value;
+    return validateInteger(opts.name, raw, opts.min, opts.max);
   }
 
   /** Read a filesystem path env var; reject when `mustExist` and the path is absent. */
@@ -126,4 +116,23 @@ export class Env {
     }
     this.env[pathKey] = current ? `${dir}${sep}${current}` : dir;
   }
+}
+
+function validateInteger(
+  name: EnvVarName,
+  raw: string,
+  min?: number,
+  max?: number,
+): number {
+  const value = Number(raw);
+  if (!Number.isInteger(value)) {
+    throw new Error(`Env ${name}=${raw} is not an integer`);
+  }
+  if (min !== undefined && value < min) {
+    throw new Error(`Env ${name}=${value} below min ${min}`);
+  }
+  if (max !== undefined && value > max) {
+    throw new Error(`Env ${name}=${value} above max ${max}`);
+  }
+  return value;
 }

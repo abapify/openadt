@@ -138,47 +138,48 @@ describe("Env", () => {
 });
 
 describe("loadOpenAdtRuntimePaths", () => {
-  test("merges legacy top-level + nested runtime per field", () => {
+  function withTomlFile(content: string, fn: (path: string) => void): void {
     const tmp = mkdtempSync(join(tmpdir(), "openadt-runtime-env-"));
     const path = join(tmp, "local.openadt.toml");
     try {
-      writeFileSync(
-        path,
-        [
-          "version = 1",
-          'jco_native_dir = "C:\\\\SAP\\\\jco"',
-          "",
-          "[runtime]",
-          'sapcrypto = "C:\\\\SAP\\\\sapcrypto.dll"',
-        ].join("\n"),
-      );
-      expect(loadOpenAdtRuntimePaths({ configPath: path })).toEqual({
-        jcoNativeDir: "C:\\SAP\\jco",
-        sapcrypto: "C:\\SAP\\sapcrypto.dll",
-      });
+      writeFileSync(path, content);
+      fn(path);
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }
+  }
+
+  test("merges legacy top-level + nested runtime per field", () => {
+    withTomlFile(
+      [
+        "version = 1",
+        'jco_native_dir = "C:\\\\SAP\\\\jco"',
+        "",
+        "[runtime]",
+        'sapcrypto = "C:\\\\SAP\\\\sapcrypto.dll"',
+      ].join("\n"),
+      (path) => {
+        expect(loadOpenAdtRuntimePaths({ configPath: path })).toEqual({
+          jcoNativeDir: "C:\\SAP\\jco",
+          sapcrypto: "C:\\SAP\\sapcrypto.dll",
+        });
+      },
+    );
   });
 
   test("prefers nested runtime value over legacy top-level", () => {
-    const tmp = mkdtempSync(join(tmpdir(), "openadt-runtime-env-"));
-    const path = join(tmp, "local.openadt.toml");
-    try {
-      writeFileSync(
-        path,
-        [
-          'jco_native_dir = "C:\\\\old\\\\jco"',
-          "",
-          "[runtime]",
-          'jco_native_dir = "C:\\\\new\\\\jco"',
-        ].join("\n"),
-      );
-      expect(loadOpenAdtRuntimePaths({ configPath: path }).jcoNativeDir).toBe(
-        "C:\\new\\jco",
-      );
-    } finally {
-      rmSync(tmp, { recursive: true, force: true });
-    }
+    withTomlFile(
+      [
+        'jco_native_dir = "C:\\\\old\\\\jco"',
+        "",
+        "[runtime]",
+        'jco_native_dir = "C:\\\\new\\\\jco"',
+      ].join("\n"),
+      (path) => {
+        expect(loadOpenAdtRuntimePaths({ configPath: path }).jcoNativeDir).toBe(
+          "C:\\new\\jco",
+        );
+      },
+    );
   });
 });
