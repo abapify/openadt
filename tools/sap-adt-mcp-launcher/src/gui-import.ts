@@ -325,26 +325,48 @@ export function resolveDestinationImport(
 function resolveDestinationImportByRequest(
   req: DestinationImportRequest,
 ): DestinationImportResult {
-  if (req.source === "none") {
-    return emptyImport(req.workspace);
+  switch (req.source) {
+    case "none":
+      return resolveNoneImport(req);
+    case "adtls":
+      return resolveAdtlsImport(req);
+    case "gui":
+      return resolveGuiImport(req);
+    case "auto":
+      return resolveAutoImport(req);
+    case "openadt":
+      return importFromOpenAdt(req);
   }
-  if (req.source === "adtls" || req.source === "auto") {
-    const adtls = importFromAdtls(req);
-    if (adtls) {
-      return adtls;
-    }
-    if (req.source === "adtls") {
-      return emptyImport(req.workspace);
-    }
+}
+
+function resolveNoneImport(
+  req: DestinationImportRequest,
+): DestinationImportResult {
+  return emptyImport(req.workspace);
+}
+
+function resolveAdtlsImport(
+  req: DestinationImportRequest,
+): DestinationImportResult {
+  return importFromAdtls(req) ?? emptyImport(req.workspace);
+}
+
+function resolveGuiImport(
+  req: DestinationImportRequest,
+): DestinationImportResult {
+  return importFromGui(req);
+}
+
+function resolveAutoImport(
+  req: DestinationImportRequest,
+): DestinationImportResult {
+  const adtls = importFromAdtls(req);
+  if (adtls) {
+    return adtls;
   }
-  if (req.source === "gui" || req.source === "auto") {
-    const gui = importFromGui(req);
-    if (gui.imported.length > 0) {
-      return gui;
-    }
-    if (req.source === "gui") {
-      return gui;
-    }
+  const gui = importFromGui(req);
+  if (gui.imported.length > 0) {
+    return gui;
   }
   return importFromOpenAdt(req);
 }

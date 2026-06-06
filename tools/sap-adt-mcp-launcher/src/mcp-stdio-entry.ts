@@ -43,8 +43,12 @@ function resolveBun(): string {
 const PORT_MIN = 1024;
 const PORT_MAX = 65535;
 
+function isValidPort(port: number): boolean {
+  return Number.isInteger(port) && port >= PORT_MIN && port <= PORT_MAX;
+}
+
 function validatePort(port: number, raw: string): number {
-  if (!Number.isInteger(port) || port < PORT_MIN || port > PORT_MAX) {
+  if (!isValidPort(port)) {
     throw new Error(
       `Invalid OPENADT_MCP_PORT=${raw} (expected integer ${PORT_MIN}-${PORT_MAX}); falling back to ephemeral.`,
     );
