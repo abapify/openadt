@@ -138,8 +138,8 @@ jobs:
             --title "Release ${{ needs.bump.outputs.tag }}" \
             --generate-notes \
             ${{ inputs.draft == true && '--draft' || '' }} \
-            "dist/packaging/dist/openadt-${{ needs.bump.outputs.version }}.zip" \
-            "dist/packaging/dist/openadt-${{ needs.bump.outputs.version }}.zip.sha256"
+            "dist/openadt-${{ needs.bump.outputs.version }}.zip" \
+            "dist/openadt-${{ needs.bump.outputs.version }}.zip.sha256"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
