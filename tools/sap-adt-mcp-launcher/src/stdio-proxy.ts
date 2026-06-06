@@ -166,7 +166,7 @@ async function probeMcpHttp(endpoint: McpHttpEndpoint): Promise<boolean> {
       signal: AbortSignal.timeout(10_000),
     });
     await res.arrayBuffer().catch(() => undefined);
-    return res.status > 0;
+    return true;
   } catch {
     return false;
   }
