@@ -204,19 +204,6 @@ jobs:
           cat packaging/scoop/openadt.json
           bash tools/sync-scoop-bucket/sync.sh
 
-      - name: Trigger abapify/scoop-bucket mirror
-        shell: bash
-        env:
-          GH_TOKEN: ${{ steps.packaging-sync-token.outputs.token || secrets.OPENADT_SCOOP_BUCKET_TOKEN }}
-        run: |
-          if [ -z "${GH_TOKEN}" ]; then
-            echo "Skipping scoop-bucket dispatch (configure ABAPIFY_BRO app or OPENADT_SCOOP_BUCKET_TOKEN)."
-            exit 0
-          fi
-          gh api repos/abapify/scoop-bucket/dispatches \
-            -f event_type=openadt-release \
-            -f "client_payload[version]=${{ needs.bump.outputs.version }}"
-
       - name: Sync Homebrew tap formula
         shell: bash
         env:
