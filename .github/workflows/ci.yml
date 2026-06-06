@@ -79,7 +79,6 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-          check-latest: true
 
       - name: Maven verify (distribution, no SAP plugins required)
         run: chmod +x ./mvnw && ./mvnw -q verify -f pom.xml -Pdistribution -Dopenadt.distribution=true
