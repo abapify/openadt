@@ -7,7 +7,7 @@ class Openadt < Formula
   # STABLE and sha256 are refreshed by `bun run package:release`.
   STABLE = "1.3.4"
   url "https://github.com/abapify/openadt/releases/download/v#{STABLE}/openadt-#{STABLE}.zip"
-  sha256 "PLACEHOLDER_RUN_PACKAGE_RELEASE"
+  sha256 "0647ee5048d034cf827fd2dc65a7a1db05deb61a2c63087c1df3bf21e165765a"
   version STABLE
 
   head "https://github.com/abapify/openadt.git", branch: "main"
