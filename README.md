@@ -135,11 +135,18 @@ Proxy behavior (header stripping, local vs SAP credentials): [specs/proxy.md](sp
 
 ## MCP preview
 
-SAP ADT MCP via `openadt mcp serve` — starts the official SAP MCP server from the ABAP Development Tools for VS Code extension and exposes it to any MCP client.
+`openadt mcp serve` starts the **official SAP ADT MCP server** and exposes it to any MCP client (Cursor, Claude Desktop, Devin, and others).
 
-- [docs/usage.md#mcp](docs/usage.md#mcp) — installation, configuration, agent `mcp.json` examples
+The MCP server is part of the **[ABAP Development Tools for VS Code](https://marketplace.visualstudio.com/items?itemName=SAPSE.adt-vscode)** extension (`SAPSE.adt-vscode`). OpenADT cannot redistribute it due to the SAP Developer License — you install the extension once and OpenADT drives it headlessly from there.
+
+```bash
+openadt mcp serve --stdio   # stdio transport for CLI agents
+openadt mcp serve           # HTTP on localhost:2236 for IDE agents
+```
+
+- [docs/usage.md#mcp](docs/usage.md#mcp) — prerequisites, `mcp.json` examples for each agent
+- [SAP ADT MCP tools reference](https://help.sap.com/docs/abap-cloud/abap-development-tools-for-visual-studio-code/mcp-tools)
 - [specs/mcp.md](specs/mcp.md) — technical specification
-- [tools/sap-adt-mcp-launcher/](tools/sap-adt-mcp-launcher/)
 
 ## What OpenADT is not
 
