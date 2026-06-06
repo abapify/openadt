@@ -88,6 +88,15 @@ public class SecureLoginHubClient {
 
     public String webAdapterStatus(String profileId) throws IOException, InterruptedException {
         String encodedProfileId = URLEncoder.encode(profileId, StandardCharsets.UTF_8);
+        // Try API v3 first (Windows), fall back to v2 (macOS)
+        try {
+            return webAdapterStatusV3(encodedProfileId);
+        } catch (IOException e) {
+            return webAdapterStatusV2(encodedProfileId);
+        }
+    }
+
+    private String webAdapterStatusV3(String encodedProfileId) throws IOException, InterruptedException {
         URI uri = URI.create(hubBaseUrl + "/slc3/api/status?profileid=" + encodedProfileId);
         HttpResponse<String> response = httpClient.send(
             hubRequest(uri).GET().build(),
@@ -101,11 +110,34 @@ public class SecureLoginHubClient {
         return status.isTextual() ? status.asText() : "UNKNOWN";
     }
 
+    private String webAdapterStatusV2(String encodedProfileId) throws IOException, InterruptedException {
+        URI uri = URI.create(hubBaseUrl + "/slc2/api/status?profileid=" + encodedProfileId);
+        HttpResponse<String> response = httpClient.send(
+            hubRequest(uri).GET().build(),
+            HttpResponse.BodyHandlers.ofString()
+        );
+        if (response.statusCode() != 200) {
+            throw new IOException("Secure Login hub v2 status failed with HTTP " + response.statusCode());
+        }
+        JsonNode root = objectMapper.readTree(response.body());
+        JsonNode status = root.path("status");
+        return status.isTextual() ? status.asText() : "UNKNOWN";
+    }
+
     public void loginWebAdapter(String profileId) throws IOException, InterruptedException {
         loginWebAdapter(profileId, false);
     }
 
     public void loginWebAdapter(String profileId, boolean browserMonitor) throws IOException, InterruptedException {
+        // Try API v3 first (Windows), fall back to v2 (macOS)
+        try {
+            loginWebAdapterV3(profileId, browserMonitor);
+        } catch (IOException e) {
+            loginWebAdapterV2(profileId, browserMonitor);
+        }
+    }
+
+    private void loginWebAdapterV3(String profileId, boolean browserMonitor) throws IOException, InterruptedException {
         URI uri = URI.create(hubBaseUrl + "/slc3/api/login");
         java.util.Map<String, Object> clientConfig = new java.util.LinkedHashMap<>();
         clientConfig.put("browserMonitor", browserMonitor);
@@ -127,6 +159,31 @@ public class SecureLoginHubClient {
         );
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             throw new IOException("Secure Login hub login failed with HTTP " + response.statusCode());
+        }
+    }
+
+    private void loginWebAdapterV2(String profileId, boolean browserMonitor) throws IOException, InterruptedException {
+        URI uri = URI.create(hubBaseUrl + "/slc2/api/login");
+        java.util.Map<String, Object> clientConfig = new java.util.LinkedHashMap<>();
+        clientConfig.put("browserMonitor", browserMonitor);
+        clientConfig.put("inactivityTimeout", 0);
+        clientConfig.put("keySize", 2048);
+        clientConfig.put("profileSLWA", profileId);
+        clientConfig.put("localport", 34443);
+        clientConfig.put("autoLogOut", false);
+        java.util.Map<String, Object> payload = new java.util.LinkedHashMap<>();
+        payload.put("profileid", profileId);
+        payload.put("clientConfig", clientConfig);
+        String body = objectMapper.writeValueAsString(payload);
+        HttpResponse<String> response = httpClient.send(
+            hubRequest(uri)
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build(),
+            HttpResponse.BodyHandlers.ofString()
+        );
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            throw new IOException("Secure Login hub v2 login failed with HTTP " + response.statusCode());
         }
     }
 
