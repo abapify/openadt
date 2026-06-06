@@ -54,14 +54,36 @@ describe("Env", () => {
     }
   });
 
-  test("string returns default when unset", () => {
-    delete process.env.OPENADT_TEST_GETENV_MISSING;
-    expect(
-      processEnv().string({
-        name: envVar("OPENADT_TEST_GETENV_MISSING"),
-        default: "fallback",
-      }),
-    ).toBe("fallback");
+  test.each<{
+    label: string;
+    envKey: string;
+    accessor: (env: Env) => unknown;
+    expected: unknown;
+  }>([
+    {
+      label: "string returns default when unset",
+      envKey: "OPENADT_TEST_GETENV_MISSING",
+      accessor: (env) =>
+        env.string({
+          name: envVar("OPENADT_TEST_GETENV_MISSING"),
+          default: "fallback",
+        }),
+      expected: "fallback",
+    },
+    {
+      label: "integer returns undefined when unset",
+      envKey: "OPENADT_TEST_PORT_MISSING",
+      accessor: (env) =>
+        env.integer({
+          name: envVar("OPENADT_TEST_PORT_MISSING"),
+          min: 1,
+          max: 65535,
+        }),
+      expected: undefined,
+    },
+  ])("$label", ({ envKey, accessor, expected }) => {
+    delete process.env[envKey];
+    expect(accessor(processEnv())).toEqual(expected);
   });
 
   test("string throws when required and missing", () => {
@@ -99,17 +121,6 @@ describe("Env", () => {
     } finally {
       delete process.env.OPENADT_TEST_PORT;
     }
-  });
-
-  test("integer returns undefined when unset", () => {
-    delete process.env.OPENADT_TEST_PORT_MISSING;
-    expect(
-      processEnv().integer({
-        name: envVar("OPENADT_TEST_PORT_MISSING"),
-        min: 1,
-        max: 65535,
-      }),
-    ).toBeUndefined();
   });
 
   test("path returns undefined when mustExist and missing", () => {

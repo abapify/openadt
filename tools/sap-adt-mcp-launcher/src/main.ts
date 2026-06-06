@@ -121,6 +121,13 @@ function printImportNotices(
       "[openadt-mcp] Warning: no destination file URIs — logon may fail. Update openadt from git clone.",
     );
   }
+  warnWorkspaceMismatch(cfg, gui);
+}
+
+function warnWorkspaceMismatch(
+  cfg: McpServeConfig,
+  gui: ReturnType<typeof resolveDestinationImport>,
+): void {
   if (
     cfg.explicitWorkspace &&
     isVsCodeAdtWorkspacePath(cfg.workspace as WorkspacePath) &&

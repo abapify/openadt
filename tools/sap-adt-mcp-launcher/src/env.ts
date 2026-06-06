@@ -140,11 +140,20 @@ function validateInteger(
   if (!Number.isInteger(value)) {
     throw new Error(`Env ${name}=${raw} is not an integer`);
   }
+  assertRange(name, value, min, max);
+  return value;
+}
+
+function assertRange(
+  name: EnvVarName,
+  value: number,
+  min?: number,
+  max?: number,
+): void {
   if (min !== undefined && value < min) {
     throw new Error(`Env ${name}=${value} below min ${min}`);
   }
   if (max !== undefined && value > max) {
     throw new Error(`Env ${name}=${value} above max ${max}`);
   }
-  return value;
 }
