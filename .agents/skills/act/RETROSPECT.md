@@ -54,6 +54,41 @@ Append-only durable learnings from `/act` P6 evaluation. One entry per session w
 - **Prevention:** [SKILL.md P0 — when CI is red, run linters locally first](SKILL.md#work-order-mandatory-sequence) now includes a "Codacy N new issues (0 max.) with annotations=0" → "install linter, run it, fix" table. Same pattern for Opengrep (`opengrep --config .semgrep.yaml`), SonarCloud, CodeQL.
 - **Cycle signal:** none
 
+## 2026-06-06 — PR #50 — token-efficiency retro
+
+- **What happened:** A single `/act` on PR #50 (36 open threads, then 2 follow-up cubic comments) accumulated several token-inefficient patterns in one session: scratch `.tsv` files written to the worktree root leaked through the pre-commit hook into the PR branch (4 extra commits + 2 rebase cycles); `pr-state.sh` was re-run 3 times and `gh pr view`/`gh pr checks` were called independently 4 more times; CI was polled via 4 sequential `sleep N && gh pr view` rounds instead of one `gh pr checks --watch`; two near-duplicate test functions triggered a fresh CodeScene "Code Duplication" delta on the *new tests themselves* and forced a `test.each` reshape.
+- **Root cause:** Three missing pieces of guard-rail guidance in the skill:
+  1. `reply-threads.sh --file` accepts absolute paths — there was no rule telling the agent to put scratch TSVs in `/tmp/agent_*/` instead of the worktree root, and no `.gitignore` entry to catch the slip.
+  2. The "call `pr-state.sh` once, refresh only on state change" rule was implicit. Agents re-derive HEAD SHA / merge state / open-thread count at multiple points in the run.
+  3. The new `cs delta --error-on-warnings` gate applies to the *PR diff*, not just the pre-PR file health. New tests are fair game, so the same dedup rules that drove the refactor also apply to the new tests.
+- **Prevention:**
+  - Add `/replies*.tsv` and `/reply*.tsv` (worktree-root only) to `.gitignore` (done in this retro). Add a one-line note to [SKILL.md Token-rationalized workflow](SKILL.md#token-rationalized-workflow) saying scratch TSVs should live outside the worktree.
+  - In [SKILL.md P0–P6](SKILL.md#work-order-mandatory-sequence), call out that `pr-state.sh` should be invoked **once at start** and re-invoked only after a push, a rebase, or a new commit hash; the rest of the run should treat its output as the source of truth.
+  - Same place, add: under the new CodeScene delta gate, write `test.each` from the start whenever two test cases have similar shape. The pre-PR file-health retro on PR #50 ([`ef7e633`](https://github.com/abapify/openadt/commit/ef7e633)) already noted the gate; this is the second time it has re-flagged a duplicate test pair.
+  - Replace the "sleep N && gh pr view" polling pattern with `gh pr checks --watch --interval 30` (or `gh run watch <run-id>`) in any example.
+- **Cycle signal:** same rule re-flagged (CodeScene delta on duplicate test functions) — fixed in the same session
+
+## 2026-06-06 — PR #50 — scratch `.tsv` files leaking into the PR via the pre-commit hook
+
+- **What happened:** Wrote `replies.tsv` and `reply-update.tsv` at the worktree root to feed `scripts/act/reply-threads.sh`. The repo's pre-commit hook runs `nx format:write --uncommitted && git update-index --again`, which re-staged the scratch file if it had been `git restore --staged`'d but left on disk. Both files were committed and pushed to the PR branch in this session, then cleaned up in a follow-up `git rm` commit.
+- **Root cause:** `git restore --staged <scratch>` keeps the file on disk, then `git add -A` in the next commit picks it up again. The `nx format:write --uncommitted` step masks it because prettier re-formats the scratch file in place, which is exactly what the hook looks for to consider the working tree "clean and reformatted".
+- **Prevention:** `.gitignore` now blocks the root-level scratch TSV names (see commit on this retro). Long-term: when staging the next commit after a `replies.tsv` write, either (a) `rm` the file before `git add -A`, or (b) write the TSV to a path outside the worktree (e.g. `/tmp/agent_*/replies.tsv` — `reply-threads.sh` accepts `--file` with an absolute path, so this works). Worth a one-line note in [SKILL.md P1](SKILL.md#work-order-mandatory-sequence) that scratch artifacts used by the `/act` helpers must live outside the worktree, not in it.
+- **Cycle signal:** none (caught in the same session, two extra follow-up commits to remove the file)
+
+## 2026-06-06 — PR #50 — CodeScene "Code Duplication" delta on the new tests
+
+- **What happened:** Added two test functions to `gui-import.test.ts` for `destinationFileUris` (relative vs absolute path). The new `cs delta --error-on-warnings` job correctly flagged them as code-duplication (the new delta gate did its job) and broke the PR. One extra round-trip to consolidate into `test.each`.
+- **Root cause:** Did not anticipate the new delta gate flagging *the new tests themselves* the moment they were added. The gate is a per-PR diff check, not just a per-file check, so anything added in the PR is fair game.
+- **Prevention:** When adding tests under the new CodeScene delta gate, write similar-shape assertions as a `test.each` from the start. The same anti-duplication rules that applied to the source file in this PR now apply to the test file in the same PR. Worth noting in [SKILL.md P0](SKILL.md#work-order-mandatory-sequence): if a PR enables a CodeScene delta gate, re-run `cs delta` locally (or at minimum scan the diff) before pushing review-fix tests.
+- **Cycle signal:** same rule re-flagged (CodeScene delta flagged the test file the moment it appeared in the diff) — fixed in the same session
+
+## 2026-06-06 — PR #50 — CodeScene CLI "latest" is not pinnable from public CI
+
+- **What happened:** Tried to address cubic's "CodeScene CLI version should be pinned" thread by setting `CS_CLI_VERSION=2.4.4` in `scripts/ci-install-codescene-cli.sh`. CI install step immediately 403'd. The versioned download endpoint requires `CS_ACCESS_TOKEN` on the request (the token is exposed to the delta step, not the install step), and the guessed version string also does not exist.
+- **Root cause:** Did not reproduce locally; the versioned URL only works for authenticated enterprise installs, and the available versions are not advertised. The right fix needs both a known-good version string and exposing `CS_ACCESS_TOKEN` to the install step.
+- **Prevention:** When a reviewer asks to pin an externally-installed binary that's behind auth, do a `curl -fsSLI` check on the candidate URL **with and without the token header** before committing the change — and if the public path is `latest`, reply in-thread explaining the tradeoff rather than shipping a half-fix that breaks CI. The author fixed the same problem from the other direction in `d54ba37` (added a clearer fail-fast message when the PAT is rejected in the Docker image path).
+- **Cycle signal:** none (caught by the next CI run on the same push; reverted in `069eb03`)
+
 ## 2026-06-05 — PR #42 — stale review threads from an earlier PR scope
 
 - **What happened:** PR #42 (TS-only `tools/sap-adt-mcp-launcher/`) carried 12+ open review threads pointing at `apps/openadt-cli/src/main/java/org/openadt/cli/McpLauncherInvoker.java`, `LauncherArgs.java`, `McpServeCommand.java`, and `McpStatusCommand.java` — files that are not in the current PR diff. An earlier scope of the PR included a Java CLI shim that was force-pushed out; the auto-reviews (Codacy, Copilot, Amazon Q, Gemini, cubic) were never pruned and stuck around as ghost feedback.
