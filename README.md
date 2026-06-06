@@ -143,6 +143,37 @@ SAP ADT MCP via `openadt mcp serve --stdio` (stdio bridge to native SAP HTTP MCP
 
 **Test it:** `bun run test:mcp:stdio` — verifies stdio → HTTP proxy flow end-to-end
 
+### Prerequisites — VS Code + SAP ADT extension
+
+OpenADT does not redistribute the SAP ADT MCP server binary (`adt-lsc`) due to SAP's license terms. The binary ships exclusively inside the official VS Code extension.
+
+**1. Install Visual Studio Code**
+
+> <https://code.visualstudio.com/download>
+
+**2. Install ABAP Development Tools for VS Code**
+
+> Extension ID: `SAPSE.adt-vscode`
+> Marketplace: <https://marketplace.visualstudio.com/items?itemName=SAPSE.adt-vscode>
+
+Quick install — press `Ctrl+P` in VS Code, paste, and press **Enter**:
+
+```
+ext install SAPSE.adt-vscode
+```
+
+This extension provides `adt-lsc` and the licensed ADT packages that power the MCP server. VS Code does **not** need to stay open during normal operation — only the extension install is required.
+
+**3. Configure a destination in VS Code** (first-time only)
+
+1. Open the Command Palette (`Ctrl+Shift+P`).
+2. Run **ABAP: New Destination** and choose **RFC** (on-premise / private cloud) or **HTTP** (public cloud).
+3. Enter your connection details.
+
+The destination is then available to the OpenADT MCP launcher without further VS Code interaction.
+
+SAP ADT MCP tools reference: <https://help.sap.com/docs/abap-cloud/abap-development-tools-for-visual-studio-code/mcp-tools>
+
 ## What OpenADT is not
 
 - Not an Eclipse ADT or SAP GUI replacement
