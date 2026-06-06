@@ -128,16 +128,13 @@ function warnWorkspaceMismatch(
   cfg: McpServeConfig,
   gui: ReturnType<typeof resolveDestinationImport>,
 ): void {
-  if (
-    cfg.explicitWorkspace &&
-    isVsCodeAdtWorkspacePath(cfg.workspace as WorkspacePath) &&
-    gui.workspace !== cfg.workspace
-  ) {
-    console.error(
-      `Using separate adt-lsc workspace: ${gui.workspace}\n` +
-        "(VS Code adtWorkspace is not used as -data to avoid lock conflicts.)",
-    );
-  }
+  if (!cfg.explicitWorkspace) return;
+  if (!isVsCodeAdtWorkspacePath(cfg.workspace as WorkspacePath)) return;
+  if (gui.workspace === cfg.workspace) return;
+  console.error(
+    `Using separate adt-lsc workspace: ${gui.workspace}\n` +
+      "(VS Code adtWorkspace is not used as -data to avoid lock conflicts.)",
+  );
 }
 
 function printServeState(state: ServerState, cfg: McpServeConfig): void {
