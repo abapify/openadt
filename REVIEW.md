@@ -4,17 +4,16 @@ Where to triage comments and static analysis on OpenADT PRs. Agents hub: [AGENTS
 
 ## Do not mix these systems
 
-| System                             | List open items via                                                                                                    | Not the same as                                        |
-| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| **Codacy**                         | Codacy UI / MCP                                                                                                        | `gh api …/code-scanning`                               |
-| **GitHub Code Scanning**           | `gh api repos/{o}/{r}/code-scanning/alerts` (state=open)                                                               | Codacy                                                 |
-| **PR review threads**              | `gh pr view` / Files changed                                                                                           | Code Scanning API                                      |
-| **Dependabot**                     | `gh api …/dependabot/alerts`                                                                                           | Codacy, Semgrep                                        |
-| **Semgrep / Opengrep**             | CI `opengrep`, root [`.semgrep.yaml`](.semgrep.yaml)                                                                   | Whole-file `# nosemgrep` — use line-level suppressions |
-| **CodeScene GitHub App**           | PR comment `codescene-delta-analysis`, required check in branch rules                                                  | CodeScene CLI jobs below                               |
-| **CodeScene CLI (report)**         | CI [`.github/workflows/codescene-delta.yml`](.github/workflows/codescene-delta.yml) job `report` — log + JSON artifact | CodeScene App, gate job                                |
-| **CodeScene CLI (gate)**           | Same workflow job `gate` — fails on code-health findings (`--error-on-warnings`)                                       | Report job (advisory only)                             |
-| **CodeScene PR Refactoring Agent** | CI `.github/workflows/refactoring-agent.yml` (`/cs-agent` PR comment)                                                  | Codacy, GitHub Code Scanning                           |
+| System                             | List open items via                                                                                                             | Not the same as                                        |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| **Codacy**                         | Codacy UI / MCP                                                                                                                 | `gh api …/code-scanning`                               |
+| **GitHub Code Scanning**           | `gh api repos/{o}/{r}/code-scanning/alerts` (state=open)                                                                        | Codacy                                                 |
+| **PR review threads**              | `gh pr view` / Files changed                                                                                                    | Code Scanning API                                      |
+| **Dependabot**                     | `gh api …/dependabot/alerts`                                                                                                    | Codacy, Semgrep                                        |
+| **Semgrep / Opengrep**             | CI `opengrep`, root [`.semgrep.yaml`](.semgrep.yaml)                                                                            | Whole-file `# nosemgrep` — use line-level suppressions |
+| **CodeScene GitHub App**           | PR comment `codescene-delta-analysis`, required check in branch rules                                                           | CodeScene CLI job below                                |
+| **CodeScene CLI**                  | CI [`.github/workflows/codescene-delta.yml`](.github/workflows/codescene-delta.yml) — artifact + summary; job fails on findings | CodeScene App                                          |
+| **CodeScene PR Refactoring Agent** | CI `.github/workflows/refactoring-agent.yml` (`/cs-agent` PR comment)                                                           | Codacy, GitHub Code Scanning                           |
 
 Before claiming “N issues fixed”: name the **source**, query it on **current HEAD**, cite rule IDs or thread URLs.
 
@@ -40,25 +39,23 @@ Before claiming “N issues fixed”: name the **source**, query it on **current
 
 ## CodeScene delta (CLI in CI + GitHub App)
 
-Two layers — use the right one when triaging:
+| Layer                                       | Role                                                                                                         | Blocks merge?                      |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ---------------------------------- |
+| **GitHub App** (`codescene-delta-analysis`) | Official delta comment, per-finding **Suppress** links, quality-gate profile (e.g. Pay Down Tech Debt)       | Yes, when required in branch rules |
+| **CLI** (`CodeScene delta` job)             | `cs delta` → JSON artifact + job summary; final step `--error-on-warnings` turns the job **red** on findings | Yes, when required in branch rules |
 
-| Layer                                       | Role                                                                                                   | Blocks merge?                      |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------- |
-| **GitHub App** (`codescene-delta-analysis`) | Official delta comment, per-finding **Suppress** links, quality-gate profile (e.g. Pay Down Tech Debt) | Yes, when required in branch rules |
-| **CLI report** (`CodeScene delta (report)`) | Same `cs delta` output in Actions log; downloads `codescene-delta-pr-<N>.json` artifact                | No — advisory                      |
-| **CLI gate** (`CodeScene delta (gate)`)     | `cs delta … --error-on-warnings` — fails the job on code-health findings                               | Yes, when required in branch rules |
+Workflow: [`.github/workflows/codescene-delta.yml`](.github/workflows/codescene-delta.yml). Install: [`scripts/ci-install-codescene-cli.sh`](scripts/ci-install-codescene-cli.sh). Summary: [`scripts/ci-codescene-delta-summary.sh`](scripts/ci-codescene-delta-summary.sh). Runs on `pull_request` only; compares `origin/<base>` to `HEAD` (`fetch-depth: 0`).
 
-Workflow: [`.github/workflows/codescene-delta.yml`](.github/workflows/codescene-delta.yml). CLI install: [`scripts/ci-install-codescene-cli.sh`](scripts/ci-install-codescene-cli.sh) (non-interactive; upstream `install-cs-tool.sh` prompts for `/dev/tty`). Runs on `pull_request` only; compares `origin/<base>` to `HEAD` (needs `fetch-depth: 0`).
+Agents: `gh pr checks` for red/green; `gh run download -n codescene-delta-pr-<N>` for structured JSON (do not parse verbose logs).
 
-Local equivalent (requires [CLI install](https://codescene.io/docs/cli/index.html) + `CS_ACCESS_TOKEN`):
+Local equivalent (`CS_ACCESS_TOKEN` + [CLI install](https://codescene.io/docs/cli/index.html)):
 
 ```bash
-cs delta main HEAD --verbose                              # report
-cs delta main HEAD --error-on-warnings                    # gate
-cs delta main HEAD --output-format json --pretty > out.json
+cs delta main HEAD --output-format json --pretty > codescene-delta.json
+cs delta main HEAD --error-on-warnings   # same gate as CI final step
 ```
 
-Do **not** treat a green `CI / main` job as “CodeScene passed” — check both App and CLI gate if either is required.
+Do **not** treat a green `CI / main` job as “CodeScene passed” — check the App and/or `CodeScene delta` if required.
 
 ## CodeScene PR Refactoring Agent
 
@@ -67,4 +64,4 @@ Reviewers can request Code Health-guided refactoring on any PR by commenting `/c
 Configure under _Settings → Secrets and variables → Actions_:
 
 - **Variable** `CS_AGENT_MODEL` — backing model id (e.g. `anthropic/claude-sonnet-4-6-20251101` or a Kilo/OpenCode model).
-- **Secrets** `CS_ACCESS_TOKEN` — shared by `/cs-agent`, CLI report, and CLI gate; plus at least one AI provider for the agent: `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GOOGLE_API_KEY`, or Kilo/OpenCode via `OPENCODE_AUTH_JSON` (optional `KILO_API_KEY`).
+- **Secrets** `CS_ACCESS_TOKEN` — shared by `/cs-agent` and the CodeScene delta job; plus at least one AI provider for the agent: `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GOOGLE_API_KEY`, or Kilo/OpenCode via `OPENCODE_AUTH_JSON` (optional `KILO_API_KEY`).

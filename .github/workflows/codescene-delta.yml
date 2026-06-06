@@ -1,4 +1,4 @@
-# CodeScene CLI delta — advisory report + blocking gate (PR only).
+# CodeScene CLI delta on pull requests — JSON artifact + job summary + blocking gate.
 # Complements the CodeScene GitHub App (suppress links, quality-gate profile in codescene.io).
 # Docs: https://codescene.io/docs/cli/index.html
 # Secret: CS_ACCESS_TOKEN (same PAT as .github/workflows/refactoring-agent.yml)
@@ -15,8 +15,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  report:
-    name: CodeScene delta (report)
+  delta:
+    name: CodeScene delta
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -26,17 +26,16 @@ jobs:
       - name: Install CodeScene CLI
         run: bash scripts/ci-install-codescene-cli.sh
 
-      - name: Delta analysis (human-readable, advisory)
-        env:
-          CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
-        run: cs delta "origin/${{ github.base_ref }}" HEAD --verbose
-
-      - name: Delta analysis (JSON artifact)
+      - name: Delta analysis (JSON)
         env:
           CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
         run: |
           cs delta "origin/${{ github.base_ref }}" HEAD \
             --output-format json --pretty > codescene-delta.json
+
+      - name: Job summary
+        if: always() && hashFiles('codescene-delta.json') != ''
+        run: bash scripts/ci-codescene-delta-summary.sh codescene-delta.json
 
       - uses: actions/upload-artifact@v7
         if: always() && hashFiles('codescene-delta.json') != ''
@@ -45,18 +44,7 @@ jobs:
           path: codescene-delta.json
           retention-days: 14
 
-  gate:
-    name: CodeScene delta (gate)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - name: Install CodeScene CLI
-        run: bash scripts/ci-install-codescene-cli.sh
-
-      - name: Delta analysis (blocking)
+      - name: Gate (fail on code-health findings)
         env:
           CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
         run: cs delta "origin/${{ github.base_ref }}" HEAD --error-on-warnings
