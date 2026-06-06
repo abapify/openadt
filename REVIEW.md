@@ -48,7 +48,7 @@ Two layers — use the right one when triaging:
 | **CLI report** (`CodeScene delta (report)`) | Same `cs delta` output in Actions log; downloads `codescene-delta-pr-<N>.json` artifact                | No — advisory                      |
 | **CLI gate** (`CodeScene delta (gate)`)     | `cs delta … --error-on-warnings` — fails the job on code-health findings                               | Yes, when required in branch rules |
 
-Workflow: [`.github/workflows/codescene-delta.yml`](.github/workflows/codescene-delta.yml). Runs on `pull_request` only; compares `origin/<base>` to `HEAD` (needs `fetch-depth: 0`).
+Workflow: [`.github/workflows/codescene-delta.yml`](.github/workflows/codescene-delta.yml). CLI install: [`scripts/ci-install-codescene-cli.sh`](scripts/ci-install-codescene-cli.sh) (non-interactive; upstream `install-cs-tool.sh` prompts for `/dev/tty`). Runs on `pull_request` only; compares `origin/<base>` to `HEAD` (needs `fetch-depth: 0`).
 
 Local equivalent (requires [CLI install](https://codescene.io/docs/cli/index.html) + `CS_ACCESS_TOKEN`):
 

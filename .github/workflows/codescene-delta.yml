@@ -24,7 +24,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install CodeScene CLI
-        run: curl -fsSL https://downloads.codescene.io/enterprise/cli/install-cs-tool.sh | sh
+        run: bash scripts/ci-install-codescene-cli.sh
 
       - name: Delta analysis (human-readable, advisory)
         env:
@@ -54,7 +54,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install CodeScene CLI
-        run: curl -fsSL https://downloads.codescene.io/enterprise/cli/install-cs-tool.sh | sh
+        run: bash scripts/ci-install-codescene-cli.sh
 
       - name: Delta analysis (blocking)
         env:
