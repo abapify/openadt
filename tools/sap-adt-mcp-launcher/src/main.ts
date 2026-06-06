@@ -90,15 +90,17 @@ function printImportNotices(
   cfg: McpServeConfig,
   gui: ReturnType<typeof resolveDestinationImport>,
 ): void {
-  if (gui.imported.length === 0 && cfg.importFrom !== "none") {
-    console.error(
-      "No destinations to import.\n" +
-        "ADT LS store: log on in VS Code (creates ~/.adtls/destinations.json), or\n" +
-        "GUI: Add Destination as Folder to Workspace, or `openadt setup` for ~/.openadt fallback.",
-    );
+  if (gui.imported.length === 0) {
+    if (cfg.importFrom !== "none") {
+      console.error(
+        "No destinations to import.\n" +
+          "ADT LS store: log on in VS Code (creates ~/.adtls/destinations.json), or\n" +
+          "GUI: Add Destination as Folder to Workspace, or `openadt setup` for ~/.openadt fallback.",
+      );
+    }
     return;
   }
-  if (gui.imported.length === 0 || cfg.json) {
+  if (cfg.json) {
     return;
   }
   const ids = gui.imported.map((d) => d.id).join(", ");

@@ -219,7 +219,8 @@ export function ensureMinimalProcessEnv(
   }
   const view = new Env(env);
   const home = homedir();
-  const localAppData = view.string("LOCALAPPDATA") ?? join(home, "AppData", "Local");
+  const localAppData =
+    view.string("LOCALAPPDATA") ?? join(home, "AppData", "Local");
   const appData = view.string("APPDATA") ?? join(home, "AppData", "Roaming");
   const temp = view.string("TEMP") ?? join(localAppData, "Temp");
   const systemRoot =
