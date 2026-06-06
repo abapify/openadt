@@ -19,28 +19,31 @@ describe("buildAbapWorkspaceFolderUri", () => {
 });
 
 describe("destinationFileUris", () => {
-  test("resolves relative propertiesPath before pathToFileURL", () => {
+  test.each<{
+    label: string;
+    input: string;
+    matches: RegExp | string;
+  }>([
+    {
+      label: "resolves relative propertiesPath before pathToFileURL",
+      input: "rel/.destination.properties",
+      matches: /^file:\/\/\/.+rel\/\.destination\.properties$/,
+    },
+    {
+      label: "passes absolute propertiesPath through unchanged",
+      input: "/abs/path/.destination.properties",
+      matches: "file:///abs/path/.destination.properties",
+    },
+  ])("$label", ({ input, matches }) => {
     const uris = destinationFileUris([
       {
-        id: "REL",
-        workspaceFolderUri: "abap:/REL",
+        id: "X",
+        workspaceFolderUri: "abap:/X",
         adtWorkspacePath: "/abs/path",
-        propertiesPath: "rel/.destination.properties",
+        propertiesPath: input,
       },
     ]);
-    expect(uris[0]).toMatch(/^file:\/\/\/.+rel\/\.destination\.properties$/);
-  });
-
-  test("passes absolute propertiesPath through unchanged", () => {
-    const uris = destinationFileUris([
-      {
-        id: "ABS",
-        workspaceFolderUri: "abap:/ABS",
-        adtWorkspacePath: "/abs/path",
-        propertiesPath: "/abs/path/.destination.properties",
-      },
-    ]);
-    expect(uris[0]).toBe("file:///abs/path/.destination.properties");
+    expect(uris[0]).toMatch(matches);
   });
 });
 
