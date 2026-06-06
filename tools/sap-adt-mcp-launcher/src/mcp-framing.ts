@@ -157,9 +157,7 @@ export class McpNdjsonDecoder extends McpDecoder {
   }
 
   private emitLine(line: string): void {
-    if (line.startsWith("{")) {
-      this.assertValidJsonOrRequeue(line);
-    }
+    this.assertValidJson(line);
     this.push(line);
   }
 
@@ -178,15 +176,6 @@ export class McpNdjsonDecoder extends McpDecoder {
     throw new Error(
       `Non-JSON trailing data in NDJSON stream: ${trimmed.slice(0, 100)}`,
     );
-  }
-
-  private assertValidJsonOrRequeue(line: string): void {
-    try {
-      JSON.parse(line);
-    } catch (err) {
-      this.buffer = `${line}\n${this.buffer}`;
-      throw new InvalidNdjsonError(err);
-    }
   }
 
   private assertValidJson(line: string): void {

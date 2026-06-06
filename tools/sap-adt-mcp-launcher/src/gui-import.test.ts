@@ -18,6 +18,32 @@ describe("buildAbapWorkspaceFolderUri", () => {
   });
 });
 
+describe("destinationFileUris", () => {
+  test("resolves relative propertiesPath before pathToFileURL", () => {
+    const uris = destinationFileUris([
+      {
+        id: "REL",
+        workspaceFolderUri: "abap:/REL",
+        adtWorkspacePath: "/abs/path",
+        propertiesPath: "rel/.destination.properties",
+      },
+    ]);
+    expect(uris[0]).toMatch(/^file:\/\/\/.+rel\/\.destination\.properties$/);
+  });
+
+  test("passes absolute propertiesPath through unchanged", () => {
+    const uris = destinationFileUris([
+      {
+        id: "ABS",
+        workspaceFolderUri: "abap:/ABS",
+        adtWorkspacePath: "/abs/path",
+        propertiesPath: "/abs/path/.destination.properties",
+      },
+    ]);
+    expect(uris[0]).toBe("file:///abs/path/.destination.properties");
+  });
+});
+
 describe("readDestinationId", () => {
   test("reads id property", () => {
     const dir = join(tmpdir(), `gui-import-${Date.now()}`);

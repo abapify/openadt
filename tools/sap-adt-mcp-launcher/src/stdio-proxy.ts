@@ -304,8 +304,19 @@ export function createStdioMcpBridge(): StdioMcpBridge {
     scheduleCloseWhenIdle();
   });
 
+  let onStdinEnd: (() => void) | undefined;
+  let onStdinError: ((err: Error) => void) | undefined;
+
   const detachStdin = (): void => {
     process.stdin.unpipe(decoder);
+    if (onStdinEnd) {
+      process.stdin.off("end", onStdinEnd);
+      onStdinEnd = undefined;
+    }
+    if (onStdinError) {
+      process.stdin.off("error", onStdinError);
+      onStdinError = undefined;
+    }
     decoder.removeAllListeners("data");
     decoder.removeAllListeners("error");
   };
@@ -316,17 +327,19 @@ export function createStdioMcpBridge(): StdioMcpBridge {
         return;
       }
       process.stdin.pipe(decoder);
-      process.stdin.on("end", () => {
+      onStdinEnd = () => {
         detachStdin();
         lifecycle.markStdinEnded();
         scheduleCloseWhenIdle();
-      });
-      process.stdin.on("error", (err) => {
+      };
+      onStdinError = (err) => {
         detachStdin();
         lifecycle.markStdinEnded();
         console.error(`[openadt-mcp] stdio stdin error: ${err.message}`);
         scheduleCloseWhenIdle();
-      });
+      };
+      process.stdin.on("end", onStdinEnd);
+      process.stdin.on("error", onStdinError);
       if (process.stdin.isPaused()) {
         process.stdin.resume();
       }
@@ -358,25 +371,41 @@ export function createStdioMcpBridge(): StdioMcpBridge {
       void waitForMcpHttp(endpoint, {
         timeoutMs: options.waitTimeoutMs ?? 300_000,
         intervalMs: options.pollIntervalMs ?? 500,
-      }).then(async (httpReady) => {
-        if (!httpReady) {
-          console.error(
-            `[openadt-mcp] MCP HTTP not ready at ${endpoint.url} after 5min`,
-          );
+      })
+        .then(async (httpReady) => {
+          if (lifecycle.failed) {
+            return;
+          }
+          if (!httpReady) {
+            console.error(
+              `[openadt-mcp] MCP HTTP not ready at ${endpoint.url} after 5min`,
+            );
+            lifecycle.markFailed();
+            replyAllPending(
+              new JsonRpcError(
+                -32000,
+                "MCP HTTP backend failed to start (SAP logon timeout)",
+              ),
+            );
+            scheduleCloseWhenIdle();
+            return;
+          }
+          lifecycle.markReady();
+          drainPending();
+          scheduleCloseWhenIdle();
+        })
+        .catch((err) => {
+          if (lifecycle.failed) {
+            return;
+          }
+          const message = err instanceof Error ? err.message : String(err);
+          console.error(`[openadt-mcp] MCP HTTP probe crashed: ${message}`);
           lifecycle.markFailed();
           replyAllPending(
-            new JsonRpcError(
-              -32000,
-              "MCP HTTP backend failed to start (SAP logon timeout)",
-            ),
+            new JsonRpcError(-32000, "MCP HTTP probe failed before ready"),
           );
           scheduleCloseWhenIdle();
-          return;
-        }
-        lifecycle.markReady();
-        drainPending();
-        scheduleCloseWhenIdle();
-      });
+        });
       return lifecycle.closePromise!;
     },
     failPending(code: number, message: string) {
@@ -422,7 +451,7 @@ class ForwardChain {
   }
 
   append(step: () => Promise<void>): void {
-    this.chain = this.chain.then(step);
+    this.chain = this.chain.then(step, () => step());
   }
 
   tail(): Promise<void> {

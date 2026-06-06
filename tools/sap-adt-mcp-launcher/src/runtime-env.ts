@@ -62,7 +62,9 @@ export class Env {
   }
 
   set(name: string, value: string): void {
-    this.env[this.existingKey(name)] = value;
+    const key = this.existingKey(name);
+    this.env[key] = value;
+    this.lookup.set(key.toUpperCase(), key);
   }
 
   /** Read a string env var. `default` applies when unset or blank; `required` throws otherwise. */
@@ -113,20 +115,24 @@ export class Env {
 }
 
 /** Minimal TOML field read (avoid pulling full parser into launcher). */
-export function loadOpenAdtRuntimePaths(): OpenAdtRuntimePaths {
-  if (!existsSync(LOCAL_CONFIG)) {
+export function loadOpenAdtRuntimePaths(
+  configPath: string = LOCAL_CONFIG,
+): OpenAdtRuntimePaths {
+  if (!existsSync(configPath)) {
     return {};
   }
   try {
-    const parsed = Bun.TOML.parse(readFileSync(LOCAL_CONFIG, "utf8")) as {
+    const parsed = Bun.TOML.parse(readFileSync(configPath, "utf8")) as {
       runtime?: { jco_native_dir?: string; sapcrypto?: string };
       jco_native_dir?: string;
       sapcrypto?: string;
     };
-    const runtime = parsed.runtime ?? parsed;
+    const runtime = parsed.runtime;
     return {
-      jcoNativeDir: readTomlString(runtime.jco_native_dir),
-      sapcrypto: readTomlString(runtime.sapcrypto),
+      jcoNativeDir: readTomlString(
+        runtime?.jco_native_dir ?? parsed.jco_native_dir,
+      ),
+      sapcrypto: readTomlString(runtime?.sapcrypto ?? parsed.sapcrypto),
     };
   } catch {
     return {};

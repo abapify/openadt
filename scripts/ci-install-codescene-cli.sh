@@ -3,7 +3,8 @@
 # Docs: https://codescene.io/docs/cli/index.html
 set -euo pipefail
 
-version="${CS_CLI_VERSION:-latest}"
+# Pin the CLI version for deterministic CI runs; override locally with CS_CLI_VERSION.
+version="${CS_CLI_VERSION:-2.4.4}"
 arch="amd64"
 case "$(uname -m)" in
   aarch64 | arm64) arch="aarch64" ;;

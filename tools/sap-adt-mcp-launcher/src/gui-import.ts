@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
   adtlsImportSourceLabel,
@@ -86,7 +86,14 @@ export function buildAbapWorkspaceFolderUri(destinationId: string): string {
 
 /** file:// URIs for materialized `.destination.properties` (adtLs/destinations/initializeService). */
 export function destinationFileUris(destinations: GuiDestination[]): string[] {
-  return destinations.map((d) => pathToFileURL(d.propertiesPath).href);
+  return destinations.map(
+    (d) =>
+      pathToFileURL(
+        isAbsolute(d.propertiesPath)
+          ? d.propertiesPath
+          : resolve(d.propertiesPath),
+      ).href,
+  );
 }
 
 /** Parse `id=` from Eclipse `.destination.properties` (no multiline values). */
@@ -391,7 +398,10 @@ function importFromAdtls(
   const store = loadAdtlsDestinationsStore();
   const materialized = store
     ? materializeAdtlsDestinations(dataWorkspace, store)
-    : [];
+    : adtls.destinations.map((d) => ({
+        ...d,
+        adtWorkspacePath: dataWorkspace,
+      }));
   return new DestinationImportResult({
     workspace: dataWorkspace,
     workspaceFolderUris: materialized.map((d) => d.workspaceFolderUri),

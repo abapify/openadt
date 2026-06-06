@@ -89,6 +89,7 @@ describe("createStdioMcpBridge", () => {
       process.stdin.emit("data", framed);
       bridge.failPending(-32000, "startup failed");
       await bridge.flush();
+      process.stdin.emit("end");
       expect(chunks.join("")).toContain('"id":7');
       expect(chunks.join("")).toContain("startup failed");
     } finally {
@@ -171,6 +172,71 @@ describe("createStdioMcpBridge", () => {
     } finally {
       restore();
       globalThis.fetch = originalFetch;
+    }
+  });
+
+  test("ForwardChain continues after a rejected step", async () => {
+    const { chunks, restore } = mockStdoutCapture();
+
+    let call = 0;
+    let mode: "options" | "post" = "options";
+    globalThis.fetch = mock(async (_url, init) => {
+      call++;
+      if (mode === "options" && init?.method === "OPTIONS") {
+        return new Response(null, { status: 204 });
+      }
+      mode = "post";
+      if (call === 2) {
+        throw new Error("backend down");
+      }
+      const body = JSON.parse(String(init?.body ?? "{}"));
+      return Response.json(
+        { jsonrpc: "2.0", id: body.id, result: { ok: true, n: call } },
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      );
+    }) as unknown as typeof fetch;
+
+    try {
+      const bridge = createStdioMcpBridge();
+      bridge.start();
+      const writeFrame = (obj: object) => {
+        process.stdin.emit("data", frameMcpMessage(obj));
+      };
+      writeFrame({ jsonrpc: "2.0", id: 10, method: "ping" });
+      writeFrame({ jsonrpc: "2.0", id: 11, method: "ping" });
+
+      const runPromise = bridge.run(
+        McpHttpEndpoint.forConfig(2236, "test-token"),
+      );
+      await new Promise((r) => setTimeout(r, 150));
+      process.stdin.emit("end");
+      await runPromise;
+
+      const out = chunks.join("");
+      expect(out).toContain('"id":11');
+      expect(out).toContain('"ok":true');
+    } finally {
+      restore();
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test("stdin 'end' listener is removed after stdin closes", async () => {
+    const { restore } = mockStdoutCapture();
+    const baselineEnd = process.stdin.listenerCount("end");
+    const baselineError = process.stdin.listenerCount("error");
+    try {
+      const bridge = createStdioMcpBridge();
+      bridge.start();
+      process.stdin.emit("end");
+      await bridge.flush();
+      expect(process.stdin.listenerCount("end")).toBe(baselineEnd);
+      expect(process.stdin.listenerCount("error")).toBe(baselineError);
+    } finally {
+      restore();
     }
   });
 });

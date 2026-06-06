@@ -1,8 +1,12 @@
 import { describe, expect, test } from "bun:test";
+import { writeFileSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   buildAdtLscSpawnRuntime,
   Env,
   isVsCodeAdtWorkspacePath,
+  loadOpenAdtRuntimePaths,
 } from "./runtime-env.ts";
 
 describe("isVsCodeAdtWorkspacePath", () => {
@@ -99,5 +103,61 @@ describe("Env", () => {
       Env.fromProcess().path("OPENADT_TEST_PATH", { mustExist: true }),
     ).toBeUndefined();
     delete process.env.OPENADT_TEST_PATH;
+  });
+
+  test("set updates keyByUpper so subsequent lookups hit the new value", () => {
+    const env = new Env({});
+    env.set("LOCALAPPDATA", "C:\\Users\\me\\AppData\\Local");
+    expect(env.getTrimmed("LOCALAPPDATA")).toBe(
+      "C:\\Users\\me\\AppData\\Local",
+    );
+    expect(env.getTrimmed("localappdata")).toBe(
+      "C:\\Users\\me\\AppData\\Local",
+    );
+    expect(env.hasNonEmpty("LOCALAPPDATA")).toBe(true);
+  });
+});
+
+describe("loadOpenAdtRuntimePaths", () => {
+  test("merges legacy top-level + nested runtime per field", () => {
+    const tmp = mkdtempSync(join(tmpdir(), "openadt-runtime-env-"));
+    const path = join(tmp, "local.openadt.toml");
+    try {
+      writeFileSync(
+        path,
+        [
+          "version = 1",
+          'jco_native_dir = "C:\\\\SAP\\\\jco"',
+          "",
+          "[runtime]",
+          'sapcrypto = "C:\\\\SAP\\\\sapcrypto.dll"',
+        ].join("\n"),
+      );
+      expect(loadOpenAdtRuntimePaths(path)).toEqual({
+        jcoNativeDir: "C:\\SAP\\jco",
+        sapcrypto: "C:\\SAP\\sapcrypto.dll",
+      });
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test("prefers nested runtime value over legacy top-level", () => {
+    const tmp = mkdtempSync(join(tmpdir(), "openadt-runtime-env-"));
+    const path = join(tmp, "local.openadt.toml");
+    try {
+      writeFileSync(
+        path,
+        [
+          'jco_native_dir = "C:\\\\old\\\\jco"',
+          "",
+          "[runtime]",
+          'jco_native_dir = "C:\\\\new\\\\jco"',
+        ].join("\n"),
+      );
+      expect(loadOpenAdtRuntimePaths(path).jcoNativeDir).toBe("C:\\new\\jco");
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
   });
 });

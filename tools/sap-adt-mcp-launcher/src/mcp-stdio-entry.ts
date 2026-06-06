@@ -47,21 +47,19 @@ function isValidPort(port: number): boolean {
   return Number.isInteger(port) && port >= PORT_MIN && port <= PORT_MAX;
 }
 
-function validatePort(port: number, raw: string): number {
-  if (!isValidPort(port)) {
-    throw new Error(
-      `Invalid OPENADT_MCP_PORT=${raw} (expected integer ${PORT_MIN}-${PORT_MAX}); falling back to ephemeral.`,
-    );
-  }
-  return port;
-}
-
 async function pickMcpPort(): Promise<number> {
   const explicit = process.env.OPENADT_MCP_PORT?.trim();
   if (!explicit) {
     return bindEphemeralPort();
   }
-  return validatePort(Number(explicit), explicit);
+  const port = Number(explicit);
+  if (!isValidPort(port)) {
+    console.error(
+      `[openadt-mcp] Invalid OPENADT_MCP_PORT=${explicit} (expected integer ${PORT_MIN}-${PORT_MAX}); falling back to ephemeral.`,
+    );
+    return bindEphemeralPort();
+  }
+  return port;
 }
 
 function bindEphemeralPort(): Promise<number> {
@@ -107,31 +105,49 @@ function pipeStdio(child: ChildProcessWithoutNullStreams): void {
   });
 }
 
-/** A readable whose downstream has caught up; if we never see `drain` we still
- * resolve after the 250ms safety timer so the parent never wedges. */
-function drainStream(stream: NodeJS.ReadableStream | null): Promise<void> {
+/**
+ * Wait for a readable stream to reach EOF. The child writes a JSON-RPC
+ * streamable-HTTP response to stdout/stderr; we want the parent to flush
+ * those bytes to its own stdout before exiting, otherwise the IDE MCP client
+ * can lose the tail of a response.
+ *
+ * Resolves on `end`/`close`, or after a 250ms safety timer so the parent
+ * never wedges if the readable never finishes.
+ */
+function drainReadable(stream: NodeJS.ReadableStream | null): Promise<void> {
   if (!stream) {
     return Promise.resolve();
   }
-  const readable = stream as NodeJS.ReadableStream & {
-    writableEnded?: boolean;
-    writableLength?: number;
-    end?: () => void;
-  };
-  if (readable.writableEnded && readable.writableLength === 0) {
+  return new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      stream.off("end", finish);
+      stream.off("close", finish);
+      resolve();
+    };
+    stream.once("end", finish);
+    stream.once("close", finish);
+    setTimeout(finish, 250).unref();
+  });
+}
+
+/** Wait for the parent's stdout writable to drain any pending bytes. */
+function drainStdoutWritable(): Promise<void> {
+  if (!process.stdout.writableNeedDrain) {
     return Promise.resolve();
   }
   return new Promise<void>((resolve) => {
-    readable.once("drain", resolve);
-    readable.end?.();
-    setTimeout(resolve, 250).unref();
+    process.stdout.once("drain", resolve);
   });
 }
 
 async function drainChildStreams(
   child: ChildProcessWithoutNullStreams,
 ): Promise<void> {
-  await Promise.all([drainStream(child.stdout), drainStream(child.stderr)]);
+  await Promise.all([drainReadable(child.stdout), drainReadable(child.stderr)]);
+  await drainStdoutWritable();
 }
 
 const port = await pickMcpPort();
