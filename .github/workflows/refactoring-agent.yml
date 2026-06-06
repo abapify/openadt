@@ -47,6 +47,7 @@ jobs:
       # `issues: write` is required: the action posts and updates the
       # "CodeScene Refactoring Agent" status comment via the Issues API.
       issues: write
+      secrets: read
     steps:
       - name: Resolve command
         id: cmd

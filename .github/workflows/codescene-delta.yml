@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  secrets: read
 
 concurrency:
   group: codescene-delta-${{ github.event.pull_request.number }}
