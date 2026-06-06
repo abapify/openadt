@@ -174,14 +174,28 @@ if (!existsSync(jarPath)) {
 cpSync(jarPath, join(stageDir, "openadt.jar"));
 writeFileSync(join(stageDir, "VERSION"), `${version}\n`);
 cpSync(join(root, "LICENSE"), join(stageDir, "LICENSE"));
-cpSync(
-  join(root, "tools/sap-adt-mcp-launcher"),
-  join(stageDir, "sap-adt-mcp-launcher"),
-  {
-    recursive: true,
-    filter: (src) => !src.includes("node_modules"),
+
+// Install MCP launcher dependencies before packaging
+const launcherDir = join(root, "tools/sap-adt-mcp-launcher");
+const installResult = spawnSync("bun", ["install", "--quiet"], {
+  cwd: launcherDir,
+  stdio: "inherit",
+});
+if (installResult.status !== 0) {
+  throw new Error(
+    "Failed to install MCP launcher dependencies during packaging",
+  );
+}
+
+cpSync(launcherDir, join(stageDir, "sap-adt-mcp-launcher"), {
+  recursive: true,
+  filter: (src) => {
+    // Exclude dev dependencies and build artifacts
+    if (src.includes("node_modules/.cache")) return false;
+    if (src.includes("node_modules/.bun")) return false;
+    return true;
   },
-);
+});
 writeLaunchers(stageDir);
 if (
   process.platform === "win32" ||

@@ -16,6 +16,7 @@ class Openadt < Formula
 
   head do
     depends_on "maven" => :build
+    depends_on "bun" => :build
   end
 
   def install
@@ -29,6 +30,12 @@ class Openadt < Formula
       jar = candidates.find { |path| File.file?(path) }
       odie "Could not find openadt.jar in release zip (tried: #{candidates.join(', ')})" if jar.nil?
       libexec.install jar => "openadt.jar"
+
+      # Install MCP launcher if present (dependencies are bundled during build)
+      mcp_launcher = "openadt-#{version}/sap-adt-mcp-launcher"
+      if Dir.exist?(mcp_launcher)
+        libexec.install mcp_launcher => "sap-adt-mcp-launcher"
+      end
     else
       # HEAD build is a multi-module Maven reactor; build from the repo root
       # so sibling modules (openadt-config, openadt-sap-adt, openadt-bootstrap)
