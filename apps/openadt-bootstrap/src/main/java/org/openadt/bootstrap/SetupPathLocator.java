@@ -38,6 +38,16 @@ final class SetupPathLocator {
             paths.add(Path.of(home, "Library", "Application Support", "SAP", SAP_COMMON, SAPUI_LANDSCAPE));
             // SAP GUI for Java stores landscape in Preferences with different filename
             paths.add(Path.of(home, "Library", "Preferences", "SAP", "SAPGUILandscape.xml"));
+            // SAP GUI for Java caches full landscape with message servers
+            Path cacheDir = Path.of(home, "Library", "Preferences", "SAP", "Cache", "SAPUILandscape");
+            if (Files.exists(cacheDir)) {
+                try (var stream = Files.list(cacheDir)) {
+                    stream.filter(f -> f.toString().endsWith(".xml"))
+                          .forEach(paths::add);
+                } catch (IOException e) {
+                    // Ignore cache read errors
+                }
+            }
         }
 
         for (Path windowsHome : windowsUserHomes()) {
