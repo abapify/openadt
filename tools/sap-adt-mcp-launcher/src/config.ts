@@ -15,141 +15,270 @@ export const DEFAULT_WORKSPACE = join(
 export const PID_FILE = join(homedir(), ".openadt", "adt-ls-mcp.pid");
 
 export function parseServeArgv(argv: string[]): McpServeConfig {
-  let port = DEFAULT_MCP_PORT;
-  let workspace = DEFAULT_WORKSPACE;
-  let explicitWorkspace = false;
-  let importFrom: DestinationImportMode = "auto";
-  let destination: string | undefined;
-  let json = false;
-  let showToken = false;
-  let foreground = true;
-  let verbose = false;
-  let logFile: string | undefined;
-  let logonTimeoutMs = DEFAULT_LOGON_TIMEOUT_MS;
+  const state: ServeArgvState = {
+    port: DEFAULT_MCP_PORT,
+    workspace: DEFAULT_WORKSPACE,
+    explicitWorkspace: false,
+    importFrom: "auto",
+    destination: undefined,
+    json: false,
+    showToken: false,
+    foreground: true,
+    verbose: false,
+    logFile: undefined,
+    logonTimeoutMs: DEFAULT_LOGON_TIMEOUT_MS,
+    stdio: false,
+  };
 
-  for (let i = 0; i < argv.length; i++) {
+  const handlers = buildServeArgvHandlers();
+  for (let i = 0; i < argv.length; ) {
     const arg = argv[i]!;
-    if (arg === "--gui" || arg === "--import-from=gui") {
-      importFrom = "gui";
-      continue;
+    const handler = handlers.find((h) => h.matches(arg));
+    if (!handler) {
+      throw new Error(`Unknown argument: ${arg}`);
     }
-    if (arg === "--import-from=openadt") {
-      importFrom = "openadt";
-      continue;
-    }
-    if (arg === "--import-from=adtls") {
-      importFrom = "adtls";
-      continue;
-    }
-    if (arg === "--import-from=auto") {
-      importFrom = "auto";
-      continue;
-    }
-    if (arg === "--no-gui" || arg === "--import-from=none") {
-      importFrom = "none";
-      continue;
-    }
-    if (arg === "--import-from" && i + 1 < argv.length) {
-      const value = argv[++i]!.toLowerCase();
-      if (
-        value === "auto" ||
-        value === "adtls" ||
-        value === "gui" ||
-        value === "openadt" ||
-        value === "none"
-      ) {
-        importFrom = value;
-        continue;
-      }
-      throw new Error(
-        `Invalid --import-from: ${value} (use auto, adtls, gui, openadt, or none)`,
-      );
-    }
-    if (arg === "--json") {
-      json = true;
-      continue;
-    }
-    if (arg === "--show-token") {
-      showToken = true;
-      continue;
-    }
-    if (arg === "--verbose" || arg === "-v") {
-      verbose = true;
-      continue;
-    }
-    if (arg === "--log-file" && i + 1 < argv.length) {
-      logFile = argv[++i]!;
-      continue;
-    }
-    if (arg.startsWith("--log-file=")) {
-      logFile = arg.slice("--log-file=".length);
-      continue;
-    }
-    if (arg === "--logon-timeout" && i + 1 < argv.length) {
-      logonTimeoutMs = Number(argv[++i]!) * 1000;
-      continue;
-    }
-    if (arg.startsWith("--logon-timeout=")) {
-      logonTimeoutMs = Number(arg.slice("--logon-timeout=".length)) * 1000;
-      continue;
-    }
-    if (arg === "--foreground") {
-      foreground = true;
-      continue;
-    }
-    if (arg === "--port" && i + 1 < argv.length) {
-      port = Number(argv[++i]!);
-      continue;
-    }
-    if (arg.startsWith("--port=")) {
-      port = Number(arg.slice("--port=".length));
-      continue;
-    }
-    if (arg === "--workspace" && i + 1 < argv.length) {
-      workspace = argv[++i]!;
-      explicitWorkspace = true;
-      continue;
-    }
-    if (arg.startsWith("--workspace=")) {
-      workspace = arg.slice("--workspace=".length);
-      explicitWorkspace = true;
-      continue;
-    }
-    if (arg === "--destination" && i + 1 < argv.length) {
-      destination = argv[++i]!;
-      continue;
-    }
-    if (arg.startsWith("--destination=")) {
-      destination = arg.slice("--destination=".length);
-      continue;
-    }
+    i = handler.apply(arg, argv, i, state);
   }
 
-  if (!isValidPort(port)) {
-    throw new Error(`Invalid --port: ${port}`);
-  }
+  finalizeServeArgv(state);
 
-  if (!Number.isFinite(logonTimeoutMs) || logonTimeoutMs < 5_000) {
+  return state;
+}
+
+type ServeArgvState = {
+  port: number;
+  workspace: string;
+  explicitWorkspace: boolean;
+  importFrom: DestinationImportMode;
+  destination: string | undefined;
+  json: boolean;
+  showToken: boolean;
+  foreground: boolean;
+  verbose: boolean;
+  logFile: string | undefined;
+  logonTimeoutMs: number;
+  stdio: boolean;
+};
+
+type ServeArgvHandler = {
+  matches: (arg: string) => boolean;
+  apply: (
+    arg: string,
+    argv: string[],
+    i: number,
+    state: ServeArgvState,
+  ) => number;
+};
+
+const IMPORT_FROM_MODES: readonly DestinationImportMode[] = [
+  "auto",
+  "adtls",
+  "gui",
+  "openadt",
+  "none",
+];
+
+function buildServeArgvHandlers(): ServeArgvHandler[] {
+  return [
+    ...importFromArgvHandlers(),
+    ...booleanFlagArgvHandlers(),
+    ...valuedArgvHandlers(),
+  ];
+}
+
+function importFromArgvHandlers(): ServeArgvHandler[] {
+  const setMode = (mode: DestinationImportMode) => (s: ServeArgvState) => {
+    s.importFrom = mode;
+  };
+  return [
+    flag(setMode("gui"), ["--gui", "--import-from=gui"]),
+    flagValue(setMode("openadt"), ["--import-from=openadt"]),
+    flagValue(setMode("adtls"), ["--import-from=adtls"]),
+    flagValue(setMode("auto"), ["--import-from=auto"]),
+    flag(setMode("none"), ["--no-gui", "--import-from=none"]),
+    consumeNext(
+      (_arg, argv, i, s) => {
+        const value = argv[++i]!.toLowerCase();
+        if (!IMPORT_FROM_MODES.includes(value as DestinationImportMode)) {
+          throw new Error(
+            `Invalid --import-from: ${value} (use auto, adtls, gui, openadt, or none)`,
+          );
+        }
+        s.importFrom = value as DestinationImportMode;
+        return i;
+      },
+      ["--import-from"],
+    ),
+  ];
+}
+
+function booleanFlagArgvHandlers(): ServeArgvHandler[] {
+  const boolFlag = (
+    apply: (s: ServeArgvState) => void,
+    forms: readonly string[],
+  ) => flag(apply, forms);
+  return [
+    boolFlag(
+      (s) => {
+        s.json = true;
+      },
+      ["--json"],
+    ),
+    boolFlag(
+      (s) => {
+        s.showToken = true;
+      },
+      ["--show-token"],
+    ),
+    boolFlag(
+      (s) => {
+        s.stdio = true;
+      },
+      ["--stdio"],
+    ),
+    boolFlag(
+      (s) => {
+        s.verbose = true;
+      },
+      ["--verbose", "-v"],
+    ),
+    boolFlag(
+      (s) => {
+        s.foreground = true;
+      },
+      ["--foreground"],
+    ),
+  ];
+}
+
+function valuedArgvHandlers(): ServeArgvHandler[] {
+  return [
+    stringValue(
+      (_arg, value, s) => {
+        s.logFile = value;
+      },
+      ["--log-file"],
+    ),
+    secondsValue(
+      (_arg, value, s) => {
+        s.logonTimeoutMs = value * 1000;
+      },
+      ["--logon-timeout"],
+    ),
+    numberValue(
+      (_arg, value, s) => {
+        s.port = value;
+      },
+      ["--port"],
+    ),
+    stringValue(
+      (_arg, value, s) => {
+        s.workspace = value;
+        s.explicitWorkspace = true;
+      },
+      ["--workspace"],
+    ),
+    stringValue(
+      (_arg, value, s) => {
+        s.destination = value;
+      },
+      ["--destination"],
+    ),
+  ];
+}
+
+function finalizeServeArgv(state: ServeArgvState): void {
+  if (!isValidPort(state.port)) {
+    throw new Error(`Invalid --port: ${state.port}`);
+  }
+  if (!Number.isFinite(state.logonTimeoutMs) || state.logonTimeoutMs < 5_000) {
     throw new Error(`Invalid --logon-timeout (seconds must be >= 5)`);
   }
-
-  if (!verbose && process.env.MCP_DEBUG) {
-    verbose = true;
+  if (!state.verbose && process.env.MCP_DEBUG) {
+    state.verbose = true;
   }
+}
 
+function flag(
+  apply: (state: ServeArgvState) => void,
+  forms: readonly string[],
+): ServeArgvHandler {
   return {
-    port,
-    workspace,
-    explicitWorkspace,
-    importFrom,
-    destination,
-    json,
-    showToken,
-    foreground,
-    verbose,
-    logFile,
-    logonTimeoutMs,
+    matches: (arg) => forms.includes(arg),
+    apply: (arg, _argv, i, state) => {
+      apply(state);
+      return i + 1;
+    },
   };
+}
+
+function flagValue(
+  apply: (state: ServeArgvState) => void,
+  forms: readonly string[],
+): ServeArgvHandler {
+  return {
+    matches: (arg) => forms.some((form) => arg.startsWith(`${form}=`)),
+    apply: (arg, _argv, i, state) => {
+      apply(state);
+      return i + 1;
+    },
+  };
+}
+
+function consumeNext(
+  apply: (
+    arg: string,
+    argv: string[],
+    i: number,
+    state: ServeArgvState,
+  ) => number,
+  forms: readonly string[],
+): ServeArgvHandler {
+  return {
+    matches: (arg) => forms.includes(arg),
+    apply: (arg, argv, i, state) => apply(arg, argv, i, state) + 1,
+  };
+}
+
+function stringValue(
+  apply: (arg: string, value: string, state: ServeArgvState) => void,
+  forms: readonly string[],
+): ServeArgvHandler {
+  const eqForm = `${forms[0]}=`;
+  return {
+    matches: (arg) => arg === forms[0] || arg.startsWith(eqForm),
+    apply: (arg, argv, i, state) => {
+      const value = arg.startsWith(eqForm)
+        ? arg.slice(eqForm.length)
+        : argv[++i]!;
+      apply(arg, value, state);
+      return i + 1;
+    },
+  };
+}
+
+function numberValue(
+  apply: (arg: string, value: number, state: ServeArgvState) => void,
+  forms: readonly string[],
+): ServeArgvHandler {
+  const eqForm = `${forms[0]}=`;
+  return {
+    matches: (arg) => arg === forms[0] || arg.startsWith(eqForm),
+    apply: (arg, argv, i, state) => {
+      const raw = arg.startsWith(eqForm)
+        ? arg.slice(eqForm.length)
+        : argv[++i]!;
+      apply(arg, Number(raw), state);
+      return i + 1;
+    },
+  };
+}
+
+function secondsValue(
+  apply: (arg: string, value: number, state: ServeArgvState) => void,
+  forms: readonly string[],
+): ServeArgvHandler {
+  return numberValue(apply, forms);
 }
 
 function isValidPort(value: number): boolean {

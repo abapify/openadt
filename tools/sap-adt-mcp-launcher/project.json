@@ -15,6 +15,15 @@
       "options": {
         "command": "bunx tsc -p tools/sap-adt-mcp-launcher/tsconfig.json --noEmit"
       }
+    },
+    "serve-stdio": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun scripts/mcp-stdio.ts",
+        "cwd": "{workspaceRoot}",
+        "forwardAllArgs": true
+      }
     }
   }
 }

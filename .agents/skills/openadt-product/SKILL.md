@@ -28,9 +28,11 @@ Do not reimplement ADT HTTP in the SDK path.
 | Config | `org.openadt.config` |
 | Bootstrap | `org.openadt.bootstrap` |
 
-## MCP (experimental)
+## MCP
 
-`tools/mcp-bridge/` — stdio tool `adt_fetch` → `openadt fetch`. Spec: `specs/mcp.md`.
+`tools/sap-adt-mcp-launcher/` — orchestrates official SAP ADT MCP (`adt-lsc` pipe LSP → `adtLs/mcp/startMCPServer` → HTTP `/mcp`). OpenADT `serve --stdio` is an HTTP→stdio adapter only.
+
+**Spec (merge gate):** [specs/mcp.md](../../../specs/mcp.md) — section *Official SAP ADT MCP server interface* for LSP + HTTP contracts. SDD: spec before launcher changes ([AGENTS.md](../../../AGENTS.md)).
 
 ## Verify
 

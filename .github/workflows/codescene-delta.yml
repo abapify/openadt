@@ -1,0 +1,38 @@
+# CodeScene CLI delta on pull requests — log output, job red on findings.
+# Uses codescene/codescene-mcp Docker image (embedded cs CLI; no downloads.codescene.io at runtime).
+# Complements the CodeScene GitHub App (suppress links, quality-gate profile in codescene.io).
+# Secret: CS_ACCESS_TOKEN — abapify org secret (not repo-level; same as refactoring-agent.yml)
+name: CodeScene delta
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codescene-delta-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  delta:
+    name: CodeScene delta
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Require CS_ACCESS_TOKEN
+        env:
+          CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
+        run: |
+          if [ -z "${CS_ACCESS_TOKEN}" ]; then
+            echo "::error title=CodeScene CI not configured::CS_ACCESS_TOKEN org secret missing or not granted to this repo. Set under abapify → Settings → Secrets and variables → Actions (PAT from https://codescene.io/users/me/pat)."
+            exit 1
+          fi
+
+      - name: Delta analysis
+        env:
+          CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
+        run: bash scripts/ci-codescene-delta.sh "${{ github.base_ref }}" HEAD

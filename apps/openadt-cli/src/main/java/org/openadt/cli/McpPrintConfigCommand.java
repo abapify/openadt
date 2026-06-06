@@ -10,7 +10,7 @@ import java.util.concurrent.Callable;
 
 @Command(
     name = "print-config",
-    description = "Emit Cursor mcpServers JSON from MCP endpoint store",
+    description = "Emit HTTP MCP client JSON (url + headers) from endpoint store",
     mixinStandardHelpOptions = true
 )
 public class McpPrintConfigCommand implements Callable<Integer> {

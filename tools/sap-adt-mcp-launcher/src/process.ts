@@ -1,6 +1,12 @@
-import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { type ChildProcess, spawn } from "node:child_process";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import { PID_FILE } from "./config.ts";
 import type { AdtLsInstall } from "./types.ts";
 import {
@@ -84,16 +90,71 @@ export function killProcessTree(child: ChildProcess | undefined): void {
   if (!child?.pid) {
     return;
   }
+  killProcessByPid(child.pid);
+}
+
+/** Resolve taskkill without relying on PATH (agent CLI uses minimal PATH). */
+export function windowsTaskkillPath(): string | undefined {
+  const root = process.env.SystemRoot ?? process.env.WINDIR ?? "C:\\Windows";
+  const candidate = join(root, "System32", "taskkill.exe");
+  return existsSync(candidate) ? candidate : undefined;
+}
+
+export function killProcessByPid(pid: number): void {
+  if (!Number.isFinite(pid) || pid <= 0) {
+    return;
+  }
   try {
     if (process.platform === "win32") {
-      spawn("taskkill", ["/T", "/F", "/PID", String(child.pid)], {
+      const taskkill = windowsTaskkillPath();
+      if (!taskkill) {
+        process.kill(pid, "SIGTERM");
+        return;
+      }
+      const killer = spawn(taskkill, ["/T", "/F", "/PID", String(pid)], {
         stdio: "ignore",
         windowsHide: true,
       });
+      killer.on("error", () => {
+        /* taskkill unavailable / not on PATH; ignore — process.kill is the fallback */
+      });
+      killer.unref();
     } else {
-      child.kill("SIGTERM");
+      process.kill(pid, "SIGTERM");
     }
   } catch {
-    /* already exited */
+    /* already exited or taskkill unavailable */
+  }
+}
+
+export function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function waitForProcessExit(
+  pid: number,
+  timeoutMs: number,
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      process.kill(pid, 0);
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException | undefined)?.code;
+      if (code === "ESRCH") {
+        return true;
+      }
+      if (code === "EPERM") {
+        return false;
+      }
+      return true;
+    }
+    await sleep(100);
+  }
+  try {
+    process.kill(pid, 0);
+    return false;
+  } catch {
+    return true;
   }
 }

@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
+import { sleep } from "./process.ts";
 import { ParameterStructures, type MessageConnection } from "./rpc.ts";
 import {
   LSP_METHOD_MCP_SET_DESTINATION,
@@ -63,53 +64,67 @@ export function isPortInUseMessage(message: string): boolean {
   return /port.*already in use/i.test(message);
 }
 
+/** Consume response body so poll probes do not leak open HTTP/SSE connections. */
+export async function drainHttpResponse(res: Response): Promise<void> {
+  try {
+    await res.arrayBuffer();
+  } catch {
+    /* ignore drain errors — status already available */
+  }
+}
+
 export async function probeMcpHttp(
   port: number,
   token?: string,
 ): Promise<boolean> {
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Accept: "application/json, text/event-stream",
     "User-Agent": "openadt-mcp-client",
   };
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const body = JSON.stringify({
-    jsonrpc: "2.0",
-    id: 1,
-    method: "initialize",
-    params: {
-      protocolVersion: "2024-11-05",
-      capabilities: {},
-      clientInfo: { name: "openadt-mcp-status", version: "0.1.0" },
-    },
-  });
-
   try {
+    // OPTIONS (or any HTTP response) proves the listener is bound without
+    // creating MCP sessions. Do not POST initialize here — unread/streaming
+    // probe bodies and extra sessions stall later tools/list on stdio.
     const res = await fetch(mcpUrl(port), {
-      method: "POST",
+      method: "OPTIONS",
       headers,
-      body,
       signal: AbortSignal.timeout(10_000),
     });
-    return res.ok || res.status === 401;
+    await drainHttpResponse(res);
+    return true;
   } catch {
     return false;
   }
 }
 
-export function cursorMcpSnippet(port: number, token: string): object {
+/** Poll until MCP HTTP accepts requests (startMCPServer may return before bind). */
+export async function waitForMcpHttp(
+  port: number,
+  token: string,
+  options?: { timeoutMs?: number; intervalMs?: number },
+): Promise<boolean> {
+  const timeoutMs = options?.timeoutMs ?? 30_000;
+  const intervalMs = options?.intervalMs ?? 250;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await probeMcpHttp(port, token)) {
+      return true;
+    }
+    await sleep(intervalMs);
+  }
+  return false;
+}
+
+/** Agent-neutral HTTP MCP client connection (url + Authorization header). */
+export function mcpHttpClientConfig(port: number, token: string): object {
   return {
-    mcpServers: {
-      "sap-adt": {
-        url: mcpUrl(port),
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "User-Agent": "openadt-mcp-client",
-        },
-      },
+    url: mcpUrl(port),
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "User-Agent": "openadt-mcp-client",
     },
   };
 }

@@ -47,17 +47,17 @@ Module and package map: [apps/ARCHITECTURE.md](apps/ARCHITECTURE.md).
 
 ## Spec index
 
-| Spec                                             | Use when changing                  |
-| ------------------------------------------------ | ---------------------------------- |
-| [vision.md](specs/vision.md)                     | Product scope, positioning         |
-| [cli.md](specs/cli.md)                           | Commands, flags, exit codes        |
-| [config.md](specs/config.md)                     | TOML schema, profiles, merge       |
-| [proxy.md](specs/proxy.md)                       | Local HTTP proxy, header redaction |
-| [setup.md](specs/setup.md)                       | Detectors, bootstrap output        |
-| [sdk-capabilities.md](specs/sdk-capabilities.md) | SAP SDK APIs in use                |
-| [sdk-services.md](specs/sdk-services.md)         | Registered SDK services            |
-| [mcp.md](specs/mcp.md)                           | MCP bridge (experimental)          |
-| [packaging.md](specs/packaging.md)               | Releases, Scoop, Homebrew          |
+| Spec                                             | Use when changing                                |
+| ------------------------------------------------ | ------------------------------------------------ |
+| [vision.md](specs/vision.md)                     | Product scope, positioning                       |
+| [cli.md](specs/cli.md)                           | Commands, flags, exit codes                      |
+| [config.md](specs/config.md)                     | TOML schema, profiles, merge                     |
+| [proxy.md](specs/proxy.md)                       | Local HTTP proxy, header redaction               |
+| [setup.md](specs/setup.md)                       | Detectors, bootstrap output                      |
+| [sdk-capabilities.md](specs/sdk-capabilities.md) | SAP SDK APIs in use                              |
+| [sdk-services.md](specs/sdk-services.md)         | Registered SDK services                          |
+| [mcp.md](specs/mcp.md)                           | SAP ADT MCP launcher + official server interface |
+| [packaging.md](specs/packaging.md)               | Releases, Scoop, Homebrew                        |
 
 Full index and verify commands: [specs/README.md](specs/README.md).
 

@@ -4,17 +4,17 @@ Behavior contracts for OpenADT. **SDD enforcement:** [DESIGN.md](../DESIGN.md). 
 
 ## Index
 
-| Spec                                       | Scope                                                |
-| ------------------------------------------ | ---------------------------------------------------- |
-| [vision.md](vision.md)                     | Product north star, package map                      |
-| [cli.md](cli.md)                           | Commands: `fetch`, `proxy`, `adt`, `config`, `setup` |
-| [sdk-capabilities.md](sdk-capabilities.md) | SAP ADT SDK APIs used by OpenADT                     |
-| [sdk-services.md](sdk-services.md)         | Registered SDK service registry and handlers         |
-| [config.md](config.md)                     | `~/.openadt/config.toml` schema                      |
-| [proxy.md](proxy.md)                       | Local HTTP proxy, auth, redaction                    |
-| [setup.md](setup.md)                       | Detectors and bootstrap output                       |
-| [mcp.md](mcp.md)                           | MCP bridge (experimental)                            |
-| [packaging.md](packaging.md)               | Releases, Scoop, Homebrew                            |
+| Spec                                       | Scope                                                         |
+| ------------------------------------------ | ------------------------------------------------------------- |
+| [vision.md](vision.md)                     | Product north star, package map                               |
+| [cli.md](cli.md)                           | Commands: `fetch`, `proxy`, `adt`, `config`, `setup`          |
+| [sdk-capabilities.md](sdk-capabilities.md) | SAP ADT SDK APIs used by OpenADT                              |
+| [sdk-services.md](sdk-services.md)         | Registered SDK service registry and handlers                  |
+| [config.md](config.md)                     | `~/.openadt/config.toml` schema                               |
+| [proxy.md](proxy.md)                       | Local HTTP proxy, auth, redaction                             |
+| [setup.md](setup.md)                       | Detectors and bootstrap output                                |
+| [mcp.md](mcp.md)                           | SAP ADT MCP launcher + official server interface (LSP + HTTP) |
+| [packaging.md](packaging.md)               | Releases, Scoop, Homebrew                                     |
 
 ## Workflow
 

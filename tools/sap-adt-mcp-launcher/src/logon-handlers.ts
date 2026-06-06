@@ -236,7 +236,9 @@ export async function ensureDestinationLoggedOn(
     const detail = lastLogonFailureMessage ?? state ?? "unknown";
     throw new Error(
       `Logon to ${destinationId} did not reach 'connected' (${detail}). ` +
-        "Check ~/.openadt/local.openadt.toml jco_native_dir/sapcrypto and approve Secure Login if prompted.",
+        "Approve Secure Login / SSO if prompted. If this repeats: run with --verbose, " +
+        "stop stale adt-lsc (pkill adt-lsc on macOS/Linux, Get-Process adt-lsc | Stop-Process -Force on Windows), " +
+        "check ~/.openadt/local.openadt.toml jco_native_dir/sapcrypto.",
     );
   }
 }

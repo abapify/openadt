@@ -90,4 +90,4 @@ ABAP FS can expose an in-editor MCP server (`abapfs.mcpServer`, default `http://
 | ABAP FS MCP (`:4847/mcp`)                  | No OpenADT; ABAP FS tools run inside VS Code |
 | Other MCP/HTTP clients needing ADT + Basic | Same proxy pattern as step 2–3               |
 
-OpenADT’s own experimental MCP bridge: [specs/mcp.md](../../specs/mcp.md), [tools/mcp-bridge/](../../tools/mcp-bridge/).
+OpenADT SAP ADT MCP: [specs/mcp.md](../../specs/mcp.md), [tools/sap-adt-mcp-launcher/](../../tools/sap-adt-mcp-launcher/).

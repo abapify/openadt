@@ -4,8 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   buildAbapWorkspaceFolderUri,
+  destinationFileUris,
   discoverGuiDestinations,
   readDestinationId,
+  resolveDestinationImport,
 } from "./gui-import.ts";
 
 describe("buildAbapWorkspaceFolderUri", () => {
@@ -13,6 +15,35 @@ describe("buildAbapWorkspaceFolderUri", () => {
     expect(buildAbapWorkspaceFolderUri("DEV_100_developer_en")).toBe(
       "abap:/DEV_100_developer_en",
     );
+  });
+});
+
+describe("destinationFileUris", () => {
+  test.each<{
+    label: string;
+    input: string;
+    matches: RegExp | string;
+  }>([
+    {
+      label: "resolves relative propertiesPath before pathToFileURL",
+      input: "rel/.destination.properties",
+      matches: /^file:\/\/\/.+rel\/\.destination\.properties$/,
+    },
+    {
+      label: "passes absolute propertiesPath through unchanged",
+      input: "/abs/path/.destination.properties",
+      matches: "file:///abs/path/.destination.properties",
+    },
+  ])("$label", ({ input, matches }) => {
+    const uris = destinationFileUris([
+      {
+        id: "X",
+        workspaceFolderUri: "abap:/X",
+        adtWorkspacePath: "/abs/path",
+        propertiesPath: input,
+      },
+    ]);
+    expect(uris[0]).toMatch(matches);
   });
 });
 
@@ -63,6 +94,60 @@ function withIsolatedHome(run: () => void): void {
     rmSync(isolated, { recursive: true, force: true });
   }
 }
+
+describe("destinationFileUris", () => {
+  test("builds file URLs from properties paths", () => {
+    const dir = join(tmpdir(), `gui-file-uri-${Date.now()}`);
+    const props = join(dir, ".destination.properties");
+    const uris = destinationFileUris([
+      {
+        id: "DEV_100_developer_en",
+        workspaceFolderUri: "abap:/DEV_100_developer_en",
+        adtWorkspacePath: dir,
+        propertiesPath: props,
+      },
+    ]);
+    expect(uris[0]).toContain(".destination.properties");
+    expect(uris[0]?.startsWith("file:")).toBe(true);
+  });
+});
+
+describe("resolveDestinationImport adtls", () => {
+  test("returns materialized fileUris not destinations.json path", () => {
+    const home = join(tmpdir(), `adtls-resolve-${Date.now()}`);
+    mkdirSync(home, { recursive: true });
+    writeFileSync(
+      join(home, "destinations.json"),
+      JSON.stringify({
+        destinations: [
+          {
+            id: "DEV_100_developer_en",
+            properties: { systemId: "DEV", client: "100", user: "DEVELOPER" },
+          },
+        ],
+      }),
+      "utf8",
+    );
+    const ws = join(home, "adt-ls-workspace");
+    const prev = process.env.ADTLS_HOME;
+    process.env.ADTLS_HOME = home;
+    try {
+      const resolved = resolveDestinationImport(ws, "adtls", false);
+      expect(resolved.imported.length).toBe(1);
+      expect(resolved.fileUris.length).toBe(1);
+      expect(resolved.fileUris[0]).toContain(".destination.properties");
+      expect(resolved.fileUris[0]).not.toContain("destinations.json");
+      expect(resolved.destinationsStorePath).toBe(home);
+    } finally {
+      if (prev === undefined) {
+        delete process.env.ADTLS_HOME;
+      } else {
+        process.env.ADTLS_HOME = prev;
+      }
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+});
 
 describe("discoverGuiDestinations", () => {
   test("returns undefined when no GUI storage (CI)", () => {
