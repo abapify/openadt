@@ -2,6 +2,10 @@
   "name": "@openadt/sap-adt-mcp-launcher",
   "private": true,
   "type": "module",
+  "scripts": {
+    "build": "tsdown",
+    "build:check": "tsc --noEmit"
+  },
   "dependencies": {
     "uuid": "^11.1.0",
     "vscode-jsonrpc": "^8.2.1"
