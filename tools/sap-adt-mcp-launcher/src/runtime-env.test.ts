@@ -1,9 +1,12 @@
 import { describe, expect, test } from "bun:test";
+import { writeFileSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   buildAdtLscSpawnRuntime,
-  ensureMinimalProcessEnv,
-  isSecureLoginSecudir,
+  Env,
   isVsCodeAdtWorkspacePath,
+  loadOpenAdtRuntimePaths,
 } from "./runtime-env.ts";
 
 describe("isVsCodeAdtWorkspacePath", () => {
@@ -31,53 +34,130 @@ describe("buildAdtLscSpawnRuntime", () => {
     expect(rt.jvmArgs.some((a) => a.includes("snc_lib"))).toBe(true);
     expect(rt.jvmArgs.some((a) => a.includes("java.library.path"))).toBe(true);
   });
-
-  test("includes configured native dirs in java.library.path", () => {
-    const rt = buildAdtLscSpawnRuntime({
-      jcoNativeDir: "C:\\SAP\\jco",
-      sapcrypto: "C:\\SAP\\sapcrypto.dll",
-    });
-    const libPath = rt.jvmArgs.find((a) =>
-      a.startsWith("-Djava.library.path="),
-    );
-    expect(libPath).toContain("jco");
-    expect(libPath).toContain("SAP");
-  });
 });
 
-describe("ensureMinimalProcessEnv", () => {
-  test("fills Windows profile dirs when agent strips env", () => {
-    if (process.platform !== "win32") {
-      // The function is a no-op off-Windows; covered by typecheck.
-      const env = ensureMinimalProcessEnv({ Path: "C:\\Users\\me\\.bun\\bin" });
-      expect(env.Path).toBe("C:\\Users\\me\\.bun\\bin");
-      return;
+describe("Env", () => {
+  test("string returns trimmed value", () => {
+    process.env.OPENADT_TEST_GETENV = "  hello  ";
+    try {
+      expect(Env.fromProcess().string("OPENADT_TEST_GETENV")).toBe("hello");
+    } finally {
+      delete process.env.OPENADT_TEST_GETENV;
     }
-    const env = ensureMinimalProcessEnv({
-      Path: "C:\\Users\\me\\.bun\\bin",
-    });
-    expect(env.APPDATA).toContain("AppData");
-    expect(env.LOCALAPPDATA).toContain("Local");
-    expect(env.SystemRoot).toBe("C:\\Windows");
-  });
-});
-
-describe("isSecureLoginSecudir", () => {
-  test("rejects openadt HTTP CA sec folder", () => {
-    expect(isSecureLoginSecudir("C:\\Users\\me\\.openadt\\sec")).toBe(false);
   });
 
-  test("accepts SAP Common when present", () => {
-    if (process.platform !== "win32") {
-      // SAP Common path is Windows-only; the function still rejects our own
-      // sec folder on every platform.
-      expect(isSecureLoginSecudir("C:\\Users\\me\\.openadt\\sec")).toBe(false);
-      return;
-    }
+  test("string returns default when unset", () => {
+    delete process.env.OPENADT_TEST_GETENV_MISSING;
     expect(
-      isSecureLoginSecudir(
-        "C:\\Program Files\\SAP\\FrontEnd\\SecureLogin\\lib",
-      ),
-    ).toBe(true);
+      Env.fromProcess().string("OPENADT_TEST_GETENV_MISSING", {
+        default: "fallback",
+      }),
+    ).toBe("fallback");
+  });
+
+  test("string throws when required and missing", () => {
+    delete process.env.OPENADT_TEST_GETENV_MISSING;
+    expect(() =>
+      Env.fromProcess().string("OPENADT_TEST_GETENV_MISSING", {
+        required: true,
+      }),
+    ).toThrow(/Missing required/);
+  });
+
+  test.each<{ input: string; expected?: number; throws?: RegExp }>([
+    { input: "42", expected: 42 },
+    { input: "2236", expected: 2236 },
+    { input: "1.5", throws: /is not an integer/ },
+    { input: "-1", throws: /below min/ },
+    { input: "65536", throws: /above max/ },
+    { input: "abc", throws: /is not an integer/ },
+    { input: "99999", throws: /above max/ },
+  ])("integer parses %s", ({ input, expected, throws }) => {
+    process.env.OPENADT_TEST_PORT = input;
+    try {
+      const result = () =>
+        Env.fromProcess().integer("OPENADT_TEST_PORT", { min: 1, max: 65535 });
+      if (throws) {
+        expect(result).toThrow(throws);
+      } else {
+        expect(result()).toBe(expected);
+      }
+    } finally {
+      delete process.env.OPENADT_TEST_PORT;
+    }
+  });
+
+  test("integer returns undefined when unset", () => {
+    delete process.env.OPENADT_TEST_PORT_MISSING;
+    expect(
+      Env.fromProcess().integer("OPENADT_TEST_PORT_MISSING", {
+        min: 1,
+        max: 65535,
+      }),
+    ).toBeUndefined();
+  });
+
+  test("path returns undefined when mustExist and missing", () => {
+    process.env.OPENADT_TEST_PATH = "/nonexistent/openadt-test";
+    expect(
+      Env.fromProcess().path("OPENADT_TEST_PATH", { mustExist: true }),
+    ).toBeUndefined();
+    delete process.env.OPENADT_TEST_PATH;
+  });
+
+  test("set updates keyByUpper so subsequent lookups hit the new value", () => {
+    const env = new Env({});
+    env.set("LOCALAPPDATA", "C:\\Users\\me\\AppData\\Local");
+    expect(env.getTrimmed("LOCALAPPDATA")).toBe(
+      "C:\\Users\\me\\AppData\\Local",
+    );
+    expect(env.getTrimmed("localappdata")).toBe(
+      "C:\\Users\\me\\AppData\\Local",
+    );
+    expect(env.hasNonEmpty("LOCALAPPDATA")).toBe(true);
+  });
+});
+
+describe("loadOpenAdtRuntimePaths", () => {
+  test("merges legacy top-level + nested runtime per field", () => {
+    const tmp = mkdtempSync(join(tmpdir(), "openadt-runtime-env-"));
+    const path = join(tmp, "local.openadt.toml");
+    try {
+      writeFileSync(
+        path,
+        [
+          "version = 1",
+          'jco_native_dir = "C:\\\\SAP\\\\jco"',
+          "",
+          "[runtime]",
+          'sapcrypto = "C:\\\\SAP\\\\sapcrypto.dll"',
+        ].join("\n"),
+      );
+      expect(loadOpenAdtRuntimePaths(path)).toEqual({
+        jcoNativeDir: "C:\\SAP\\jco",
+        sapcrypto: "C:\\SAP\\sapcrypto.dll",
+      });
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test("prefers nested runtime value over legacy top-level", () => {
+    const tmp = mkdtempSync(join(tmpdir(), "openadt-runtime-env-"));
+    const path = join(tmp, "local.openadt.toml");
+    try {
+      writeFileSync(
+        path,
+        [
+          'jco_native_dir = "C:\\\\old\\\\jco"',
+          "",
+          "[runtime]",
+          'jco_native_dir = "C:\\\\new\\\\jco"',
+        ].join("\n"),
+      );
+      expect(loadOpenAdtRuntimePaths(path).jcoNativeDir).toBe("C:\\new\\jco");
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
   });
 });

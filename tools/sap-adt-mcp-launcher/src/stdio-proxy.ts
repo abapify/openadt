@@ -4,7 +4,7 @@ import {
   McpStdioEncoder,
   writeMcpStdioMessage,
 } from "./mcp-framing.ts";
-import { mcpUrl, waitForMcpHttp } from "./mcp.ts";
+import { mcpUrl } from "./mcp.ts";
 
 /** Parse MCP HTTP response body (JSON or SSE `data:` lines). */
 export function parseMcpHttpResponseBody(
@@ -36,59 +36,141 @@ function parseSseMessages(body: string): string[] {
   return messages;
 }
 
-export function jsonRpcErrorResponse(
-  requestBody: string,
-  code: number,
-  message: string,
-): object | undefined {
-  try {
-    const parsed = JSON.parse(requestBody) as { id?: unknown };
-    if (parsed.id === undefined) {
-      return undefined;
-    }
-    return {
-      jsonrpc: "2.0",
-      id: parsed.id,
-      error: { code, message },
-    };
-  } catch {
-    return undefined;
+/** One MCP HTTP endpoint, including bearer token and optional session id. */
+export class McpHttpEndpoint {
+  static forConfig(
+    port: number,
+    token: string,
+    sessionId?: string,
+  ): McpHttpEndpoint {
+    return new McpHttpEndpoint(mcpUrl(port), token, sessionId);
+  }
+  constructor(
+    readonly url: string,
+    readonly token: string,
+    readonly sessionId: string | undefined,
+  ) {}
+  withSessionId(sessionId: string | undefined): McpHttpEndpoint {
+    return new McpHttpEndpoint(this.url, this.token, sessionId);
   }
 }
 
+/** One MCP JSON-RPC body posted to or received from the HTTP endpoint. */
+export class McpStdioMessage {
+  constructor(readonly body: string) {}
+}
+
+/** Parsed JSON-RPC request (must have an `id`; notifications are filtered out). */
+export class JsonRpcRequest {
+  private constructor(readonly id: string | number | null) {}
+  static parse(body: string): JsonRpcRequest | undefined {
+    try {
+      const parsed = JSON.parse(body) as { id?: unknown };
+      if (parsed.id === undefined) return undefined;
+      return new JsonRpcRequest(parsed.id as string | number | null);
+    } catch {
+      return undefined;
+    }
+  }
+}
+
+/** JSON-RPC error payload. */
+export class JsonRpcError {
+  constructor(
+    readonly code: number,
+    readonly message: string,
+  ) {}
+}
+
+export function jsonRpcErrorResponse(
+  request: JsonRpcRequest,
+  error: JsonRpcError,
+): object {
+  return {
+    jsonrpc: "2.0",
+    id: request.id,
+    error: { code: error.code, message: error.message },
+  };
+}
+
+/** Result of one HTTP POST to the MCP endpoint. */
+export class McpHttpResponse {
+  constructor(
+    readonly messages: string[],
+    readonly sessionId: string | undefined,
+    readonly status: number,
+  ) {}
+}
+
+type McpPostOptions = { timeoutMs?: number };
+
 export async function postMcpHttpMessage(
-  port: number,
-  token: string,
-  body: string,
-  sessionId?: string,
-  options?: { timeoutMs?: number },
-): Promise<{ messages: string[]; sessionId?: string; status: number }> {
+  endpoint: McpHttpEndpoint,
+  message: McpStdioMessage,
+  options: McpPostOptions = {},
+): Promise<McpHttpResponse> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "application/json, text/event-stream",
     "User-Agent": "openadt-mcp-client",
-    Authorization: `Bearer ${token}`,
+    Authorization: `Bearer ${endpoint.token}`,
   };
-  if (sessionId) {
-    headers["Mcp-Session-Id"] = sessionId;
+  if (endpoint.sessionId) {
+    headers["Mcp-Session-Id"] = endpoint.sessionId;
   }
 
-  const timeoutMs = options?.timeoutMs ?? 60_000;
-  const res = await fetch(mcpUrl(port), {
+  const timeoutMs = options.timeoutMs ?? 60_000;
+  const res = await fetch(endpoint.url, {
     method: "POST",
     headers,
-    body,
+    body: message.body,
     signal: AbortSignal.timeout(timeoutMs),
   });
-  const nextSessionId = res.headers.get("Mcp-Session-Id") ?? sessionId;
+  const nextSessionId = res.headers.get("Mcp-Session-Id") ?? endpoint.sessionId;
   const text = await res.text();
   const contentType = res.headers.get("content-type") ?? "";
   const messages = parseMcpHttpResponseBody(contentType, text);
-  return {
-    messages,
-    sessionId: nextSessionId ?? undefined,
-    status: res.status,
-  };
+  return new McpHttpResponse(messages, nextSessionId ?? undefined, res.status);
+}
+
+type McpWaitOptions = { timeoutMs?: number; intervalMs?: number };
+
+/** Poll the MCP HTTP endpoint until it accepts a request. */
+export async function waitForMcpHttp(
+  endpoint: McpHttpEndpoint,
+  options: McpWaitOptions = {},
+): Promise<boolean> {
+  const timeoutMs = options.timeoutMs ?? 30_000;
+  const intervalMs = options.intervalMs ?? 250;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await probeMcpHttp(endpoint)) {
+      return true;
+    }
+    await sleep(intervalMs);
+  }
+  return false;
+}
+
+async function probeMcpHttp(endpoint: McpHttpEndpoint): Promise<boolean> {
+  try {
+    const res = await fetch(endpoint.url, {
+      method: "OPTIONS",
+      headers: {
+        "User-Agent": "openadt-mcp-client",
+        Authorization: `Bearer ${endpoint.token}`,
+      },
+      signal: AbortSignal.timeout(10_000),
+    });
+    await res.arrayBuffer().catch(() => undefined);
+    return res.status > 0;
+  } catch {
+    return false;
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export type StdioMcpBridge = {
@@ -96,20 +178,22 @@ export type StdioMcpBridge = {
   start(): void;
   /** Wait for HTTP MCP, flush queue, forward until stdin closes and forwards drain. */
   run(port: number, token: string): Promise<void>;
+  run(
+    endpoint: McpHttpEndpoint,
+    options?: { waitTimeoutMs?: number; pollIntervalMs?: number },
+  ): Promise<void>;
   /** Reply with JSON-RPC errors to all queued requests that have an id. */
   failPending(code: number, message: string): void;
   /** Wait until queued stdio writes finish (call before process exit). */
   flush(): Promise<void>;
 };
 
-type Backend = { port: number; token: string };
-
 /** Transparent stdio MCP bridge to local SAP ADT HTTP MCP. */
 export function createStdioMcpBridge(): StdioMcpBridge {
   const queue = new PendingBodyQueue(256);
   const chain = new ForwardChain();
   const lifecycle = new BridgeLifecycle();
-  let backend: Backend | undefined;
+  let backend: McpHttpEndpoint | undefined;
 
   const decoder = new McpStdioDecoder();
   const encoder = new McpStdioEncoder();
@@ -119,72 +203,73 @@ export function createStdioMcpBridge(): StdioMcpBridge {
   attachMcpStdoutEncoder(encoder);
 
   const replyError = async (
-    body: string,
-    code: number,
-    message: string,
+    message: McpStdioMessage,
+    error: JsonRpcError,
   ): Promise<void> => {
-    const err = jsonRpcErrorResponse(body, code, message);
-    if (err) {
+    const request = JsonRpcRequest.parse(message.body);
+    if (request) {
+      const err = jsonRpcErrorResponse(request, error);
       await writeMcpStdioMessage(encoder, err);
     }
   };
 
-  const forwardHttpOne = (body: string): void => {
+  const forwardHttpOne = (message: McpStdioMessage): void => {
     if (!backend) {
       return;
     }
-    const http = backend;
+    const baseEndpoint = backend;
     chain.append(async () => {
+      const endpoint = baseEndpoint.withSessionId(chain.sessionId);
       try {
-        const result = await postMcpHttpMessage(
-          http.port,
-          http.token,
-          body,
-          chain.sessionId,
-        );
+        const result = await postMcpHttpMessage(endpoint, message);
         chain.captureSessionId(result.sessionId);
         if (result.messages.length === 0 && result.status >= 400) {
-          await replyError(body, -32000, `MCP HTTP ${result.status}`);
+          await replyError(
+            message,
+            new JsonRpcError(-32000, `MCP HTTP ${result.status}`),
+          );
           return;
         }
         for (const msg of result.messages) {
           await writeMcpStdioMessage(encoder, msg);
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        console.error(`[openadt-mcp] stdio proxy: ${message}`);
-        await replyError(body, -32000, message);
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        console.error(`[openadt-mcp] stdio proxy: ${errorMessage}`);
+        await replyError(message, new JsonRpcError(-32000, errorMessage));
       }
     });
   };
 
-  const enqueuePending = (body: string): void => {
-    const dropped = queue.enqueueOrDrop(body);
+  const enqueuePending = (message: McpStdioMessage): void => {
+    const dropped = queue.enqueueOrDrop(message);
     if (dropped) {
       chain.append(() =>
         replyError(
           dropped,
-          -32000,
-          "MCP backend buffer full during SAP logon; retry after initialize",
+          new JsonRpcError(
+            -32000,
+            "MCP backend buffer full during SAP logon; retry after initialize",
+          ),
         ),
       );
     }
   };
 
   const drainPending = (): void => {
-    for (const body of queue.takeAll()) {
-      forwardHttpOne(body);
+    for (const message of queue.takeAll()) {
+      forwardHttpOne(message);
     }
   };
 
-  const replyAllPending = (code: number, message: string): void => {
+  const replyAllPending = (error: JsonRpcError): void => {
     const queued = queue.takeAll();
     if (queued.length === 0) {
       return;
     }
     chain.append(async () => {
-      for (const body of queued) {
-        await replyError(body, code, message);
+      for (const message of queued) {
+        await replyError(message, error);
       }
     });
   };
@@ -197,17 +282,21 @@ export function createStdioMcpBridge(): StdioMcpBridge {
   };
 
   decoder.on("data", (body: string) => {
+    const message = new McpStdioMessage(body);
     if (lifecycle.failed) {
       chain.append(() =>
-        replyError(body, -32000, "MCP backend failed to start"),
+        replyError(
+          message,
+          new JsonRpcError(-32000, "MCP backend failed to start"),
+        ),
       );
       return;
     }
     if (!lifecycle.ready) {
-      enqueuePending(body);
+      enqueuePending(message);
       return;
     }
-    forwardHttpOne(body);
+    forwardHttpOne(message);
   });
   decoder.on("error", (err: Error) => {
     console.error(`[openadt-mcp] stdio stdin decode error: ${err.message}`);
@@ -215,8 +304,19 @@ export function createStdioMcpBridge(): StdioMcpBridge {
     scheduleCloseWhenIdle();
   });
 
+  let onStdinEnd: (() => void) | undefined;
+  let onStdinError: ((err: Error) => void) | undefined;
+
   const detachStdin = (): void => {
     process.stdin.unpipe(decoder);
+    if (onStdinEnd) {
+      process.stdin.off("end", onStdinEnd);
+      onStdinEnd = undefined;
+    }
+    if (onStdinError) {
+      process.stdin.off("error", onStdinError);
+      onStdinError = undefined;
+    }
     decoder.removeAllListeners("data");
     decoder.removeAllListeners("error");
   };
@@ -227,17 +327,19 @@ export function createStdioMcpBridge(): StdioMcpBridge {
         return;
       }
       process.stdin.pipe(decoder);
-      process.stdin.on("end", () => {
+      onStdinEnd = () => {
         detachStdin();
         lifecycle.markStdinEnded();
         scheduleCloseWhenIdle();
-      });
-      process.stdin.on("error", (err) => {
+      };
+      onStdinError = (err) => {
         detachStdin();
         lifecycle.markStdinEnded();
         console.error(`[openadt-mcp] stdio stdin error: ${err.message}`);
         scheduleCloseWhenIdle();
-      });
+      };
+      process.stdin.on("end", onStdinEnd);
+      process.stdin.on("error", onStdinError);
       if (process.stdin.isPaused()) {
         process.stdin.resume();
       }
@@ -245,36 +347,70 @@ export function createStdioMcpBridge(): StdioMcpBridge {
         "[openadt-mcp] stdio: reading client input (SAP logon may take a minute)…",
       );
     },
-    async run(port: number, token: string) {
+    async run(
+      portOrEndpoint: number | McpHttpEndpoint,
+      tokenOrOptions?:
+        | string
+        | { waitTimeoutMs?: number; pollIntervalMs?: number },
+      legacyOptions: { waitTimeoutMs?: number; pollIntervalMs?: number } = {},
+    ) {
       if (!lifecycle.started) {
         throw new Error("Call start() before run()");
       }
-      backend = { port, token };
-      void waitForMcpHttp(port, token, {
-        timeoutMs: 300_000,
-        intervalMs: 500,
-      }).then(async (httpReady) => {
-        if (!httpReady) {
-          console.error(
-            `[openadt-mcp] MCP HTTP not ready at ${mcpUrl(port)} after 5min`,
-          );
+      const endpoint =
+        typeof portOrEndpoint === "number"
+          ? McpHttpEndpoint.forConfig(portOrEndpoint, tokenOrOptions as string)
+          : portOrEndpoint;
+      const options =
+        typeof portOrEndpoint === "number"
+          ? legacyOptions
+          : ((tokenOrOptions as
+              | { waitTimeoutMs?: number; pollIntervalMs?: number }
+              | undefined) ?? {});
+      backend = endpoint;
+      void waitForMcpHttp(endpoint, {
+        timeoutMs: options.waitTimeoutMs ?? 300_000,
+        intervalMs: options.pollIntervalMs ?? 500,
+      })
+        .then(async (httpReady) => {
+          if (lifecycle.failed) {
+            return;
+          }
+          if (!httpReady) {
+            console.error(
+              `[openadt-mcp] MCP HTTP not ready at ${endpoint.url} after 5min`,
+            );
+            lifecycle.markFailed();
+            replyAllPending(
+              new JsonRpcError(
+                -32000,
+                "MCP HTTP backend failed to start (SAP logon timeout)",
+              ),
+            );
+            scheduleCloseWhenIdle();
+            return;
+          }
+          lifecycle.markReady();
+          drainPending();
+          scheduleCloseWhenIdle();
+        })
+        .catch((err) => {
+          if (lifecycle.failed) {
+            return;
+          }
+          const message = err instanceof Error ? err.message : String(err);
+          console.error(`[openadt-mcp] MCP HTTP probe crashed: ${message}`);
           lifecycle.markFailed();
           replyAllPending(
-            -32000,
-            "MCP HTTP backend failed to start (SAP logon timeout)",
+            new JsonRpcError(-32000, "MCP HTTP probe failed before ready"),
           );
           scheduleCloseWhenIdle();
-          return;
-        }
-        lifecycle.markReady();
-        drainPending();
-        scheduleCloseWhenIdle();
-      });
+        });
       return lifecycle.closePromise!;
     },
     failPending(code: number, message: string) {
       lifecycle.markFailed();
-      replyAllPending(code, message);
+      replyAllPending(new JsonRpcError(code, message));
       scheduleCloseWhenIdle();
     },
     flush(): Promise<void> {
@@ -288,16 +424,20 @@ class PendingBodyQueue {
   private readonly bodies: string[] = [];
   constructor(private readonly limit: number) {}
 
-  enqueueOrDrop(body: string): string | undefined {
+  enqueueOrDrop(message: McpStdioMessage): McpStdioMessage | undefined {
     if (this.bodies.length >= this.limit) {
-      return this.bodies.shift();
+      const shifted = this.bodies.shift();
+      if (shifted === undefined) return undefined;
+      return new McpStdioMessage(shifted);
     }
-    this.bodies.push(body);
+    this.bodies.push(message.body);
     return undefined;
   }
 
-  takeAll(): string[] {
-    return this.bodies.splice(0, this.bodies.length);
+  takeAll(): McpStdioMessage[] {
+    return this.bodies
+      .splice(0, this.bodies.length)
+      .map((body) => new McpStdioMessage(body));
   }
 }
 
@@ -311,7 +451,7 @@ class ForwardChain {
   }
 
   append(step: () => Promise<void>): void {
-    this.chain = this.chain.then(step);
+    this.chain = this.chain.then(step, () => step());
   }
 
   tail(): Promise<void> {

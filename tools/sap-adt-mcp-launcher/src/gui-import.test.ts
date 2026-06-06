@@ -18,6 +18,35 @@ describe("buildAbapWorkspaceFolderUri", () => {
   });
 });
 
+describe("destinationFileUris", () => {
+  test.each<{
+    label: string;
+    input: string;
+    matches: RegExp | string;
+  }>([
+    {
+      label: "resolves relative propertiesPath before pathToFileURL",
+      input: "rel/.destination.properties",
+      matches: /^file:\/\/\/.+rel\/\.destination\.properties$/,
+    },
+    {
+      label: "passes absolute propertiesPath through unchanged",
+      input: "/abs/path/.destination.properties",
+      matches: "file:///abs/path/.destination.properties",
+    },
+  ])("$label", ({ input, matches }) => {
+    const uris = destinationFileUris([
+      {
+        id: "X",
+        workspaceFolderUri: "abap:/X",
+        adtWorkspacePath: "/abs/path",
+        propertiesPath: input,
+      },
+    ]);
+    expect(uris[0]).toMatch(matches);
+  });
+});
+
 describe("readDestinationId", () => {
   test("reads id property", () => {
     const dir = join(tmpdir(), `gui-import-${Date.now()}`);

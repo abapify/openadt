@@ -4,13 +4,14 @@
  * Resolves Bun from ~/.bun/bin without absolute paths in .cursor/mcp.json.
  * Proxies stdin/stdout explicitly (inherit breaks some MCP clients on Windows).
  */
+import { existsSync } from "node:fs";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createServer } from "node:net";
 import { dirname, join } from "node:path";
+import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 import { buildAdtLscSpawnRuntime } from "./runtime-env.ts";
-import { resolveBunExecutable } from "./resolve-bun.ts";
 import { DEFAULT_MCP_PORT } from "./types.ts";
 
 const repoRoot = join(
@@ -28,24 +29,37 @@ const launcher = join(
 );
 
 function resolveBun(): string {
-  return resolveBunExecutable();
+  if (process.env.OPENADT_BUN?.trim()) {
+    return process.env.OPENADT_BUN.trim();
+  }
+  const bunName = process.platform === "win32" ? "bun.exe" : "bun";
+  const installed = join(homedir(), ".bun", "bin", bunName);
+  if (existsSync(installed)) {
+    return installed;
+  }
+  return bunName;
 }
 
 const PORT_MIN = 1024;
 const PORT_MAX = 65535;
 
+function isValidPort(port: number): boolean {
+  return Number.isInteger(port) && port >= PORT_MIN && port <= PORT_MAX;
+}
+
 async function pickMcpPort(): Promise<number> {
   const explicit = process.env.OPENADT_MCP_PORT?.trim();
-  if (explicit) {
-    const port = Number(explicit);
-    if (!Number.isInteger(port) || port < PORT_MIN || port > PORT_MAX) {
-      throw new Error(
-        `Invalid OPENADT_MCP_PORT=${explicit} (expected integer ${PORT_MIN}-${PORT_MAX}); falling back to ephemeral.`,
-      );
-    }
-    return port;
+  if (!explicit) {
+    return bindEphemeralPort();
   }
-  return bindEphemeralPort();
+  const port = Number(explicit);
+  if (!isValidPort(port)) {
+    console.error(
+      `[openadt-mcp] Invalid OPENADT_MCP_PORT=${explicit} (expected integer ${PORT_MIN}-${PORT_MAX}); falling back to ephemeral.`,
+    );
+    return bindEphemeralPort();
+  }
+  return port;
 }
 
 function bindEphemeralPort(): Promise<number> {
@@ -70,6 +84,82 @@ function bindEphemeralPort(): Promise<number> {
       });
     });
   });
+}
+
+function pipeStdio(child: ChildProcessWithoutNullStreams): void {
+  process.stdin.pipe(child.stdin);
+  child.stdout.pipe(process.stdout);
+  child.stderr.pipe(process.stderr);
+
+  process.stdin.on("end", () => {
+    child.stdin.end();
+  });
+  process.stdin.on("error", () => {
+    child.stdin.destroy();
+  });
+  child.stdout.on("error", () => {
+    process.stdout.destroy();
+  });
+  child.stderr.on("error", () => {
+    process.stderr.destroy();
+  });
+}
+
+/**
+ * Wait for a readable stream to reach EOF. The child writes a JSON-RPC
+ * streamable-HTTP response to stdout/stderr; we want the parent to flush
+ * those bytes to its own stdout before exiting, otherwise the IDE MCP client
+ * can lose the tail of a response.
+ *
+ * Resolves on `end`/`close`, or after a 250ms safety timer so the parent
+ * never wedges if the readable never finishes.
+ */
+function drainReadable(stream: NodeJS.ReadableStream | null): Promise<void> {
+  if (!stream) {
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      stream.off("end", finish);
+      stream.off("close", finish);
+      resolve();
+    };
+    stream.once("end", finish);
+    stream.once("close", finish);
+    setTimeout(finish, 250).unref();
+  });
+}
+
+/** Wait for the parent's stdout writable to drain any pending bytes. */
+function drainStdoutWritable(): Promise<void> {
+  if (!process.stdout.writableNeedDrain) {
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      process.stdout.off("drain", finish);
+      process.stdout.off("close", finish);
+      process.stdout.off("error", finish);
+      resolve();
+    };
+    process.stdout.once("drain", finish);
+    process.stdout.once("close", finish);
+    process.stdout.once("error", finish);
+    setTimeout(finish, 250).unref();
+  });
+}
+
+async function drainChildStreams(
+  child: ChildProcessWithoutNullStreams,
+): Promise<void> {
+  await Promise.all([drainReadable(child.stdout), drainReadable(child.stderr)]);
+  await drainStdoutWritable();
 }
 
 const port = await pickMcpPort();
@@ -102,61 +192,16 @@ child.on("error", (err) => {
   process.exit(1);
 });
 
-process.stdin.pipe(child.stdin);
-child.stdout.pipe(process.stdout);
-child.stderr.pipe(process.stderr);
+pipeStdio(child);
 
-process.stdin.on("end", () => {
-  child.stdin.end();
-});
-process.stdin.on("error", () => {
-  child.stdin.destroy();
-});
-child.stdout.on("error", () => {
-  process.stdout.destroy();
-});
-child.stderr.on("error", () => {
-  process.stderr.destroy();
-});
-
-child.on("exit", (code, signal) => {
+child.on("exit", async (code, signal) => {
   // Give the stdout/stderr pipes a tick to flush any final bytes the child
   // wrote just before exiting, then exit with the child's status. process.exit
   // terminates the event loop immediately, which can otherwise truncate the
   // tail of a streamable HTTP response in the MCP client.
-  const finalize = () => {
-    if (signal) {
-      process.exit(1);
-    }
-    process.exit(code ?? 1);
-  };
-  const streams: Array<NodeJS.ReadableStream | null> = [
-    child.stdout,
-    child.stderr,
-  ];
-  let pending = streams.length;
-  const onDrained = () => {
-    pending -= 1;
-    if (pending === 0) {
-      finalize();
-    }
-  };
-  for (const stream of streams) {
-    if (!stream) {
-      onDrained();
-      continue;
-    }
-    const readable = stream as NodeJS.ReadableStream & {
-      writableEnded?: boolean;
-      writableLength?: number;
-      end?: () => void;
-    };
-    if (readable.writableEnded && readable.writableLength === 0) {
-      onDrained();
-    } else {
-      readable.once("drain", onDrained);
-      readable.end?.();
-    }
+  await drainChildStreams(child);
+  if (signal) {
+    process.exit(1);
   }
-  setTimeout(finalize, 250).unref();
+  process.exit(code ?? 1);
 });
