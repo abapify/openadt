@@ -7,13 +7,36 @@ Headless orchestrator for the **official SAP ADT MCP** shipped in the [SAP ADT V
 - [SAP ADT for VS Code](https://marketplace.visualstudio.com/items?itemName=SAPSE.adt-vscode) installed (detected under `~/.vscode/extensions` or `~/.cursor/extensions`)
 - [Bun](https://bun.sh) on `PATH` (dev and `./dev-openadt mcp` / packaged `openadt mcp` delegation)
 
+## Build
+
+The release ships pre-built JavaScript via [tsdown](https://github.com/nicepkg/tsdown). Build with:
+
+```bash
+bun run mcp:build          # from repo root
+# or:
+bun run build              # from this directory
+```
+
+Output: `dist/` (bundled ESM, all dependencies included — no `node_modules` needed at runtime).
+
 ## Commands
+
+### From source (dev)
 
 ```bash
 bun tools/sap-adt-mcp-launcher/src/main.ts serve
 bun tools/sap-adt-mcp-launcher/src/main.ts status --port 2236
 bun tools/sap-adt-mcp-launcher/src/main.ts list
 bun tools/sap-adt-mcp-launcher/src/main.ts print-config --port 2236
+```
+
+### From built output (release)
+
+```bash
+bun tools/sap-adt-mcp-launcher/dist/main.mjs serve
+bun tools/sap-adt-mcp-launcher/dist/main.mjs status --port 2236
+bun tools/sap-adt-mcp-launcher/dist/main.mjs list
+bun tools/sap-adt-mcp-launcher/dist/main.mjs print-config --port 2236
 ```
 
 Each running `serve` stores url+token in `~/.openadt/mcp/endpoints/<port>.json`. With multiple servers, use `list` then `print-config --port <port>` for agent-neutral HTTP client JSON.

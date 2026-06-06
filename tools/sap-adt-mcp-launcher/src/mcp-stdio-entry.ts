@@ -14,19 +14,25 @@ import { fileURLToPath } from "node:url";
 import { buildAdtLscSpawnRuntime } from "./runtime-env.ts";
 import { DEFAULT_MCP_PORT } from "./types.ts";
 
-const repoRoot = join(
-  dirname(fileURLToPath(import.meta.url)),
-  "..",
-  "..",
-  "..",
-);
-const launcher = join(
-  repoRoot,
-  "tools",
-  "sap-adt-mcp-launcher",
-  "src",
-  "main.ts",
-);
+const here = dirname(fileURLToPath(import.meta.url));
+
+function resolveLauncher(): { runtime: string; launcher: string } {
+  for (const ext of [".mjs", ".js"]) {
+    const built = join(here, `main${ext}`);
+    if (existsSync(built)) {
+      return { runtime: resolveBun(), launcher: built };
+    }
+  }
+  const repoRoot = join(here, "..", "..", "..");
+  const srcMain = join(
+    repoRoot,
+    "tools",
+    "sap-adt-mcp-launcher",
+    "src",
+    "main.ts",
+  );
+  return { runtime: resolveBun(), launcher: srcMain };
+}
 
 function resolveBun(): string {
   if (process.env.OPENADT_BUN?.trim()) {
@@ -179,23 +185,23 @@ const serveArgs = [
   ...process.argv.slice(2),
 ];
 
-const bun = resolveBun();
-const runtime = buildAdtLscSpawnRuntime();
+const { runtime, launcher } = resolveLauncher();
+const runtimeEnv = buildAdtLscSpawnRuntime();
 const child: ChildProcessWithoutNullStreams = spawn(
-  bun,
+  runtime,
   [launcher, ...serveArgs],
   {
-    cwd: repoRoot,
+    cwd: process.cwd(),
     stdio: ["pipe", "pipe", "pipe"],
-    env: runtime.env,
+    env: runtimeEnv.env,
     windowsHide: true,
   },
 );
 
 child.on("error", (err) => {
   console.error(
-    `[openadt-mcp] failed to spawn ${bun}: ${err.message}\n` +
-      "Install Bun (https://bun.sh) or set OPENADT_BUN to your bun executable.",
+    `[openadt-mcp] failed to spawn ${runtime}: ${err.message}\n` +
+      "Install Bun (https://bun.sh) or set OPENADT_BUN to your bun executable path.",
   );
   process.exit(1);
 });
