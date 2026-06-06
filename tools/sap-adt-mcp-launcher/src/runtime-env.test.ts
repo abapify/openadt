@@ -41,12 +41,14 @@ describe("buildAdtLscSpawnRuntime", () => {
 });
 
 describe("Env", () => {
+  const processEnv = () => Env.fromProcess();
+
   test("string returns trimmed value", () => {
     process.env.OPENADT_TEST_GETENV = "  hello  ";
     try {
-      expect(
-        Env.fromProcess().string({ name: envVar("OPENADT_TEST_GETENV") }),
-      ).toBe("hello");
+      expect(processEnv().string({ name: envVar("OPENADT_TEST_GETENV") })).toBe(
+        "hello",
+      );
     } finally {
       delete process.env.OPENADT_TEST_GETENV;
     }
@@ -55,7 +57,7 @@ describe("Env", () => {
   test("string returns default when unset", () => {
     delete process.env.OPENADT_TEST_GETENV_MISSING;
     expect(
-      Env.fromProcess().string({
+      processEnv().string({
         name: envVar("OPENADT_TEST_GETENV_MISSING"),
         default: "fallback",
       }),
@@ -65,7 +67,7 @@ describe("Env", () => {
   test("string throws when required and missing", () => {
     delete process.env.OPENADT_TEST_GETENV_MISSING;
     expect(() =>
-      Env.fromProcess().string({
+      processEnv().string({
         name: envVar("OPENADT_TEST_GETENV_MISSING"),
         required: true,
       }),
@@ -84,7 +86,7 @@ describe("Env", () => {
     process.env.OPENADT_TEST_PORT = input;
     try {
       const result = () =>
-        Env.fromProcess().integer({
+        processEnv().integer({
           name: envVar("OPENADT_TEST_PORT"),
           min: 1,
           max: 65535,
@@ -102,7 +104,7 @@ describe("Env", () => {
   test("integer returns undefined when unset", () => {
     delete process.env.OPENADT_TEST_PORT_MISSING;
     expect(
-      Env.fromProcess().integer({
+      processEnv().integer({
         name: envVar("OPENADT_TEST_PORT_MISSING"),
         min: 1,
         max: 65535,
@@ -113,7 +115,7 @@ describe("Env", () => {
   test("path returns undefined when mustExist and missing", () => {
     process.env.OPENADT_TEST_PATH = "/nonexistent/openadt-test";
     expect(
-      Env.fromProcess().path({
+      processEnv().path({
         name: envVar("OPENADT_TEST_PATH"),
         mustExist: true,
       }),

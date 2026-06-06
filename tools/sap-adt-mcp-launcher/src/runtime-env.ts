@@ -40,29 +40,32 @@ export function loadOpenAdtRuntimePaths(opts?: {
   configPath?: string;
 }): OpenAdtRuntimePaths {
   const configPath = opts?.configPath ?? LOCAL_CONFIG;
-  if (!existsSync(configPath)) {
-    return {};
-  }
-  return parseTomlConfig(configPath);
+  return existsSync(configPath) ? readTomlRuntimePaths(configPath) : {};
 }
 
-function parseTomlConfig(configPath: string): OpenAdtRuntimePaths {
+function readTomlRuntimePaths(configPath: string): OpenAdtRuntimePaths {
   try {
     const parsed = Bun.TOML.parse(readFileSync(configPath, "utf8")) as {
       runtime?: { jco_native_dir?: string; sapcrypto?: string };
       jco_native_dir?: string;
       sapcrypto?: string;
     };
-    const runtime = parsed.runtime;
-    const jcoRaw = runtime?.jco_native_dir ?? parsed.jco_native_dir;
-    const sapRaw = runtime?.sapcrypto ?? parsed.sapcrypto;
+    const rt = parsed.runtime;
     return {
-      jcoNativeDir: jcoRaw?.trim() || undefined,
-      sapcrypto: sapRaw?.trim() || undefined,
+      jcoNativeDir: tomlField(rt?.jco_native_dir, parsed.jco_native_dir),
+      sapcrypto: tomlField(rt?.sapcrypto, parsed.sapcrypto),
     };
   } catch {
     return {};
   }
+}
+
+/** Prefer nested `[runtime]` value; fall back to legacy top-level; trim blanks. */
+function tomlField(
+  nested: string | undefined,
+  legacy: string | undefined,
+): string | undefined {
+  return (nested ?? legacy)?.trim() || undefined;
 }
 
 export function buildAdtLscSpawnRuntime(
@@ -95,31 +98,33 @@ export function buildAdtLscSpawnRuntime(
   }
 
   if (!rawEnv.SECUDIR?.trim()) {
-    const secudirView = Env.fromProcess();
-    const home = homedir();
-    const appData = secudirView.string({ name: envVar("APPDATA") }) ?? "";
-    const candidates: string[] = [];
-    if (appData) {
-      candidates.push(join(appData, "SAP", "Common"));
-    }
-    candidates.push(join(home, "AppData", "Roaming", "SAP", "Common"));
-    candidates.push("C:\\Program Files\\SAP\\FrontEnd\\SecureLogin\\lib");
-    candidates.push(join(home, ".openadt", "sec"));
-
-    for (const candidate of candidates) {
-      if (!existsSync(candidate)) {
-        continue;
-      }
-      const normalized = candidate.replace(/\\/g, "/").toLowerCase();
-      if (normalized.endsWith("/.openadt/sec")) {
-        continue;
-      }
-      rawEnv.SECUDIR = candidate;
-      break;
-    }
+    rawEnv.SECUDIR = discoverSecudir();
   }
 
   return { env: rawEnv, jvmArgs };
+}
+
+/** Find a valid SECUDIR from well-known Windows paths. */
+function discoverSecudir(): string | undefined {
+  const secudirView = Env.fromProcess();
+  const home = homedir();
+  const appData = secudirView.string({ name: envVar("APPDATA") }) ?? "";
+  const candidates: string[] = [];
+  if (appData) {
+    candidates.push(join(appData, "SAP", "Common"));
+  }
+  candidates.push(join(home, "AppData", "Roaming", "SAP", "Common"));
+  candidates.push("C:\\Program Files\\SAP\\FrontEnd\\SecureLogin\\lib");
+  candidates.push(join(home, ".openadt", "sec"));
+  return candidates.find(isValidSecudir);
+}
+
+function isValidSecudir(candidate: string): boolean {
+  if (!existsSync(candidate)) {
+    return false;
+  }
+  const normalized = candidate.replace(/\\/g, "/").toLowerCase();
+  return !normalized.endsWith("/.openadt/sec");
 }
 
 /** Resolve Windows profile directory defaults from the given env view. */

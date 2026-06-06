@@ -103,19 +103,31 @@ export class Env {
   }
 
   prependPath(dir: EnvVarName): void {
-    const sep = process.platform === "win32" ? ";" : ":";
-    const pathKey =
-      Object.keys(this.env).find((k) => k.toUpperCase() === "PATH") ?? "PATH";
+    const sep = pathSeparator();
+    const pathKey = this.findKey("PATH");
     const current = this.env[pathKey] ?? "";
-    if (
-      current
-        .split(sep)
-        .some((entry) => entry.toLowerCase() === dir.toLowerCase())
-    ) {
+    if (pathContains(current, dir, sep)) {
       return;
     }
     this.env[pathKey] = current ? `${dir}${sep}${current}` : dir;
   }
+
+  private findKey(upperName: string): string {
+    return (
+      Object.keys(this.env).find((k) => k.toUpperCase() === upperName) ??
+      upperName
+    );
+  }
+}
+
+function pathSeparator(): string {
+  return process.platform === "win32" ? ";" : ":";
+}
+
+function pathContains(current: string, dir: string, sep: string): boolean {
+  return current
+    .split(sep)
+    .some((entry) => entry.toLowerCase() === dir.toLowerCase());
 }
 
 function validateInteger(
