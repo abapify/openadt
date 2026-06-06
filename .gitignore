@@ -26,6 +26,9 @@ replay_pid*
 # Maven build output
 target/
 
+# TypeScript build output
+tools/sap-adt-mcp-launcher/dist/
+
 # IDE files
 .idea/
 *.iml

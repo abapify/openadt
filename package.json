@@ -6,6 +6,8 @@
     "bootstrap:devcontainer": "bun tools/devcontainer-bootstrap/src/main.ts",
     "package:release": "bun tools/package-release/src/main.ts",
     "release:version": "bun tools/release-version/src/main.ts",
+    "mcp:build": "cd tools/sap-adt-mcp-launcher && bun run build",
+    "mcp:build:check": "cd tools/sap-adt-mcp-launcher && bun run build:check",
     "format:write": "nx format:write",
     "openadt": "nx run openadt-cli:run --output-style=stream --",
     "openadt:mcp": "bun scripts/nx-openadt.ts mcp",
@@ -28,6 +30,7 @@
     "playwright": "^1.60.0",
     "prettier": "^3.7.4",
     "tar": "^7.5.15",
+    "tsdown": "^0.22.2",
     "typescript": "^6.0.3",
     "uuid": "^11.1.0",
     "vscode-jsonrpc": "^8.2.1"

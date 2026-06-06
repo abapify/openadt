@@ -175,27 +175,32 @@ cpSync(jarPath, join(stageDir, "openadt.jar"));
 writeFileSync(join(stageDir, "VERSION"), `${version}\n`);
 cpSync(join(root, "LICENSE"), join(stageDir, "LICENSE"));
 
-// Install MCP launcher dependencies before packaging
-const launcherDir = join(root, "tools/sap-adt-mcp-launcher");
-const installResult = spawnSync("bun", ["install", "--quiet"], {
-  cwd: launcherDir,
-  stdio: "inherit",
+const mcpLauncherSrc = join(root, "tools/sap-adt-mcp-launcher");
+const mcpLauncherDest = join(stageDir, "sap-adt-mcp-launcher");
+
+const buildMcp = spawnSync("bun", ["run", "build"], {
+  cwd: mcpLauncherSrc,
+  stdio: "pipe",
 });
-if (installResult.status !== 0) {
+if (buildMcp.status !== 0 || buildMcp.error) {
+  const stderr = buildMcp.stderr?.toString().trim();
+  const stdout = buildMcp.stdout?.toString().trim();
+  const cause = buildMcp.error ? ` (${buildMcp.error.message})` : "";
+  const output = [stderr, stdout].filter(Boolean).join("\n");
   throw new Error(
-    "Failed to install MCP launcher dependencies during packaging",
+    `Failed to build MCP launcher with tsdown${cause}${output ? `: ${output}` : ""}`,
   );
 }
 
-cpSync(launcherDir, join(stageDir, "sap-adt-mcp-launcher"), {
+mkdirSync(mcpLauncherDest, { recursive: true });
+cpSync(join(mcpLauncherSrc, "dist"), join(mcpLauncherDest, "dist"), {
   recursive: true,
-  filter: (src) => {
-    // Exclude dev dependencies and build artifacts
-    if (src.includes("node_modules/.cache")) return false;
-    if (src.includes("node_modules/.bun")) return false;
-    return true;
-  },
 });
+cpSync(
+  join(mcpLauncherSrc, "package.json"),
+  join(mcpLauncherDest, "package.json"),
+);
+cpSync(join(mcpLauncherSrc, "README.md"), join(mcpLauncherDest, "README.md"));
 writeLaunchers(stageDir);
 if (
   process.platform === "win32" ||

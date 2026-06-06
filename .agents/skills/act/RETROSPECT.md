@@ -95,6 +95,20 @@ Append-only durable learnings from `/act` P6 evaluation. One entry per session w
 - **Prevention:** When a reviewer asks to pin an externally-installed binary that's behind auth, do a `curl -fsSLI` check on the candidate URL **with and without the token header** before committing the change — and if the public path is `latest`, reply in-thread explaining the tradeoff rather than shipping a half-fix that breaks CI. The author fixed the same problem from the other direction in `d54ba37` (added a clearer fail-fast message when the PAT is rejected in the Docker image path).
 - **Cycle signal:** none (caught by the next CI run on the same push; reverted in `069eb03`)
 
+## 2026-06-06 — PR #47 — CodeScene "String Heavy Function Arguments" cannot be fixed with branded types
+
+- **What happened:** All 50 review threads were already resolved. CI was red with formatting + 2 CodeScene gates. Fixed formatting and `printImportNotices` complexity. Then spent 6+ rounds chasing CodeScene's "String Heavy Function Arguments" advisory on `runtime-env.ts` (64.3% string args vs 39% threshold). Attempts: (1) branded types `EnvVarName = string & {...}` → CodeScene still counts as string; (2) consolidated params into options objects → still flagged; (3) split `Env` class to separate `env.ts` → created new CodeScene "Complex Method" and "Code Duplication" issues; (4) extracted `validateInteger`, `findKey`, `discoverSecudir`, `tomlField` helpers → new issues kept appearing; (5) resolved CodeScene threads with justification, accepted advisory.
+- **Root cause:** CodeScene's TypeScript analysis resolves branded types (`string & { ... }`) back to `string` for its "String Heavy Function Arguments" metric. The metric is fundamentally about the domain — env var accessors inherently take string parameters. The "Pay Down Tech Debt" quality gate profile enforces ALL gates including advisory ones. Each refactoring round introduced new patterns (extracted functions, test helpers) that triggered different CodeScene rules (Complex Method, Code Duplication), creating a game of whack-a-mole.
+- **Prevention:** When CodeScene flags a domain-inherent pattern (strings for env vars, numbers for ports), **do not chase the metric with type gymnastics**. Reply in the thread explaining the domain constraint and ask the repo owner to suppress the advisory in CodeScene's UI. The suppress link is in the CodeScene delta check run output. Branded types are good TypeScript practice but do not change CodeScene's view of the underlying type.
+- **Cycle signal:** same rule re-flagged (String Heavy Function Arguments advisory persisted across 5 refactoring attempts) — never actually resolved because the metric is inherent to the domain.
+
+## 2026-06-06 — PR #47 — all review threads already resolved (idempotent /act)
+
+- **What happened:** PR #47 had 50 review threads, all already resolved by the author before `/act` was invoked. The author had been actively pushing fix commits. Running `/act` on an already-resolved PR is idempotent — the skill correctly says "short 'already done', no resolve-only rerun."
+- **Root cause:** The PR was large (59 files, 4k+ additions) and had many bot reviewers. By the time `/act` was invoked, the author had already addressed everything. The only remaining work was CI failures (formatting + CodeScene).
+- **Prevention:** Always run `pr-state.sh` first to check `OPEN_THREADS`. If 0 open threads + all review feedback addressed, skip to P0 (CI check) and report status without unnecessary thread work.
+- **Cycle signal:** none
+
 ## 2026-06-05 — PR #42 — stale review threads from an earlier PR scope
 
 - **What happened:** PR #42 (TS-only `tools/sap-adt-mcp-launcher/`) carried 12+ open review threads pointing at `apps/openadt-cli/src/main/java/org/openadt/cli/McpLauncherInvoker.java`, `LauncherArgs.java`, `McpServeCommand.java`, and `McpStatusCommand.java` — files that are not in the current PR diff. An earlier scope of the PR included a Java CLI shim that was force-pushed out; the auto-reviews (Codacy, Copilot, Amazon Q, Gemini, cubic) were never pruned and stuck around as ghost feedback.
