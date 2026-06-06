@@ -33,26 +33,31 @@ Workflows use current stable major tags: `actions/checkout@v6`, `actions/setup-j
 
 Two workflows implement the release pipeline. Either can trigger a publish independently.
 
-### `release.yml` — bump and tag (manual trigger)
+### `release.yml` — bump, build, and create release (manual trigger)
 
 Manual **Release** workflow (Actions → Release → Run workflow):
 
 1. Choose **version bump**: `patch`, `minor`, `major`, `prerelease`, `prepatch`, `preminor`, `premajor`
 2. Optionally set **prerelease id** (`rc`, `beta`, `alpha`) — required only for `prerelease`, `prepatch`, `preminor`, and `premajor` (omit for `patch` / `minor` / `major`)
-3. Job `bump` reads the latest `v*` tag (or `pom.xml` baseline), bumps `pom.xml`, Homebrew `STABLE`, Scoop `openadt.json`, and syncs `Formula/openadt.rb`, then commits, pushes the version-bump commit, creates `vX.Y.Z` tag, and publishes a GitHub Release (no assets yet)
+3. Optionally check **Draft** — creates a draft release; publish manually to trigger the Publish workflow
+4. Three jobs run in sequence:
+   - **`bump`** (ubuntu): reads the latest `v*` tag (or `pom.xml` baseline), bumps `pom.xml`, Homebrew `STABLE`, Scoop `openadt.json`, commits, pushes, and creates the `vX.Y.Z` tag
+   - **`build`** (windows): checks out the tag, builds distribution jar, runs `package:release` (zip + Windows `.exe` + sha256), uploads artifacts to the workflow run
+   - **`create`** (ubuntu): downloads artifacts, creates the GitHub Release titled `Release vX.Y.Z` with assets attached at creation time (required for immutable releases)
 
-### `publish.yml` — build and distribute (on: release published)
+The GitHub App token (**abapify-bro**) is used for `gh release create` so the `release: published` event fires the Publish workflow (events from `GITHUB_TOKEN` do not trigger other workflows).
+
+### `publish.yml` — sync packaging (on: release published)
 
 Fires automatically on any published GitHub Release, whether created by `release.yml` or manually via UI / `gh release create`.
 
 1. Checks out the release tag
-2. Builds the distribution jar (`mvnw -Pdistribution`)
-3. Runs `package:release` — packages zip, builds Windows `.exe` launcher, computes sha256, updates `packaging/scoop/openadt.json` and `Formula/openadt.rb` in the working tree
-4. Uploads `openadt-X.Y.Z.zip` and `openadt-X.Y.Z.zip.sha256` as release assets
-5. Syncs Scoop and Homebrew external repos via **abapify-bro** app token (or legacy PAT secrets)
-6. Dispatches update events to `abapify/scoop-bucket` and `abapify/homebrew-openadt`
+2. Downloads the `.zip.sha256` asset from the release to obtain the real checksum
+3. Patches `packaging/scoop/openadt.json` and `Formula/openadt.rb` in the working tree with the real checksum
+4. Syncs Scoop and Homebrew external repos via **abapify-bro** app token (or legacy PAT secrets)
+5. Dispatches update events to `abapify/scoop-bucket` and `abapify/homebrew-openadt`
 
-Checksum files are authoritative in the release assets; the working-tree writes by `package:release` are consumed by sync scripts in the same job and are not committed back to `main`.
+No build happens in Publish — all artifacts are already attached to the release by `release.yml`.
 
 Local dry-run (no git writes):
 

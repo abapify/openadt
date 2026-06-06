@@ -12,13 +12,12 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  publish:
-    name: Build and distribute ${{ github.event.release.tag_name }}
-    runs-on: windows-latest
+  sync:
+    name: Sync packaging for ${{ github.event.release.tag_name }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
         with:
-          fetch-depth: 0
           ref: ${{ github.event.release.tag_name }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -26,39 +25,24 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
-      - uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: "8.0.x"
-
-      - uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: "21"
-
-      - name: Build distribution jar
+      - name: Download release assets (for updated scoop/formula files)
         shell: bash
         run: |
-          chmod +x ./mvnw
-          ./mvnw -q -f pom.xml -pl apps/openadt-cli -am -Pdistribution -Dopenadt.distribution=true package -Dmaven.test.skip=true
-
-      - name: Package zip and compute checksums
-        shell: bash
-        env:
-          OPENADT_PACKAGE_WIN_EXE: "1"
-        run: |
-          version="${{ github.event.release.tag_name }}"
-          version="${version#v}"
-          bun run package:release -- --version="${version}"
-
-      - name: Upload release assets
-        shell: bash
-        run: |
-          version="${{ github.event.release.tag_name }}"
-          version="${version#v}"
-          gh release upload "${{ github.event.release.tag_name }}" \
-            "packaging/dist/openadt-${version}.zip" \
-            "packaging/dist/openadt-${version}.zip.sha256" \
-            --clobber
+          tag="${{ github.event.release.tag_name }}"
+          version="${tag#v}"
+          gh release download "${tag}" \
+            --repo abapify/openadt \
+            --pattern "openadt-${version}.zip.sha256" \
+            --dir /tmp/release-assets
+          sha256="$(awk '{print $1}' /tmp/release-assets/openadt-${version}.zip.sha256 | tr '[:upper:]' '[:lower:]')"
+          # Patch scoop manifest and formula with real checksum
+          jq --arg sha "${sha256}" \
+             --arg ver "${version}" \
+             --arg url "https://github.com/abapify/openadt/releases/download/${tag}/openadt-${version}.zip" \
+             '.version = $ver | .architecture["64bit"].url = $url | .architecture["64bit"].hash = $sha' \
+             packaging/scoop/openadt.json > /tmp/openadt.json
+          mv /tmp/openadt.json packaging/scoop/openadt.json
+          sed -i "s/sha256 \"[^\"]*\"/sha256 \"${sha256}\"/" Formula/openadt.rb
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -74,7 +58,7 @@ jobs:
           owner: abapify
           repositories: scoop-bucket,homebrew-openadt
 
-      - name: Sync scoop bucket manifests
+      - name: Sync scoop bucket
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
