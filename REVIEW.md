@@ -44,7 +44,7 @@ Before claiming “N issues fixed”: name the **source**, query it on **current
 | **GitHub App** (`codescene-delta-analysis`) | Official delta comment, per-finding **Suppress** links, quality-gate profile (e.g. Pay Down Tech Debt) | Yes, when required in branch rules |
 | **CLI** (`CodeScene delta` job)             | `cs delta --error-on-warnings` — human-readable log; job **red** on findings                           | Yes, when required in branch rules |
 
-Workflow: [`.github/workflows/codescene-delta.yml`](.github/workflows/codescene-delta.yml). Install: [`scripts/ci-install-codescene-cli.sh`](scripts/ci-install-codescene-cli.sh). Runs on `pull_request` only; compares `origin/<base>` to `HEAD` (`fetch-depth: 0`).
+Workflow: [`.github/workflows/codescene-delta.yml`](.github/workflows/codescene-delta.yml). CI runner: [`scripts/ci-codescene-delta.sh`](scripts/ci-codescene-delta.sh) (`codescene/codescene-mcp` image, `--entrypoint cs` — no runtime download from `downloads.codescene.io`). Local install (optional): [`scripts/ci-install-codescene-cli.sh`](scripts/ci-install-codescene-cli.sh). Runs on `pull_request` only; compares `origin/<base>` to `HEAD` (`fetch-depth: 0`).
 
 Agents: `gh pr checks` for red/green; `gh run view <id> --log-failed` for delta output.
 

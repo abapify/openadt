@@ -1,6 +1,6 @@
 # CodeScene CLI delta on pull requests — log output, job red on findings.
+# Uses codescene/codescene-mcp Docker image (embedded cs CLI; no downloads.codescene.io at runtime).
 # Complements the CodeScene GitHub App (suppress links, quality-gate profile in codescene.io).
-# Docs: https://codescene.io/docs/cli/index.html
 # Secret: CS_ACCESS_TOKEN (same PAT as .github/workflows/refactoring-agent.yml)
 name: CodeScene delta
 
@@ -23,10 +23,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install CodeScene CLI
-        run: bash scripts/ci-install-codescene-cli.sh
-
       - name: Delta analysis
         env:
           CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
-        run: cs delta "origin/${{ github.base_ref }}" HEAD --error-on-warnings
+        run: bash scripts/ci-codescene-delta.sh "${{ github.base_ref }}" HEAD
