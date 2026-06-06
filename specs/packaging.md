@@ -31,33 +31,30 @@ Workflows use current stable major tags: `actions/checkout@v6`, `actions/setup-j
 
 ## Release workflow
 
-Two workflows implement the release pipeline. Either can trigger a publish independently.
+One workflow (`release.yml`) handles the full release pipeline as four sequential jobs.
 
-### `release.yml` — bump, build, and create release (manual trigger)
+### `release.yml` — bump → build → publish → sync (manual trigger)
 
 Manual **Release** workflow (Actions → Release → Run workflow):
 
 1. Choose **version bump**: `patch`, `minor`, `major`, `prerelease`, `prepatch`, `preminor`, `premajor`
 2. Optionally set **prerelease id** (`rc`, `beta`, `alpha`) — required only for `prerelease`, `prepatch`, `preminor`, and `premajor` (omit for `patch` / `minor` / `major`)
-3. Optionally check **Draft** — creates a draft release; publish manually to trigger the Publish workflow
-4. Three jobs run in sequence:
-   - **`bump`** (ubuntu): reads the latest `v*` tag (or `pom.xml` baseline), bumps `pom.xml`, Homebrew `STABLE`, Scoop `openadt.json`, commits, pushes, and creates the `vX.Y.Z` tag
-   - **`build`** (windows): checks out the tag, builds distribution jar, runs `package:release` (zip + Windows `.exe` + sha256), uploads artifacts to the workflow run
-   - **`create`** (ubuntu): downloads artifacts, creates the GitHub Release titled `Release vX.Y.Z` with assets attached at creation time (required for immutable releases)
+3. Optionally check **Draft** — creates a draft release with assets attached; `sync` job is skipped until manually published
 
-The GitHub App token (**abapify-bro**) is used for `gh release create` so the `release: published` event fires the Publish workflow (events from `GITHUB_TOKEN` do not trigger other workflows).
+Four jobs run in sequence:
 
-### `publish.yml` — sync packaging (on: release published)
+| Job          | Runner  | Does                                                                                                                                                                                       |
+| ------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **`bump`**   | ubuntu  | Reads latest `v*` tag (or `pom.xml` baseline), bumps `pom.xml` + Scoop/Homebrew stubs, commits, pushes, creates tag                                                                        |
+| **`build`**  | windows | Checks out tag, builds distribution jar (`-Pdistribution`), runs `package:release` (zip + Windows `.exe` + sha256), uploads artifacts                                                      |
+| **`create`** | ubuntu  | Downloads artifacts, creates GitHub Release titled `Release vX.Y.Z` with assets attached at creation time (required for immutable releases)                                                |
+| **`sync`**   | ubuntu  | Downloads `.zip.sha256` from release, patches scoop manifest + formula, syncs `abapify/scoop-bucket` and `abapify/homebrew-openadt`, dispatches mirror events — skipped for draft releases |
 
-Fires automatically on any published GitHub Release, whether created by `release.yml` or manually via UI / `gh release create`.
+Notes:
 
-1. Checks out the release tag
-2. Downloads the `.zip.sha256` asset from the release to obtain the real checksum
-3. Patches `packaging/scoop/openadt.json` and `Formula/openadt.rb` in the working tree with the real checksum
-4. Syncs Scoop and Homebrew external repos via **abapify-bro** app token (or legacy PAT secrets)
-5. Dispatches update events to `abapify/scoop-bucket` and `abapify/homebrew-openadt`
-
-No build happens in Publish — all artifacts are already attached to the release by `release.yml`.
+- Assets are attached at `gh release create` time — no post-creation upload, compatible with immutable releases.
+- `GITHUB_TOKEN` is sufficient; no GitHub App token needed (no cross-workflow event chaining).
+- Draft releases skip `sync`; publish the draft from the GitHub UI when ready — then re-run `sync` manually if needed, or just retrigger the workflow.
 
 Local dry-run (no git writes):
 
