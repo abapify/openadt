@@ -1,7 +1,10 @@
 import { describe, expect, test, mock, afterEach } from "bun:test";
 import {
   createStdioMcpBridge,
+  JsonRpcError,
+  JsonRpcRequest,
   jsonRpcErrorResponse,
+  McpHttpEndpoint,
   parseMcpHttpResponseBody,
 } from "./stdio-proxy.ts";
 import { frameMcpMessage } from "./mcp-framing.ts";
@@ -49,11 +52,10 @@ describe("parseMcpHttpResponseBody", () => {
 
 describe("jsonRpcErrorResponse", () => {
   test("includes request id", () => {
-    const err = jsonRpcErrorResponse(
+    const req = JsonRpcRequest.parse(
       '{"jsonrpc":"2.0","id":42,"method":"tools/list"}',
-      -32000,
-      "fail",
-    );
+    )!;
+    const err = jsonRpcErrorResponse(req, new JsonRpcError(-32000, "fail"));
     expect(err).toEqual({
       jsonrpc: "2.0",
       id: 42,
@@ -63,10 +65,8 @@ describe("jsonRpcErrorResponse", () => {
 
   test("skips notifications without id", () => {
     expect(
-      jsonRpcErrorResponse(
+      JsonRpcRequest.parse(
         '{"jsonrpc":"2.0","method":"notifications/initialized"}',
-        -1,
-        "x",
       ),
     ).toBeUndefined();
   });
@@ -116,7 +116,9 @@ describe("createStdioMcpBridge", () => {
       bridge.start();
       process.stdin.emit("data", frameMcpMessage(initReq));
 
-      const runPromise = bridge.run(2236, "test-token");
+      const runPromise = bridge.run(
+        McpHttpEndpoint.forConfig(2236, "test-token"),
+      );
       process.stdin.emit("end");
       await runPromise;
 
@@ -150,7 +152,9 @@ describe("createStdioMcpBridge", () => {
         },
       });
 
-      const runPromise = bridge.run(2236, "test-token");
+      const runPromise = bridge.run(
+        McpHttpEndpoint.forConfig(2236, "test-token"),
+      );
       await new Promise((r) => setTimeout(r, 50));
       writeFrame({ jsonrpc: "2.0", method: "notifications/initialized" });
       writeFrame({ jsonrpc: "2.0", id: 2, method: "tools/list" });

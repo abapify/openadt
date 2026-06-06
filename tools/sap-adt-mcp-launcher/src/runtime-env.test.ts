@@ -1,9 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   buildAdtLscSpawnRuntime,
-  getEnv,
-  getEnvInt,
-  getEnvPath,
+  Env,
   isVsCodeAdtWorkspacePath,
 } from "./runtime-env.ts";
 
@@ -34,58 +32,71 @@ describe("buildAdtLscSpawnRuntime", () => {
   });
 });
 
-describe("getEnv", () => {
-  test("returns trimmed value", () => {
+describe("Env", () => {
+  test("string returns trimmed value", () => {
     process.env.OPENADT_TEST_GETENV = "  hello  ";
     try {
-      expect(getEnv("OPENADT_TEST_GETENV")).toBe("hello");
+      expect(Env.fromProcess().string("OPENADT_TEST_GETENV")).toBe("hello");
     } finally {
       delete process.env.OPENADT_TEST_GETENV;
     }
   });
 
-  test("returns default when unset", () => {
+  test("string returns default when unset", () => {
     delete process.env.OPENADT_TEST_GETENV_MISSING;
-    expect(getEnv("OPENADT_TEST_GETENV_MISSING", { default: "fallback" })).toBe(
-      "fallback",
-    );
+    expect(
+      Env.fromProcess().string("OPENADT_TEST_GETENV_MISSING", {
+        default: "fallback",
+      }),
+    ).toBe("fallback");
   });
 
-  test("throws when required and missing", () => {
+  test("string throws when required and missing", () => {
     delete process.env.OPENADT_TEST_GETENV_MISSING;
     expect(() =>
-      getEnv("OPENADT_TEST_GETENV_MISSING", { required: true }),
+      Env.fromProcess().string("OPENADT_TEST_GETENV_MISSING", {
+        required: true,
+      }),
     ).toThrow(/Missing required/);
   });
-});
 
-describe("getEnvInt", () => {
-  test("parses integer", () => {
-    process.env.OPENADT_TEST_PORT = "2236";
+  test.each<{ input: string; expected?: number; throws?: RegExp }>([
+    { input: "42", expected: 42 },
+    { input: "2236", expected: 2236 },
+    { input: "1.5", throws: /is not an integer/ },
+    { input: "-1", throws: /below min/ },
+    { input: "65536", throws: /above max/ },
+    { input: "abc", throws: /is not an integer/ },
+    { input: "99999", throws: /above max/ },
+  ])("integer parses %s", ({ input, expected, throws }) => {
+    process.env.OPENADT_TEST_PORT = input;
     try {
-      expect(getEnvInt("OPENADT_TEST_PORT", { min: 1, max: 65535 })).toBe(2236);
+      const result = () =>
+        Env.fromProcess().integer("OPENADT_TEST_PORT", { min: 1, max: 65535 });
+      if (throws) {
+        expect(result).toThrow(throws);
+      } else {
+        expect(result()).toBe(expected);
+      }
     } finally {
       delete process.env.OPENADT_TEST_PORT;
     }
   });
 
-  test("rejects out-of-range", () => {
-    process.env.OPENADT_TEST_PORT = "99999";
-    try {
-      expect(() =>
-        getEnvInt("OPENADT_TEST_PORT", { min: 1, max: 65535 }),
-      ).toThrow(/above max/);
-    } finally {
-      delete process.env.OPENADT_TEST_PORT;
-    }
+  test("integer returns undefined when unset", () => {
+    delete process.env.OPENADT_TEST_PORT_MISSING;
+    expect(
+      Env.fromProcess().integer("OPENADT_TEST_PORT_MISSING", {
+        min: 1,
+        max: 65535,
+      }),
+    ).toBeUndefined();
   });
-});
 
-describe("getEnvPath", () => {
-  test("returns undefined when mustExist and missing", () => {
+  test("path returns undefined when mustExist and missing", () => {
     process.env.OPENADT_TEST_PATH = "/nonexistent/openadt-test";
     expect(
-      getEnvPath("OPENADT_TEST_PATH", { mustExist: true }),
+      Env.fromProcess().path("OPENADT_TEST_PATH", { mustExist: true }),
     ).toBeUndefined();
     delete process.env.OPENADT_TEST_PATH;
   });

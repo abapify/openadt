@@ -14,9 +14,9 @@ export type AdtLscSpawnRuntime = {
 
 const LOCAL_CONFIG = join(homedir(), ".openadt", "local.openadt.toml");
 
-export type GetEnvOptions = {
-  required?: boolean;
+export type GetEnvStringOptions = {
   default?: string;
+  required?: boolean;
 };
 
 export type GetEnvIntOptions = {
@@ -28,59 +28,88 @@ export type GetEnvPathOptions = {
   mustExist?: boolean;
 };
 
-/** Read a string env var. `default` applies when unset or blank; `required` throws otherwise. */
-export function getEnv(
-  name: string,
-  opts: GetEnvOptions = {},
-): string | undefined {
-  const raw = process.env[name]?.trim();
-  if (raw) {
+/** Typed accessor over `NodeJS.ProcessEnv` (Windows keys are case-insensitive). */
+export class Env {
+  private readonly lookup: Map<string, string>;
+
+  static fromProcess(): Env {
+    return new Env({ ...process.env });
+  }
+
+  constructor(env: NodeJS.ProcessEnv) {
+    this.lookup = new Map();
+    for (const key of Object.keys(env)) {
+      this.lookup.set(key.toUpperCase(), key);
+    }
+    this.env = env;
+  }
+
+  private readonly env: NodeJS.ProcessEnv;
+
+  private existingKey(name: string): string {
+    return this.lookup.get(name.toUpperCase()) ?? name;
+  }
+
+  hasNonEmpty(name: string): boolean {
+    return Boolean(this.getTrimmed(name));
+  }
+
+  getTrimmed(name: string): string | undefined {
+    const key = this.lookup.get(name.toUpperCase());
+    const value = key === undefined ? undefined : this.env[key];
+    const trimmed = typeof value === "string" ? value.trim() : undefined;
+    return trimmed || undefined;
+  }
+
+  set(name: string, value: string): void {
+    this.env[this.existingKey(name)] = value;
+  }
+
+  /** Read a string env var. `default` applies when unset or blank; `required` throws otherwise. */
+  string(name: string, opts: GetEnvStringOptions = {}): string | undefined {
+    const raw = this.getTrimmed(name);
+    if (raw) {
+      return raw;
+    }
+    if (opts.default !== undefined) {
+      return opts.default;
+    }
+    if (opts.required) {
+      throw new Error(`Missing required env var ${name}`);
+    }
+    return undefined;
+  }
+
+  /** Parse an env var as an integer within `[min, max]`. Returns undefined when unset/blank. */
+  integer(name: string, opts: GetEnvIntOptions = {}): number | undefined {
+    const raw = this.getTrimmed(name);
+    if (!raw) {
+      return undefined;
+    }
+    const value = Number(raw);
+    if (!Number.isInteger(value)) {
+      throw new Error(`Env ${name}=${raw} is not an integer`);
+    }
+    if (opts.min !== undefined && value < opts.min) {
+      throw new Error(`Env ${name}=${value} below min ${opts.min}`);
+    }
+    if (opts.max !== undefined && value > opts.max) {
+      throw new Error(`Env ${name}=${value} above max ${opts.max}`);
+    }
+    return value;
+  }
+
+  /** Read a filesystem path env var; reject when `mustExist` and the path is absent. */
+  path(name: string, opts: GetEnvPathOptions = {}): string | undefined {
+    const raw = this.getTrimmed(name);
+    if (!raw) {
+      return undefined;
+    }
+    if (opts.mustExist && !existsSync(raw)) {
+      return undefined;
+    }
     return raw;
   }
-  if (opts.default !== undefined) {
-    return opts.default;
-  }
-  if (opts.required) {
-    throw new Error(`Missing required env var ${name}`);
-  }
-  return undefined;
-}
-
-/** Parse an env var as an integer within `[min, max]`. Returns undefined when unset/blank. */
-export function getEnvInt(
-  name: string,
-  opts: GetEnvIntOptions = {},
-): number | undefined {
-  const raw = process.env[name]?.trim();
-  if (!raw) {
-    return undefined;
-  }
-  const value = Number(raw);
-  if (!Number.isInteger(value)) {
-    throw new Error(`Env ${name}=${raw} is not an integer`);
-  }
-  if (opts.min !== undefined && value < opts.min) {
-    throw new Error(`Env ${name}=${value} below min ${opts.min}`);
-  }
-  if (opts.max !== undefined && value > opts.max) {
-    throw new Error(`Env ${name}=${value} above max ${opts.max}`);
-  }
-  return value;
-}
-
-/** Read a filesystem path env var; reject when `mustExist` and the path is absent. */
-export function getEnvPath(
-  name: string,
-  opts: GetEnvPathOptions = {},
-): string | undefined {
-  const raw = process.env[name]?.trim();
-  if (!raw) {
-    return undefined;
-  }
-  if (opts.mustExist && !existsSync(raw)) {
-    return undefined;
-  }
-  return raw;
 }
 
 /** Minimal TOML field read (avoid pulling full parser into launcher). */
@@ -138,7 +167,8 @@ export function buildAdtLscSpawnRuntime(
   }
 
   if (!env.SECUDIR?.trim()) {
-    for (const candidate of secudirCandidates()) {
+    const view = Env.fromProcess();
+    for (const candidate of secudirCandidates(view)) {
       if (isSecureLoginSecudir(candidate)) {
         env.SECUDIR = candidate;
         break;
@@ -161,9 +191,9 @@ export function isSecureLoginSecudir(candidate: string): boolean {
   return true;
 }
 
-function secudirCandidates(): string[] {
+function secudirCandidates(env: Env): string[] {
   const home = homedir();
-  const appData = getEnv("APPDATA", { default: "" });
+  const appData = env.string("APPDATA") ?? "";
   const candidates: string[] = [];
   if (appData) {
     candidates.push(join(appData, "SAP", "Common"));
@@ -181,7 +211,7 @@ export function ensureMinimalProcessEnv(
   if (process.platform !== "win32") {
     return env;
   }
-  const view = new CaseInsensitiveEnv(env);
+  const view = new Env(env);
   const home = homedir();
   ensureHomeProfile(view, home);
   ensureSystemRoot(view);
@@ -191,7 +221,7 @@ export function ensureMinimalProcessEnv(
   return env;
 }
 
-function ensureHomeProfile(view: CaseInsensitiveEnv, home: string): void {
+function ensureHomeProfile(view: Env, home: string): void {
   if (!view.hasNonEmpty("USERPROFILE")) {
     view.set("USERPROFILE", home);
   }
@@ -200,14 +230,14 @@ function ensureHomeProfile(view: CaseInsensitiveEnv, home: string): void {
   }
 }
 
-function ensureSystemRoot(view: CaseInsensitiveEnv): void {
+function ensureSystemRoot(view: Env): void {
   if (view.hasNonEmpty("SystemRoot") || view.hasNonEmpty("WINDIR")) {
     return;
   }
   view.set("SystemRoot", "C:\\Windows");
 }
 
-function ensureAppData(view: CaseInsensitiveEnv, home: string): void {
+function ensureAppData(view: Env, home: string): void {
   if (!view.hasNonEmpty("APPDATA")) {
     view.set("APPDATA", join(home, "AppData", "Roaming"));
   }
@@ -216,7 +246,7 @@ function ensureAppData(view: CaseInsensitiveEnv, home: string): void {
   }
 }
 
-function ensureTempDir(view: CaseInsensitiveEnv, home: string): string {
+function ensureTempDir(view: Env, home: string): string {
   const existing = view.getTrimmed("TEMP");
   if (existing) {
     return existing;
@@ -228,44 +258,11 @@ function ensureTempDir(view: CaseInsensitiveEnv, home: string): string {
   return temp;
 }
 
-function ensureTmpMirror(view: CaseInsensitiveEnv, temp: string): void {
+function ensureTmpMirror(view: Env, temp: string): void {
   if (view.hasNonEmpty("TMP")) {
     return;
   }
   view.set("TMP", temp);
-}
-
-/** Case-insensitive view over NodeJS.ProcessEnv (Windows env keys are case-insensitive). */
-class CaseInsensitiveEnv {
-  private readonly env: NodeJS.ProcessEnv;
-  private readonly keyByUpper: Map<string, string>;
-
-  constructor(env: NodeJS.ProcessEnv) {
-    this.env = env;
-    this.keyByUpper = new Map();
-    for (const key of Object.keys(env)) {
-      this.keyByUpper.set(key.toUpperCase(), key);
-    }
-  }
-
-  private existingKey(name: string): string {
-    return this.keyByUpper.get(name.toUpperCase()) ?? name;
-  }
-
-  hasNonEmpty(name: string): boolean {
-    return Boolean(this.getTrimmed(name));
-  }
-
-  getTrimmed(name: string): string | undefined {
-    const key = this.keyByUpper.get(name.toUpperCase());
-    const value = key === undefined ? undefined : this.env[key];
-    const trimmed = typeof value === "string" ? value.trim() : undefined;
-    return trimmed || undefined;
-  }
-
-  set(name: string, value: string): void {
-    this.env[this.existingKey(name)] = value;
-  }
 }
 
 function prependPath(env: NodeJS.ProcessEnv, dir: string): void {

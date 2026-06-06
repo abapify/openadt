@@ -32,13 +32,8 @@ function encodeNdjsonLine(body: string): Buffer {
   return Buffer.from(`${body.trim()}\n`, "utf8");
 }
 
-/**
- * Decode MCP stdio transport: bytes → JSON-RPC body strings.
- * Content-Length values are byte counts (UTF-8), not UTF-16 length.
- */
-export class McpFrameDecoder extends Transform {
-  private buffer = Buffer.alloc(0);
-
+/** Shared Transform lifecycle (try/catch + callback) for all MCP stdio decoders. */
+abstract class McpDecoder extends Transform {
   constructor() {
     super({ readableObjectMode: true });
   }
@@ -49,8 +44,7 @@ export class McpFrameDecoder extends Transform {
     callback: TransformCallback,
   ): void {
     try {
-      this.buffer = Buffer.concat([this.buffer, chunk]);
-      this.emitReadyFrames();
+      this.onChunk(chunk);
       callback();
     } catch (err) {
       callback(err instanceof Error ? err : new Error(String(err)));
@@ -59,18 +53,42 @@ export class McpFrameDecoder extends Transform {
 
   override _flush(callback: TransformCallback): void {
     try {
-      this.emitReadyFrames();
-      if (this.buffer.length > 0) {
-        callback(
-          new Error(
-            `Incomplete MCP frame (${this.buffer.length} trailing bytes after stdin end)`,
-          ),
-        );
-        return;
-      }
+      this.onEnd();
       callback();
     } catch (err) {
       callback(err instanceof Error ? err : new Error(String(err)));
+    }
+  }
+
+  protected abstract onChunk(chunk: Buffer): void;
+  protected abstract onEnd(): void;
+}
+
+/**
+ * Decode MCP stdio transport: bytes → JSON-RPC body strings.
+ * Content-Length values are byte counts (UTF-8), not UTF-16 length.
+ */
+export class McpFrameDecoder extends McpDecoder {
+  private buffer = Buffer.alloc(0);
+
+  protected override onChunk(chunk: Buffer): void {
+    this.buffer = Buffer.concat([this.buffer, chunk]);
+    this.processFrame(false);
+  }
+
+  protected override onEnd(): void {
+    this.processFrame(true);
+  }
+
+  private processFrame(flush: boolean): void {
+    this.emitReadyFrames();
+    if (!flush) {
+      return;
+    }
+    if (this.buffer.length > 0) {
+      throw new Error(
+        `Incomplete MCP frame (${this.buffer.length} trailing bytes after stdin end)`,
+      );
     }
   }
 
@@ -103,37 +121,24 @@ export class McpFrameDecoder extends Transform {
 }
 
 /** NDJSON lines or single JSON objects (Cursor agent CLI). */
-export class McpNdjsonDecoder extends Transform {
+export class McpNdjsonDecoder extends McpDecoder {
   private readonly utf8 = new TextDecoder("utf-8");
   private buffer = "";
 
-  constructor() {
-    super({ readableObjectMode: true });
+  protected override onChunk(chunk: Buffer): void {
+    this.buffer += this.utf8.decode(chunk, { stream: true });
+    this.processLines(false);
   }
 
-  override _transform(
-    chunk: Buffer,
-    _encoding: BufferEncoding,
-    callback: TransformCallback,
-  ): void {
-    try {
-      this.buffer += this.utf8.decode(chunk, { stream: true });
-      this.drainLines();
-      this.handleTrailing(false);
-      callback();
-    } catch (err) {
-      callback(err instanceof Error ? err : new Error(String(err)));
-    }
+  protected override onEnd(): void {
+    this.buffer += this.utf8.decode(new Uint8Array(0), { stream: false });
+    this.processLines(true);
   }
 
-  override _flush(callback: TransformCallback): void {
-    try {
-      this.buffer += this.utf8.decode(new Uint8Array(0), { stream: false });
-      this.drainLines();
-      this.handleTrailing(true);
-      callback();
-    } catch (err) {
-      callback(err instanceof Error ? err : new Error(String(err)));
+  private processLines(flush: boolean): void {
+    this.drainLines();
+    if (flush) {
+      this.handleTrailing();
     }
   }
 
@@ -159,19 +164,15 @@ export class McpNdjsonDecoder extends Transform {
   }
 
   /** After draining lines, decide what to do with whatever remains in the buffer. */
-  private handleTrailing(flush: boolean): void {
+  private handleTrailing(): void {
     const trimmed = this.buffer.trim();
+    this.buffer = "";
     if (!trimmed) {
-      this.buffer = "";
-      return;
-    }
-    if (!flush) {
       return;
     }
     if (trimmed.startsWith("{")) {
       this.assertValidJson(trimmed);
       this.push(trimmed);
-      this.buffer = "";
       return;
     }
     throw new Error(

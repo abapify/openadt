@@ -43,18 +43,21 @@ function resolveBun(): string {
 const PORT_MIN = 1024;
 const PORT_MAX = 65535;
 
+function validatePort(port: number, raw: string): number {
+  if (!Number.isInteger(port) || port < PORT_MIN || port > PORT_MAX) {
+    throw new Error(
+      `Invalid OPENADT_MCP_PORT=${raw} (expected integer ${PORT_MIN}-${PORT_MAX}); falling back to ephemeral.`,
+    );
+  }
+  return port;
+}
+
 async function pickMcpPort(): Promise<number> {
   const explicit = process.env.OPENADT_MCP_PORT?.trim();
-  if (explicit) {
-    const port = Number(explicit);
-    if (!Number.isInteger(port) || port < PORT_MIN || port > PORT_MAX) {
-      throw new Error(
-        `Invalid OPENADT_MCP_PORT=${explicit} (expected integer ${PORT_MIN}-${PORT_MAX}); falling back to ephemeral.`,
-      );
-    }
-    return port;
+  if (!explicit) {
+    return bindEphemeralPort();
   }
-  return bindEphemeralPort();
+  return validatePort(Number(explicit), explicit);
 }
 
 function bindEphemeralPort(): Promise<number> {
