@@ -124,7 +124,7 @@ bunx eslint .
 bash scripts/ci-codescene-delta.sh origin/<baseRefName> HEAD
 ```
 
-Both must be clean. If a refactor is needed, use the `codescene-fix` subagent (see the "Orchestrator self-instructions" § above).
+The strict gate must be clean. Treat `bunx eslint .` as advisory signal for broader cleanup, and fix any reported errors before merge.
 
 **Mental model:** design new code to 10.0 on the delta from the first push. Never inherit low-CC code into a small PR — split the refactor or suppress the affected deltas in CodeScene's UI before opening. **Stop after 3 pushes on the same branch per `/act` cycle** and report back.
 
