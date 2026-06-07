@@ -288,14 +288,14 @@ openadt mcp serve
 
 By default this listens on port `2236`. Flags:
 
-| Flag            | Default | Description                                                                       |
-| --------------- | ------- | --------------------------------------------------------------------------------- |
-| `--port`        | `2236`  | HTTP port for the MCP endpoint                                                    |
-| `--stdio`       | off     | stdio transport (JSON-RPC on stdin/stdout) for CLI agents; **shared by default**  |
+| Flag            | Default | Description                                                                      |
+| --------------- | ------- | -------------------------------------------------------------------------------- |
+| `--port`        | `2236`  | HTTP port for the MCP endpoint                                                   |
+| `--stdio`       | off     | stdio transport (JSON-RPC on stdin/stdout) for CLI agents; **shared by default** |
 | `--standalone`  | off     | With `--stdio`: own `adt-lsc`, kill on exit (monolithic path)                    |
-| `--destination` | —       | Pre-select a destination at startup                                               |
-| `--verbose`     | off     | LSP trace log → `~/.openadt/logs/mcp-serve.log`                                   |
-| `--show-token`  | off     | Print the Bearer token to stdout                                                  |
+| `--destination` | —       | Pre-select a destination at startup                                              |
+| `--verbose`     | off     | LSP trace log → `~/.openadt/logs/mcp-serve.log`                                  |
+| `--show-token`  | off     | Print the Bearer token to stdout                                                 |
 
 ```bash
 # HTTP mode — agent connects to http://localhost:2236/mcp

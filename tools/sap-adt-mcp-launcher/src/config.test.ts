@@ -1,9 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-  parseBridgeArgv,
-  parseServeArgv,
-  parseStopArgv,
-} from "./config.ts";
+import { parseBridgeArgv, parseServeArgv, parseStopArgv } from "./config.ts";
 
 describe("config", () => {
   describe("parseServeArgv", () => {

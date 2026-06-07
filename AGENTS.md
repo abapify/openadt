@@ -24,7 +24,7 @@ Product: `openadt fetch`, `openadt proxy` ([specs/vision.md](specs/vision.md)). 
 | Proxy                                             | [specs/proxy.md](specs/proxy.md)                                                                       |
 | Setup / detectors                                 | [specs/setup.md](specs/setup.md)                                                                       |
 | SDK usage                                         | [specs/sdk-capabilities.md](specs/sdk-capabilities.md), [specs/sdk-services.md](specs/sdk-services.md) |
-| **MCP / `adt-lsc` / stdio bridge / SAP HTTP MCP** | [specs/mcp.md](specs/mcp.md), [specs/mcp-shared-backend.md](specs/mcp-shared-backend.md) |
+| **MCP / `adt-lsc` / stdio bridge / SAP HTTP MCP** | [specs/mcp.md](specs/mcp.md), [specs/mcp-shared-backend.md](specs/mcp-shared-backend.md)               |
 | Packaging / releases                              | [specs/packaging.md](specs/packaging.md)                                                               |
 | Product scope                                     | [specs/vision.md](specs/vision.md)                                                                     |
 

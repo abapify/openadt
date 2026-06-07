@@ -14,12 +14,12 @@ OpenADT auto-ensures an MCP HTTP backend so multiple stdio agents attach without
 
 ## Modes
 
-| Mode           | CLI                          | Description                                              |
-| --------------- | ---------------------------- | ---------------------------------------------------------- |
-| `shared`       | `serve --stdio` (default)   | Ensure backend + attach stdio bridge; do NOT kill on exit  |
-| `standalone`   | `serve --stdio --standalone` | Own `adt-lsc`, kill on exit (legacy monolithic path)      |
-| `daemon`       | `serve` (HTTP-only)           | Detached HTTP backend for external HTTP MCP clients         |
-| `bridge`       | `bridge --stdio`            | Attach-only to existing backend; fail if none healthy  |
+| Mode         | CLI                          | Description                                               |
+| ------------ | ---------------------------- | --------------------------------------------------------- |
+| `shared`     | `serve --stdio` (default)    | Ensure backend + attach stdio bridge; do NOT kill on exit |
+| `standalone` | `serve --stdio --standalone` | Own `adt-lsc`, kill on exit (legacy monolithic path)      |
+| `daemon`     | `serve` (HTTP-only)          | Detached HTTP backend for external HTTP MCP clients       |
+| `bridge`     | `bridge --stdio`             | Attach-only to existing backend; fail if none healthy     |
 
 ---
 
@@ -48,11 +48,11 @@ Three-way probe:
 
 ## Port selection
 
-| Source                  | Port                           |
-| ----------------------- | ------------------------------ |
-| Default                | `2236`                         |
-| Override               | `--port` / `OPENADT_MCP_PORT`   |
-| **Auto-increment**     | If port busy (TCP bind fail or LSP `port-in-use` error): try N+1, then N+2, up to 65535, max 32 attempts |
+| Source             | Port                                                                                                     |
+| ------------------ | -------------------------------------------------------------------------------------------------------- |
+| Default            | `2236`                                                                                                   |
+| Override           | `--port` / `OPENADT_MCP_PORT`                                                                            |
+| **Auto-increment** | If port busy (TCP bind fail or LSP `port-in-use` error): try N+1, then N+2, up to 65535, max 32 attempts |
 
 ---
 
@@ -80,14 +80,14 @@ process.unref();
 
 ## Lock
 
-| Item               | Value                                                       |
-| ------------------ | ------------------------------------------------------------|
-| File               | `~/.openadt/mcp/ensure-<port>.lock`                       |
-| Create             | `fs.mkdirSync(dir, { recursive: true, mode: 0o700 })`     |
-| Exclusive          | `open(path, flags: "wx")` — fail if exists                  |
-| Waiter             | Poll endpoint store every 500ms until lock released      |
-| Timeout            | 360s (SAP logon)                                            |
-| Cleanup            | `fs.rmSync(lockFile)` on success or timeout               |
+| Item      | Value                                                 |
+| --------- | ----------------------------------------------------- |
+| File      | `~/.openadt/mcp/ensure-<port>.lock`                   |
+| Create    | `fs.mkdirSync(dir, { recursive: true, mode: 0o700 })` |
+| Exclusive | `open(path, flags: "wx")` — fail if exists            |
+| Waiter    | Poll endpoint store every 500ms until lock released   |
+| Timeout   | 360s (SAP logon)                                      |
+| Cleanup   | `fs.rmSync(lockFile)` on success or timeout           |
 
 ---
 
@@ -123,15 +123,15 @@ Thread B: wake → find healthy endpoint → attach
 
 ## Failure modes
 
-| Condition                  | Client-visible behavior                                    | Exit code |
-| -------------------------- | ----------------------------------------------------------- | -------- |
-| Extension missing         | JSON-RPC error; exit `1`                                   | 1        |
-| Logon timeout             | JSON-RPC error; stderr explains Secure Login               | 1        |
-| Port in use               | stderr message; exit `4`                                    | 4        |
-| Multiple active endpoints | stderr + mcp list message; exit `5`                           | 5        |
-| Ensure lock timeout      | stderr; exit `6`                                            | 6        |
-| Daemon spawn failed       | stderr; exit `7`                                            | 7        |
-| HTTP never ready         | JSON-RPC error on queued requests; exit `3`                 | 3        |
+| Condition                 | Client-visible behavior                      | Exit code |
+| ------------------------- | -------------------------------------------- | --------- |
+| Extension missing         | JSON-RPC error; exit `1`                     | 1         |
+| Logon timeout             | JSON-RPC error; stderr explains Secure Login | 1         |
+| Port in use               | stderr message; exit `4`                     | 4         |
+| Multiple active endpoints | stderr + mcp list message; exit `5`          | 5         |
+| Ensure lock timeout       | stderr; exit `6`                             | 6         |
+| Daemon spawn failed       | stderr; exit `7`                             | 7         |
+| HTTP never ready          | JSON-RPC error on queued requests; exit `3`  | 3         |
 
 ---
 
@@ -162,27 +162,27 @@ Thread B: wake → find healthy endpoint → attach
 
 ## CLI surface
 
-| Command / flag                    | Behavior                                                         |
-| --------------------------------- | ------------------------------------------------------------------ |
-| `mcp serve --stdio`               | Shared (ensure + bridge) — **new default**                        |
-| `mcp serve --stdio --standalone`  | Current monolithic path (owns `adt-lsc`, kills on exit)           |
-| `mcp serve`                       | HTTP-only daemon (unchanged; used as detached child)              |
-| `mcp stop [--port]`               | `stopTrackedMcpServers({ onlyPort })`; exit `0` if stopped/dead   |
-| `mcp bridge --stdio [--port]`      | Attach-only; fail if no healthy backend (tests / low-level)       |
+| Command / flag                   | Behavior                                                        |
+| -------------------------------- | --------------------------------------------------------------- |
+| `mcp serve --stdio`              | Shared (ensure + bridge) — **new default**                      |
+| `mcp serve --stdio --standalone` | Current monolithic path (owns `adt-lsc`, kills on exit)         |
+| `mcp serve`                      | HTTP-only daemon (unchanged; used as detached child)            |
+| `mcp stop [--port]`              | `stopTrackedMcpServers({ onlyPort })`; exit `0` if stopped/dead |
+| `mcp bridge --stdio [--port]`    | Attach-only; fail if no healthy backend (tests / low-level)     |
 
 ---
 
 ## Implementation map
 
-| Component              | Path                                                                       |
-| ---------------------- | -------------------------------------------------------------------------- |
-| CLI entry              | `apps/openadt-cli` → `McpServeCommand` → Bun launcher                        |
-| Launcher              | `tools/sap-adt-mcp-launcher/src/main.ts`                                     |
-| **Ensure module**     | `tools/sap-adt-mcp-launcher/src/ensure-backend.ts` (new)                   |
-| Stdio bridge           | `tools/sap-adt-mcp-launcher/src/stdio-proxy.ts`                              |
-| Stdio agent entry      | `scripts/mcp-stdio.ts` → `tools/sap-adt-mcp-launcher/src/mcp-stdio-entry.ts` |
-| Endpoint store        | `tools/sap-adt-mcp-launcher/src/endpoint-store.ts`                         |
-| Config parsing        | `tools/sap-adt-mcp-launcher/src/config.ts`                                 |
+| Component         | Path                                                                         |
+| ----------------- | ---------------------------------------------------------------------------- |
+| CLI entry         | `apps/openadt-cli` → `McpServeCommand` → Bun launcher                        |
+| Launcher          | `tools/sap-adt-mcp-launcher/src/main.ts`                                     |
+| **Ensure module** | `tools/sap-adt-mcp-launcher/src/ensure-backend.ts` (new)                     |
+| Stdio bridge      | `tools/sap-adt-mcp-launcher/src/stdio-proxy.ts`                              |
+| Stdio agent entry | `scripts/mcp-stdio.ts` → `tools/sap-adt-mcp-launcher/src/mcp-stdio-entry.ts` |
+| Endpoint store    | `tools/sap-adt-mcp-launcher/src/endpoint-store.ts`                           |
+| Config parsing    | `tools/sap-adt-mcp-launcher/src/config.ts`                                   |
 
 ---
 

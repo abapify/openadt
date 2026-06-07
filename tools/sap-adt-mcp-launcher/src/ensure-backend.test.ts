@@ -9,10 +9,7 @@ import {
   mcpRootDir,
   resolveAttachTarget,
 } from "./ensure-backend.ts";
-import {
-  type McpEndpointRecord,
-  writeEndpoint,
-} from "./endpoint-store.ts";
+import { type McpEndpointRecord, writeEndpoint } from "./endpoint-store.ts";
 
 let tempRoot: string;
 let previousRoot: string | undefined;
