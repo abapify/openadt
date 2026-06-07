@@ -23,7 +23,10 @@ import {
   stopTrackedMcpServers,
   writeEndpoint,
 } from "./endpoint-store.ts";
-import { ensureSharedBackend } from "./ensure-backend.ts";
+import {
+  ensureSharedBackend,
+  type EnsureSharedBackendResult,
+} from "./ensure-backend.ts";
 import { resolveDestinationImport } from "./gui-import.ts";
 import { createMcpLog, eclipseWorkspaceLogPath } from "./log.ts";
 import { isVsCodeAdtWorkspacePath, type WorkspacePath } from "./runtime-env.ts";
@@ -277,13 +280,6 @@ async function cmdServeStandalone(cfg: McpServeConfig): Promise<number> {
   );
   printImportNotices(cfg, gui);
 
-  const stopped = await stopTrackedMcpServers({ onlyPort: cfg.port });
-  if (stopped > 0 && !cfg.json) {
-    console.error(
-      `[openadt-mcp] Stopped ${stopped} previous MCP serve instance(s) on port ${cfg.port}.`,
-    );
-  }
-
   const log = createMcpLog({ verbose: cfg.verbose, logFile: cfg.logFile });
   logImportDiagnostics(log, gui, cfg);
 
@@ -294,23 +290,45 @@ async function cmdServeStandalone(cfg: McpServeConfig): Promise<number> {
     return failStdioAndExit(bridge, connectResult.exit, connectResult.message);
   }
   const { session } = connectResult;
-
-  // Read tools (adt_read_object / adt_search_objects) run over the LSP
-  // connection this process owns. In standalone stdio mode the bridge is
-  // co-located with the LSP session, so wire the backend directly. In daemon
-  // mode (shared backend, no --stdio) we expose it over a tiny HTTP endpoint the
-  // separate stdio bridge calls (see read-server.ts + cmdServeSharedStdio).
-  const readBackend = readEnabled()
-    ? new LspReadBackend(connectionRequester(session.connection))
-    : undefined;
+  const readBackend = buildStandaloneReadBackend(session);
   if (bridge && readBackend) {
     bridge.setReadBackend(readBackend);
   }
 
-  let endpointWritten = false;
-  let endpointPort: number | undefined;
+  return runStandaloneServeOrFail({
+    bridge,
+    session,
+    readBackend,
+    cfg,
+    gui,
+    log,
+    token,
+    install,
+  });
+}
+
+function buildStandaloneReadBackend(
+  session: LspSession,
+): LspReadBackend | undefined {
+  if (!readEnabled()) return undefined;
+  return new LspReadBackend(connectionRequester(session.connection));
+}
+
+async function runStandaloneServeOrFail(input: {
+  bridge: StdioMcpBridge | undefined;
+  session: LspSession;
+  readBackend: LspReadBackend | undefined;
+  cfg: McpServeConfig;
+  gui: ReturnType<typeof resolveDestinationImport>;
+  log: ReturnType<typeof createMcpLog>;
+  token: string;
+  install: NonNullable<ReturnType<typeof locateAdtLs>>;
+}): Promise<number> {
+  const { bridge, session, readBackend, cfg, gui, log, token, install } = input;
   let auxServer: ReadAuxServer | undefined;
+  let endpointPort: number | undefined;
   try {
+    await stopPreviousServe(cfg);
     const result = await runStandaloneServe({
       bridge,
       session,
@@ -321,16 +339,24 @@ async function cmdServeStandalone(cfg: McpServeConfig): Promise<number> {
       token,
       install,
     });
-    endpointPort = result.endpointPort;
     auxServer = result.auxServer;
-    endpointWritten = true;
+    endpointPort = result.endpointPort;
     return result.exit;
   } catch (err) {
     return failServeError(bridge, cfg, err);
   } finally {
     auxServer?.stop();
-    await shutdown(session, endpointPort, endpointWritten);
+    await shutdown(session, endpointPort, endpointPort !== undefined);
     log?.dispose();
+  }
+}
+
+async function stopPreviousServe(cfg: McpServeConfig): Promise<void> {
+  const stopped = await stopTrackedMcpServers({ onlyPort: cfg.port });
+  if (stopped > 0 && !cfg.json) {
+    console.error(
+      `[openadt-mcp] Stopped ${stopped} previous MCP serve instance(s) on port ${cfg.port}.`,
+    );
   }
 }
 
@@ -405,21 +431,7 @@ async function cmdServeSharedStdio(cfg: McpServeConfig): Promise<number> {
     (a) => a !== "--stdio" && a !== "--standalone",
   );
 
-  // --restart: stop the existing shared daemon so ensureSharedBackend spawns a
-  // fresh one (picks up new code / new tools). Restarting only the stdio bridge
-  // re-attaches to the same daemon, which is why a flag is needed here.
-  if (cfg.restart) {
-    const stopped = await stopTrackedMcpServers({
-      onlyPort: cfg.explicitPort ? cfg.port : undefined,
-    });
-    if (!cfg.json) {
-      console.error(
-        stopped > 0
-          ? `[openadt-mcp] --restart: stopped ${stopped} backend(s); spawning a fresh one.`
-          : `[openadt-mcp] --restart: no running backend to stop; spawning fresh.`,
-      );
-    }
-  }
+  await maybeRestartSharedDaemon(cfg);
 
   try {
     const ensured = await ensureSharedBackend({
@@ -430,29 +442,48 @@ async function cmdServeSharedStdio(cfg: McpServeConfig): Promise<number> {
       preferredPort: cfg.explicitPort ? cfg.port : undefined,
       serveArgs,
     });
-
-    if (!cfg.json) {
-      console.error(
-        `[openadt-mcp] Attached to shared backend at ${ensured.url}`,
-      );
-    }
-
-    // Wire read tools to the daemon's LSP-backed read endpoint (Option A). The
-    // bridge has no LSP of its own; the daemon does. Absent on old daemons.
-    if (readEnabled() && ensured.record.auxUrl && ensured.record.auxToken) {
-      bridge.setReadBackend(
-        new HttpReadBackend(ensured.record.auxUrl, ensured.record.auxToken),
-      );
-    } else if (readEnabled() && !cfg.json) {
-      console.error(
-        "[openadt-mcp] read tools unavailable (daemon has no read endpoint; restart the backend with: openadt mcp stop)",
-      );
-    }
-
+    announceSharedAttach(cfg, ensured.url);
+    wireReadBackendFromDaemon(cfg, bridge, ensured);
     await bridge.run(McpHttpEndpoint.forConfig(ensured.port, ensured.token));
     return EXIT_OK;
   } catch (err) {
     return exitCodeForEnsureError(err, bridge);
+  }
+}
+
+async function maybeRestartSharedDaemon(cfg: McpServeConfig): Promise<void> {
+  if (!cfg.restart) return;
+  const stopped = await stopTrackedMcpServers({
+    onlyPort: cfg.explicitPort ? cfg.port : undefined,
+  });
+  if (cfg.json) return;
+  console.error(
+    stopped > 0
+      ? `[openadt-mcp] --restart: stopped ${stopped} backend(s); spawning a fresh one.`
+      : `[openadt-mcp] --restart: no running backend to stop; spawning fresh.`,
+  );
+}
+
+function announceSharedAttach(cfg: McpServeConfig, url: string): void {
+  if (cfg.json) return;
+  console.error(`[openadt-mcp] Attached to shared backend at ${url}`);
+}
+
+function wireReadBackendFromDaemon(
+  cfg: McpServeConfig,
+  bridge: StdioMcpBridge,
+  ensured: { record: EnsureSharedBackendResult["record"] },
+): void {
+  const auxUrl = ensured.record.auxUrl;
+  const auxToken = ensured.record.auxToken;
+  if (readEnabled() && auxUrl && auxToken) {
+    bridge.setReadBackend(new HttpReadBackend(auxUrl, auxToken));
+    return;
+  }
+  if (readEnabled() && !cfg.json) {
+    console.error(
+      "[openadt-mcp] read tools unavailable (daemon has no read endpoint; restart the backend with: openadt mcp stop)",
+    );
   }
 }
 
