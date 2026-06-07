@@ -11,6 +11,9 @@ import { basename, join, relative } from "node:path";
 const PLAN_DIR_PREFIX = ".cursor/plans/";
 const PLAN_ID_MARKER = "openadt-plan-id";
 const CATEGORY_LABEL = "cursor-plan";
+/** GitHub label names: max 50 chars; avoid `/` and `:` (break issue search filters). */
+const PLAN_LABEL_PREFIX = "plan-id-";
+const MAX_GITHUB_LABEL_LENGTH = 50;
 
 export type PlanTodo = {
   id: string;
@@ -56,7 +59,18 @@ export function planIdFromRelPath(relPath: string): string {
 }
 
 export function planLabelForId(planId: string): string {
-  return `plan-id/${planId}`;
+  const slug = planId
+    .replace(/[^a-zA-Z0-9_-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+  let label = `${PLAN_LABEL_PREFIX}${slug}`;
+  if (label.length <= MAX_GITHUB_LABEL_LENGTH) {
+    return label;
+  }
+  const hash = Bun.hash(slug).toString(16).slice(0, 8);
+  const headLength =
+    MAX_GITHUB_LABEL_LENGTH - PLAN_LABEL_PREFIX.length - hash.length - 1;
+  return `${PLAN_LABEL_PREFIX}${slug.slice(0, headLength)}-${hash}`;
 }
 
 function unquoteYamlScalar(raw: string): string {
@@ -217,16 +231,17 @@ async function ensureLabel(
 async function findOpenIssueForPlan(
   octokit: Octokit,
   repo: GitHubRepo,
-  planLabel: string,
+  planId: string,
 ): Promise<{ number: number } | undefined> {
-  const { data: issues } = await octokit.rest.issues.listForRepo({
-    owner: repo.owner,
-    repo: repo.repo,
-    state: "open",
-    labels: `${CATEGORY_LABEL},${planLabel}`,
+  const { data } = await octokit.rest.search.issuesAndPullRequests({
+    q: `repo:${repo.owner}/${repo.repo} is:issue is:open in:body "${PLAN_ID_MARKER}: ${planId}"`,
     per_page: 1,
   });
-  return issues[0];
+  const issue = data.items[0];
+  if (!issue) {
+    return undefined;
+  }
+  return { number: issue.number };
 }
 
 async function syncPlanFile(options: {
@@ -277,7 +292,7 @@ async function syncPlanFile(options: {
   await ensureLabel(octokit, options.repo, CATEGORY_LABEL, "5319e7");
   await ensureLabel(octokit, options.repo, planLabel, "0e8a16");
 
-  const existing = await findOpenIssueForPlan(octokit, options.repo, planLabel);
+  const existing = await findOpenIssueForPlan(octokit, options.repo, planId);
 
   if (existing) {
     console.log(

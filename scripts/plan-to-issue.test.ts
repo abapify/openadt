@@ -29,10 +29,16 @@ describe("planIdFromRelPath", () => {
 });
 
 describe("planLabelForId", () => {
-  test("uses stable plan-id label", () => {
+  test("uses filter-safe plan-id label without slashes", () => {
     expect(planLabelForId("mcp_shared_backend_en_5e8e195f")).toBe(
-      "plan-id/mcp_shared_backend_en_5e8e195f",
+      "plan-id-mcp_shared_backend_en_5e8e195f",
     );
+  });
+
+  test("truncates long plan ids to GitHub 50-char label limit", () => {
+    const longId = "a".repeat(60);
+    expect(planLabelForId(longId).length).toBeLessThanOrEqual(50);
+    expect(planLabelForId(longId).startsWith("plan-id-")).toBe(true);
   });
 });
 
