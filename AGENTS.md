@@ -82,11 +82,56 @@ Index: [.agents/skills/README.md](.agents/skills/README.md).
 2. **Fixtures only** in git: `DEV`, `dev-ms.example.com`. No SAP jars, no real landscape.
 3. **Host OS owns JCo natives** — run `./dev-openadt` from a clone (not bare `openadt` in the repo root on Windows CMD); see `openadt-devcontainer-host-runtime` skill.
 4. **`tmp/`** for scratch and local SAP research; redact secrets in logs — mirror any product contract into `specs/` before code changes.
+5. **Never pin models in agent configs** — let the agent inherit the active plan's default. A pinned `model` field in `kilo.jsonc` or per-agent overrides routes every invocation to the named provider, even if the user's plan is on a different/cheaper tier. This burns tokens against a balance the user did not intend. Drop the field; the active plan wins.
+6. **Always-loaded instructions go in `AGENTS.md`** (root or per-subdir), or `CLAUDE.md` / `CONTEXT.md`. `kilo.jsonc`'s `instructions` array also works but is one extra hop. Do not put orchestrator self-instructions in undocumented locations like `.kilo/rules/*.md` that are not in Kilo's recognized auto-load list.
+
+## Orchestrator self-instructions (PR work, multi-step tasks)
+
+These apply when orchestrating `/act` or any multi-step PR workflow. Inline with the cloud-agent `act` skill.
+
+- **PR head discovery** — before any push, run `gh pr view N --json headRefName,baseRefName,headRefOid`. `gh pr checkout N` creates a local `pr-NN` branch tracking `origin/pr-NN`; that is **not** the PR's actual source branch. Push to `origin/<headRefName>` and verify `git rev-parse HEAD == gh pr view N --json headRefOid`.
+- **CI is the source of truth** — `bash scripts/ci-codescene-delta.sh <base> HEAD` locally is a smell-check. The gate is `gh pr checks N` on the current SHA. If a sibling agent claims "verify passed", re-run the gate on the **current** HEAD before declaring merge-ready.
+- **Batch independent reads in one turn** — multiple `read`/`glob`/`grep`; multiple `task` calls. Bound parallel fan-out to 3–5 subagents per turn.
+- **Subagent choice** — `explore` for read-only research; `general` for multi-step work with writes. Never spawn `general` for a read-only question. Pass file paths, not topics; specify return format.
+- **3-push limit** — after 3 pushes on the same branch per `/act` cycle, stop and report back.
+- **Scratch in `/tmp/agent_*/`** — never in the worktree root. The `nx format:write --uncommitted` pre-commit hook re-stages whatever sits there.
+- **macOS portability** — `gsed`/`gdate` on Darwin; `sed`/`date` on Linux. Detect once via `uname -s`.
+- **Design to 10.0 on the CodeScene delta** — target function CC ≤ 6 (hard cap 9); group args at 4+; extract method at 2+ cohesive blocks at depth ≥ 2; extract predicate at 2+ logical operators. Never inherit low-CC code into a small PR — split the refactor or suppress deltas in the CodeScene UI first.
+
+## Code Health (CodeScene) — write clean-by-default
+
+The CI gate at [`.github/workflows/codescene-delta.yml`](.github/workflows/codescene-delta.yml) runs `cs delta origin/<base> HEAD --error-on-warnings` on every PR. Code-writing agents must clear it on the first push, not chase it across three.
+
+**Design-time ceilings** (from the default TS/JS CodeScene rules, mirrored in [`eslint.config.mjs`](eslint.config.mjs) for the `scripts/` and `.agents/skills/` tiers):
+
+- Function cyclomatic complexity ≤ 9, file mean CC ≤ 4.
+- Function LoC ≤ 70, file LoC ≤ 1000.
+- Nesting depth ≤ 4; Bumpy Road bumps ≤ 2 (depth ≥ 2).
+- Complex Conditional branches ≤ 2.
+- Function arguments ≤ 4; constructor arguments ≤ 5.
+- Primitive-arg % in a TS file ≤ 30.
+- Duplication: ≥ 10 LoC @ ≥ 75 % similarity.
+- Test suites: ≤ 3 large assertion blocks.
+
+**Before any commit**, run:
+
+```bash
+# Strict gate on code-writing hot paths (0 errors, 0 warnings).
+bunx eslint scripts/ .agents/skills/ --max-warnings 0
+# Advisory on the rest of the TS surface (errors fail, warnings are visible).
+bunx eslint .
+# CodeScene delta — must match what CI does.
+bash scripts/ci-codescene-delta.sh origin/<baseRefName> HEAD
+```
+
+Both must be clean. If a refactor is needed, use the `codescene-fix` subagent (see the "Orchestrator self-instructions" § above).
+
+**Mental model:** design new code to 10.0 on the delta from the first push. Never inherit low-CC code into a small PR — split the refactor or suppress the affected deltas in CodeScene's UI before opening. **Stop after 3 pushes on the same branch per `/act` cycle** and report back.
 
 ## Verify (before PR)
 
 ```bash
-bunx eslint . --max-warnings 0
+bunx eslint scripts/ .agents/skills/ --max-warnings 0
 bun scripts/verify-spec-sync.ts
 bun scripts/verify-package-docs.ts
 ./mvnw -q verify -Pdistribution
