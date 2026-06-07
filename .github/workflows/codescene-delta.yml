@@ -1,18 +1,30 @@
-# CodeScene CLI delta on pull requests — log output, job red on findings.
+# CodeScene CLI delta — manual trigger only.
 # Uses codescene/codescene-mcp Docker image (embedded cs CLI; no downloads.codescene.io at runtime).
 # Complements the CodeScene GitHub App (suppress links, quality-gate profile in codescene.io).
-# Secret: CS_ACCESS_TOKEN — abapify org secret (not repo-level; same as refactoring-agent.yml)
+#
+# Why manual: CS_ACCESS_TOKEN is an org secret that is not reliably exposed to bots/
+# PRs gated by branch protection rules. Triggering manually guarantees the actor has
+# permission to use the secret. Also avoids flaky 403s from downloads.codescene.io
+# that occur on cold runners.
+#
+# Secret: CS_ACCESS_TOKEN — abapify org secret (same as refactoring-agent.yml)
+# PAT: https://codescene.io/users/me/pat
 name: CodeScene delta
 
 on:
-  pull_request:
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: "Base ref to compare against (e.g. origin/main, main, develop)"
+        required: true
+        default: "origin/main"
+      head_ref:
+        description: "Head ref to analyse (default: HEAD)"
+        required: false
+        default: "HEAD"
 
 permissions:
   contents: read
-
-concurrency:
-  group: codescene-delta-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
 
 jobs:
   delta:
@@ -35,4 +47,4 @@ jobs:
       - name: Delta analysis
         env:
           CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
-        run: bash scripts/ci-codescene-delta.sh "${{ github.base_ref }}" HEAD
+        run: bash scripts/ci-codescene-delta.sh "${{ inputs.base_ref }}" "${{ inputs.head_ref }}"

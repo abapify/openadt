@@ -51,6 +51,7 @@ Workflow detail: [openadt-sdd skill](.agents/skills/openadt-sdd/SKILL.md).
 | Skill                               | Path                                                                                                                   | When                              |
 | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
 | `act`                               | [.agents/skills/act/SKILL.md](.agents/skills/act/SKILL.md)                                                             | `/act` on a PR                    |
+| `codescene`                         | [.agents/skills/codescene/SKILL.md](.agents/skills/codescene/SKILL.md)                                                 | CodeScene CI, CLI, token, Docker  |
 | `memory-bank`                       | [.agents/skills/memory-bank/SKILL.md](.agents/skills/memory-bank/SKILL.md)                                             | `/remember` — agent memory        |
 | `retrospect`                        | [.agents/skills/retrospect/SKILL.md](.agents/skills/retrospect/SKILL.md)                                               | `/retrospect` — reflect + backlog |
 | `backlog`                           | [.agents/skills/backlog/SKILL.md](.agents/skills/backlog/SKILL.md)                                                     | action items                      |
@@ -100,7 +101,7 @@ These apply when orchestrating `/act` or any multi-step PR workflow. Inline with
 
 ## Code Health (CodeScene) — write clean-by-default
 
-The CI gate at [`.github/workflows/codescene-delta.yml`](.github/workflows/codescene-delta.yml) runs `cs delta origin/<base> HEAD --error-on-warnings` on every PR. Code-writing agents must clear it on the first push, not chase it across three.
+The CodeScene GitHub App runs "Delta Analysis" and "Code Health Review (main)" automatically on PRs. The CLI-based delta workflow (`.github/workflows/codescene-delta.yml`) is **manual-only** (`workflow_dispatch`) — `CS_ACCESS_TOKEN` is an org secret that is not reliably available to bots under branch protection. Trigger it manually when the App output needs reproducing or deeper investigation.
 
 **Design-time ceilings** (from the default TS/JS CodeScene rules, mirrored in [`eslint.config.mjs`](eslint.config.mjs) for the `scripts/` and `.agents/skills/` tiers):
 
