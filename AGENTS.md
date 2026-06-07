@@ -128,6 +128,41 @@ The strict gate must be clean. Treat `bunx eslint .` as advisory signal for broa
 
 **Mental model:** design new code to 10.0 on the delta from the first push. Never inherit low-CC code into a small PR — split the refactor or suppress the affected deltas in CodeScene's UI before opening. **Stop after 3 pushes on the same branch per `/act` cycle** and report back.
 
+## Code Health (CodeScene) — write clean-by-default
+
+The CI gate at [`.github/workflows/codescene-delta.yml`](.github/workflows/codescene-delta.yml)
+runs `cs delta origin/<base> HEAD --error-on-warnings` on every PR. Code-writing
+agents must clear it on the first push, not chase it across three.
+
+**Design-time ceilings** (from `.codescene/code-health-rules.json`):
+
+- Function cyclomatic complexity ≤ 9, file mean CC ≤ 4.
+- Function LoC ≤ 70, file LoC ≤ 1000.
+- Nesting depth ≤ 4; Bumpy Road bumps ≤ 2 (depth ≥ 2).
+- Complex Conditional branches ≤ 2.
+- Function arguments ≤ 4; constructor arguments ≤ 5.
+- Primitive-arg % in a TS file ≤ 30.
+- Duplication: ≥ 10 LoC @ ≥ 75 % similarity.
+- Test suites: ≤ 3 large assertion blocks.
+
+**Before any commit**, run:
+
+```bash
+bunx eslint . --max-warnings 0
+bash scripts/ci-codescene-delta.sh origin/<baseRef> HEAD
+```
+
+Both must be clean. If a refactor is needed, load
+[`.agents/skills/openadt-codescene/SKILL.md`](.agents/skills/openadt-codescene/SKILL.md)
+first. The full contract is in
+[`docs/codescene.md`](docs/codescene.md).
+
+**Mental model:** design new code to 10.0 on the delta from the first push.
+Never inherit low-CC code into a small PR — either split the refactor into
+its own PR or suppress the deltas in CodeScene's UI before opening.
+
+**Stop after 3 pushes on the same branch per `/act` cycle** and report back.
+
 ## Verify (before PR)
 
 ```bash
