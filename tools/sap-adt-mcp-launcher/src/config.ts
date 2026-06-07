@@ -307,6 +307,25 @@ function isValidPort(value: number): boolean {
   return Number.isFinite(value) && value >= 1 && value <= 65535;
 }
 
+/** Read `--port` / `--port=N` from argv, or undefined if absent. */
+function readPortFlag(
+  argv: string[],
+  i: number,
+): { value: number; next: number } | undefined {
+  const arg = argv[i]!;
+  if (arg === "--port" && i + 1 < argv.length) {
+    return { value: Number(argv[i + 1]), next: i + 2 };
+  }
+  if (arg.startsWith("--port=")) {
+    return { value: Number(arg.slice("--port=".length)), next: i + 1 };
+  }
+  return undefined;
+}
+
+function isJsonFlag(arg: string): boolean {
+  return arg === "--json";
+}
+
 export function parseStatusArgv(argv: string[]): {
   port?: number;
   token?: string;
@@ -318,20 +337,18 @@ export function parseStatusArgv(argv: string[]): {
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
-    if (arg === "--json") {
+    if (isJsonFlag(arg)) {
       json = true;
       continue;
     }
-    if (arg === "--port" && i + 1 < argv.length) {
-      port = Number(argv[++i]!);
-      continue;
-    }
-    if (arg.startsWith("--port=")) {
-      port = Number(arg.slice("--port=".length));
+    const portFlag = readPortFlag(argv, i);
+    if (portFlag) {
+      port = portFlag.value;
+      i = portFlag.next - 1;
       continue;
     }
     if (arg === "--token" && i + 1 < argv.length) {
-      token = argv[++i]!;
+      token = argv[++i];
       continue;
     }
     if (arg.startsWith("--token=")) {
@@ -356,16 +373,14 @@ export function parsePrintConfigArgv(argv: string[]): {
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
-    if (arg === "--json") {
+    if (isJsonFlag(arg)) {
       json = true;
       continue;
     }
-    if (arg === "--port" && i + 1 < argv.length) {
-      port = Number(argv[++i]!);
-      continue;
-    }
-    if (arg.startsWith("--port=")) {
-      port = Number(arg.slice("--port=".length));
+    const portFlag = readPortFlag(argv, i);
+    if (portFlag) {
+      port = portFlag.value;
+      i = portFlag.next - 1;
       continue;
     }
   }
@@ -390,16 +405,14 @@ export function parseStopArgv(argv: string[]): {
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
-    if (arg === "--json") {
+    if (isJsonFlag(arg)) {
       json = true;
       continue;
     }
-    if (arg === "--port" && i + 1 < argv.length) {
-      port = Number(argv[++i]!);
-      continue;
-    }
-    if (arg.startsWith("--port=")) {
-      port = Number(arg.slice("--port=".length));
+    const portFlag = readPortFlag(argv, i);
+    if (portFlag) {
+      port = portFlag.value;
+      i = portFlag.next - 1;
       continue;
     }
   }
@@ -422,7 +435,7 @@ export function parseBridgeArgv(argv: string[]): {
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
-    if (arg === "--json") {
+    if (isJsonFlag(arg)) {
       json = true;
       continue;
     }
@@ -430,12 +443,10 @@ export function parseBridgeArgv(argv: string[]): {
       stdio = true;
       continue;
     }
-    if (arg === "--port" && i + 1 < argv.length) {
-      port = Number(argv[++i]!);
-      continue;
-    }
-    if (arg.startsWith("--port=")) {
-      port = Number(arg.slice("--port=".length));
+    const portFlag = readPortFlag(argv, i);
+    if (portFlag) {
+      port = portFlag.value;
+      i = portFlag.next - 1;
       continue;
     }
   }

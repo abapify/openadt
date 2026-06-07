@@ -178,13 +178,8 @@ export function pickReference(
   name: string,
   type?: string,
 ): { match: AdtObjectReference } | { candidates: AdtObjectReference[] } {
-  const byType = type
-    ? refs.filter((r) => r.type?.toUpperCase() === type.toUpperCase())
-    : refs;
-  const pool = byType.length > 0 ? byType : refs;
-  const exact = pool.filter(
-    (r) => r.name?.toUpperCase() === name.toUpperCase(),
-  );
+  const pool = poolForType(refs, type);
+  const exact = exactNameMatches(pool, name);
   if (exact.length === 1) {
     return { match: exact[0]! };
   }
@@ -192,6 +187,25 @@ export function pickReference(
     return { match: pool[0]! };
   }
   return { candidates: exact.length > 0 ? exact : pool };
+}
+
+/** Narrow `refs` to those whose `type` matches (uppercased). Fall back to `refs` when no type or none match. */
+function poolForType(
+  refs: AdtObjectReference[],
+  type: string | undefined,
+): AdtObjectReference[] {
+  if (!type) return refs;
+  const target = type.toUpperCase();
+  const filtered = refs.filter((r) => r.type?.toUpperCase() === target);
+  return filtered.length > 0 ? filtered : refs;
+}
+
+function exactNameMatches(
+  refs: AdtObjectReference[],
+  name: string,
+): AdtObjectReference[] {
+  const target = name.toUpperCase();
+  return refs.filter((r) => r.name?.toUpperCase() === target);
 }
 
 // ---- backend abstraction (transport-agnostic) ------------------------------

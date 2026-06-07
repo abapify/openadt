@@ -8,10 +8,8 @@ function isRepoRoot(path: string): boolean {
 /** Resolve openadt clone root for dev-openadt / openadt-dev.exe (works when compiled). */
 export function resolveOpenadtDevRoot(): string {
   for (const key of ["OPENADT_DEV_ROOT", "OPENADT_REPO"] as const) {
-    const raw = process.env[key]?.trim();
-    if (raw && isRepoRoot(raw)) {
-      return raw;
-    }
+    const fromEnv = resolveFromEnv(key);
+    if (fromEnv) return fromEnv;
   }
 
   const fromSource = join(import.meta.dir, "..");
@@ -19,14 +17,8 @@ export function resolveOpenadtDevRoot(): string {
     return fromSource;
   }
 
-  const hintPath = join(dirname(process.execPath), "openadt-dev.root");
-  if (existsSync(hintPath)) {
-    const raw = readFileSync(hintPath, "utf8").trim();
-    if (raw && isRepoRoot(raw)) {
-      process.env.OPENADT_DEV_ROOT = raw;
-      return raw;
-    }
-  }
+  const fromHint = resolveFromHintFile();
+  if (fromHint) return fromHint;
 
   console.error(
     "openadt-dev: cannot find the openadt clone.\n" +
@@ -34,4 +26,20 @@ export function resolveOpenadtDevRoot(): string {
       "  .\\scripts\\install-openadt-dev.ps1",
   );
   process.exit(1);
+}
+
+function resolveFromEnv(
+  key: "OPENADT_DEV_ROOT" | "OPENADT_REPO",
+): string | undefined {
+  const raw = process.env[key]?.trim();
+  return raw && isRepoRoot(raw) ? raw : undefined;
+}
+
+function resolveFromHintFile(): string | undefined {
+  const hintPath = join(dirname(process.execPath), "openadt-dev.root");
+  if (!existsSync(hintPath)) return undefined;
+  const raw = readFileSync(hintPath, "utf8").trim();
+  if (!raw || !isRepoRoot(raw)) return undefined;
+  process.env.OPENADT_DEV_ROOT = raw;
+  return raw;
 }

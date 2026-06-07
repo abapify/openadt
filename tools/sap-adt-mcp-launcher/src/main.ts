@@ -474,17 +474,30 @@ function wireReadBackendFromDaemon(
   bridge: StdioMcpBridge,
   ensured: { record: EnsureSharedBackendResult["record"] },
 ): void {
-  const auxUrl = ensured.record.auxUrl;
-  const auxToken = ensured.record.auxToken;
-  if (readEnabled() && auxUrl && auxToken) {
-    bridge.setReadBackend(new HttpReadBackend(auxUrl, auxToken));
+  if (!readEnabled()) return;
+  const http = httpReadBackendFor(ensured.record);
+  if (http) {
+    bridge.setReadBackend(http);
     return;
   }
-  if (readEnabled() && !cfg.json) {
-    console.error(
-      "[openadt-mcp] read tools unavailable (daemon has no read endpoint; restart the backend with: openadt mcp stop)",
-    );
+  warnReadToolsUnavailable(cfg);
+}
+
+function httpReadBackendFor(
+  record: EnsureSharedBackendResult["record"],
+): HttpReadBackend | undefined {
+  const { auxUrl, auxToken } = record;
+  if (auxUrl && auxToken) {
+    return new HttpReadBackend(auxUrl, auxToken);
   }
+  return undefined;
+}
+
+function warnReadToolsUnavailable(cfg: McpServeConfig): void {
+  if (cfg.json) return;
+  console.error(
+    "[openadt-mcp] read tools unavailable (daemon has no read endpoint; restart the backend with: openadt mcp stop)",
+  );
 }
 
 /** Map an `ensureSharedBackend` error code to the corresponding CLI exit code. */

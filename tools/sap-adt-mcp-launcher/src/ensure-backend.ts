@@ -244,19 +244,24 @@ async function waitForHealthyRecord(
 ): Promise<McpEndpointRecord | undefined> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const result = await findHealthyEndpoint(port);
-    if (result.status === "one") {
-      return result.record;
-    }
-    if (result.status === "ambiguous") {
-      // Multiple records (different pids) — wait for one to die or for our
-      // own record to appear. Prefer the matching port.
-      const matching = result.records.find((r) => r.port === port);
-      if (matching) {
-        return matching;
-      }
-    }
+    const found = await probeHealthyRecord(port);
+    if (found) return found;
     await sleep(HEALTHY_PROBE_INTERVAL_MS);
+  }
+  return undefined;
+}
+
+async function probeHealthyRecord(
+  port: number,
+): Promise<McpEndpointRecord | undefined> {
+  const result = await findHealthyEndpoint(port);
+  if (result.status === "one") {
+    return result.record;
+  }
+  if (result.status === "ambiguous") {
+    // Multiple records (different pids) — wait for one to die or for our
+    // own record to appear. Prefer the matching port.
+    return result.records.find((r) => r.port === port);
   }
   return undefined;
 }

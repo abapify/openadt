@@ -28,30 +28,36 @@ function resolveRepoRoot(): string {
 }
 
 function resolveLauncher(): { runtime: string; launcher: string } {
+  const built = findExistingBuiltLauncher();
+  if (built) return { runtime: resolveBun(), launcher: built };
+  const fromRepo = findExistingRepoLauncher();
+  if (fromRepo) return { runtime: resolveBun(), launcher: fromRepo };
+  return { runtime: resolveBun(), launcher: defaultRepoLauncher() };
+}
+
+function findExistingBuiltLauncher(): string | undefined {
   for (const ext of [".mjs", ".js"]) {
     const built = join(here, `main${ext}`);
-    if (existsSync(built)) {
-      return { runtime: resolveBun(), launcher: built };
-    }
+    if (existsSync(built)) return built;
   }
+  return undefined;
+}
+
+function findExistingRepoLauncher(): string | undefined {
   const repoRoot = resolveRepoRoot();
   for (const rel of [
     join("tools", "sap-adt-mcp-launcher", "dist", "main.mjs"),
     join("tools", "sap-adt-mcp-launcher", "src", "main.ts"),
   ]) {
     const candidate = join(repoRoot, rel);
-    if (existsSync(candidate)) {
-      return { runtime: resolveBun(), launcher: candidate };
-    }
+    if (existsSync(candidate)) return candidate;
   }
-  const srcMain = join(
-    repoRoot,
-    "tools",
-    "sap-adt-mcp-launcher",
-    "src",
-    "main.ts",
-  );
-  return { runtime: resolveBun(), launcher: srcMain };
+  return undefined;
+}
+
+function defaultRepoLauncher(): string {
+  const repoRoot = resolveRepoRoot();
+  return join(repoRoot, "tools", "sap-adt-mcp-launcher", "src", "main.ts");
 }
 
 function resolveBun(): string {
