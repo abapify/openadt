@@ -86,6 +86,7 @@ Index: [.agents/skills/README.md](.agents/skills/README.md).
 ## Verify (before PR)
 
 ```bash
+bunx eslint . --max-warnings 0
 bun scripts/verify-spec-sync.ts
 bun scripts/verify-package-docs.ts
 ./mvnw -q verify -Pdistribution
