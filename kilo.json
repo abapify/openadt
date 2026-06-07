@@ -1,0 +1,130 @@
+{
+  "$schema": "https://app.kilo.ai/config.json",
+  "model": "anthropic/claude-sonnet-4-20250514",
+  "small_model": "anthropic/claude-haiku-4-20250514",
+  "default_agent": "orchestrator",
+  "instructions": ["AGENTS.md", ".kilo/rules/openadt-orchestrator.md"],
+  "permission": {
+    "read": "allow",
+    "edit": {
+      "*.md": "allow",
+      "*.ts": "allow",
+      "*.tsx": "allow",
+      "*.json": "allow",
+      "*.jsonc": "allow",
+      "*.yml": "allow",
+      "*.yaml": "allow",
+      "*.sh": "allow",
+      "*.java": "allow",
+      "**/.codescene/**": "deny",
+      "tmp/**": "deny"
+    },
+    "bash": {
+      "*": "ask",
+      "gh *": "allow",
+      "git status": "allow",
+      "git log *": "allow",
+      "git diff *": "allow",
+      "git show *": "allow",
+      "git fetch *": "allow",
+      "git switch *": "allow",
+      "git checkout *": "allow",
+      "git add *": "allow",
+      "git commit *": "allow",
+      "git push *": "ask",
+      "git push --force *": "deny",
+      "git push origin main *": "deny",
+      "git push origin master *": "deny",
+      "git reset --hard *": "deny",
+      "git clean -fd *": "deny",
+      "rm -rf *": "deny",
+      "rm -fr *": "deny",
+      "bun *": "allow",
+      "bunx *": "allow",
+      "npx *": "allow",
+      "./mvnw *": "allow",
+      "mvn *": "allow",
+      "rg *": "allow",
+      "jq *": "allow",
+      "cs *": "ask",
+      "csx *": "ask",
+      "docker run codescene/*": "ask",
+      "bash scripts/act/*": "allow",
+      "bash scripts/ci-*": "ask"
+    },
+    "webfetch": "ask",
+    "websearch": "ask",
+    "task": {
+      "*": "allow",
+      "code-reviewer": "allow",
+      "test-gen": "allow",
+      "codescene-fix": "allow",
+      "explore": "allow",
+      "general": "allow",
+      "compaction": "allow"
+    }
+  },
+  "compaction": {
+    "auto": true,
+    "prune_tokens": 20000,
+    "prune_messages": 40,
+    "preserve_recent_user_turns": 6,
+    "preserve_recent_assistant_turns": 6,
+    "summary_model": "anthropic/claude-haiku-4-20250514"
+  },
+  "agent": {
+    "orchestrator": {
+      "description": "Primary agent for the OpenADT cloud workspace. Reads AGENTS.md + .kilo/rules/openadt-orchestrator.md. Plans, delegates to subagents, never re-implements large refactors in-line.",
+      "mode": "primary",
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "steps": 200,
+      "prompt": "You are the OpenADT orchestrator. Before any push, call `gh pr view N --json headRefName,baseRefName` to learn the real source branch. Never push to `origin/pr-NN` (that ref is not the PR head). Run the verify block before any commit. Trust live CI status, not agent-claimed local checks. Use `bunx`, `./mvnw`, and `gh` (allowed by permission policy). Delegate to `code-reviewer`, `test-gen`, `codescene-fix` via the task tool; do not re-implement their work.",
+      "permission": { "task": { "*": "allow" } }
+    },
+    "explore": {
+      "description": "Read-only research. Use for codebase Q&A, file discovery, spec lookup. Never edits.",
+      "mode": "subagent",
+      "model": "anthropic/claude-haiku-4-20250514",
+      "steps": 20,
+      "prompt": "Read-only research agent. Use Glob/Grep/Read only. Return absolute file paths and a 3-5 line summary per finding. Do not run shell commands. Do not edit.",
+      "permission": { "edit": "deny", "bash": "deny", "webfetch": "ask" }
+    },
+    "general": {
+      "description": "Multi-step workhorse. Use for any task that needs writes + shell. Bounded steps for cost control.",
+      "mode": "subagent",
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "steps": 80,
+      "prompt": "General-purpose coding subagent. Always run the verify block (`bun scripts/verify-spec-sync.ts && bun scripts/verify-package-docs.ts && ./mvnw -q verify -Pdistribution && bun run openadt:test`) before declaring a task complete. Prefer small, focused commits. When the task involves a PR, push to `origin/<headRefName>` and verify `gh pr view N --json headRefOid` matches `git rev-parse HEAD`."
+    },
+    "compaction": {
+      "description": "Internal — invoked by the host when context is large. Compresses session memory into a rolling summary.",
+      "mode": "subagent",
+      "model": "anthropic/claude-haiku-4-20250514",
+      "steps": 5,
+      "hidden": true,
+      "prompt": "Summarize the conversation so far into a single Markdown block: (1) goal, (2) decisions taken, (3) pending work, (4) durable facts worth preserving. Be terse — bullet points, no narrative."
+    },
+    "code-reviewer": {
+      "description": "Reviews uncommitted/branch changes against AGENTS.md + the CodeScene contract. Read-only; never edits.",
+      "mode": "subagent",
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "steps": 40,
+      "prompt": "You are a code reviewer. Read the changed files via `git diff origin/<base>..HEAD` and the relevant specs. Output a numbered list of issues with file:line citations. For CodeScene risks, cite the rule (CC, nesting, bumpy-road, complex-conditional, primitive-obsession, duplication). For semantic risks, cite the spec section. Never edit files.",
+      "permission": { "edit": "deny", "bash": "deny" }
+    },
+    "test-gen": {
+      "description": "Generates failing-then-passing tests for a behavior change in `apps/**` or `scripts/**` (Bun test for TS, JUnit for Java).",
+      "mode": "subagent",
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "steps": 60,
+      "prompt": "Write the failing test first. For TS: place under `scripts/<name>.test.ts` or `tools/<pkg>/test/`. For Java: JUnit 5 in the matching `apps/<module>/src/test/java/`. After writing, run the test and confirm it fails for the right reason. Then leave it to the orchestrator to make it pass."
+    },
+    "codescene-fix": {
+      "description": "Refactors a single function or file to clear a specific CodeScene delta finding. Loads `.agents/skills/openadt-codescene/` before acting.",
+      "mode": "subagent",
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "steps": 60,
+      "prompt": "You are a refactoring agent. Before any edit, read `.agents/skills/openadt-codescene/SKILL.md`. Given a function name and the rule that fired (Bumpy Road / Complex Method / Complex Conditional / Large Method / String Heavy Args), pick the smallest refactor that brings the function under threshold: extract method, predicate extraction, parameter object, or guard clauses. After the refactor, run `bunx eslint <file> --max-warnings 0` and `bash scripts/ci-codescene-delta.sh <base> HEAD` locally. Report the new CC, nesting depth, and bump count."
+    }
+  }
+}

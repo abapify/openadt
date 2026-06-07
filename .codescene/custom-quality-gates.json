@@ -1,0 +1,32 @@
+{
+  "_comment": "Maps each code area to a CodeScene quality-gate profile. See docs/codescene.md §Quality gates.",
+  "gates": [
+    {
+      "name": "pay_down_tech_debt",
+      "matching_content_path": "apps/**/src/**",
+      "matching_content_path_doc": "Product Java code: must improve, not just maintain, file-level code health.",
+      "review": "full_review",
+      "fail_on": ["declines_in_code_health", "low_code_health_in_new_code"]
+    },
+    {
+      "name": "clean_code_collective",
+      "matching_content_path": "scripts/**",
+      "matching_content_path_doc": "Bun/Node scripts: standard PR delta, --error-on-warnings.",
+      "review": "full_review",
+      "fail_on": ["warnings", "code_health_below_10"]
+    },
+    {
+      "name": "clean_code_collective",
+      "matching_content_path": "tools/**/src/**/*.ts",
+      "matching_content_path_doc": "TypeScript tools: same as scripts.",
+      "review": "full_review",
+      "fail_on": ["warnings", "code_health_below_10"]
+    },
+    {
+      "name": "bare_minimum",
+      "matching_content_path": "**/generated/**",
+      "matching_content_path_doc": "Generated code: no findings (no override needed; this is the default).",
+      "review": "lightweight"
+    }
+  ]
+}

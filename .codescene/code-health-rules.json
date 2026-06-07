@@ -1,0 +1,54 @@
+{
+  "_comment": "Persists CodeScene's JS/TS defaults as explicit overrides so the contract is in one place. See docs/codescene.md. Source: CodeScene default-rules.zip > code-health-rules.js.json.",
+  "rule_sets": [
+    {
+      "matching_content_path": "**/*.{ts,tsx,js,jsx,mjs,cjs}",
+      "matching_content_path_doc": "TypeScript / JavaScript — default thresholds locked.",
+      "rules": [
+        { "name": "Complex Method", "weight": 1 },
+        { "name": "Complex Conditional", "weight": 1 },
+        { "name": "Bumpy Road Ahead", "weight": 1 },
+        { "name": "Brain Method", "weight": 1 },
+        { "name": "Large Method", "weight": 1 },
+        { "name": "Deep, Nested Complexity", "weight": 1 },
+        { "name": "Excess Number of Function Arguments", "weight": 1 },
+        { "name": "Primitive Obsession", "weight": 1 },
+        { "name": "String Heavy Function Arguments", "weight": 0.5 },
+        { "name": "Code Duplication", "weight": 1 }
+      ],
+      "thresholds": [
+        { "name": "function_cyclomatic_complexity_warning", "value": 9 },
+        { "name": "function_cyclomatic_complexity_alert", "value": 100 },
+        { "name": "function_lines_of_code_warning", "value": 70 },
+        { "name": "function_lines_of_code_alert", "value": 500 },
+        { "name": "function_nesting_depth_warning", "value": 4 },
+        { "name": "function_bumpy_road_bumps_for_warning", "value": 2 },
+        { "name": "function_bumpy_road_nesting_level_depth", "value": 2 },
+        { "name": "function_complex_conditional_branches_warning", "value": 2 },
+        { "name": "function_complex_conditional_branches_alert", "value": 10 },
+        { "name": "function_max_arguments", "value": 4 },
+        { "name": "constructor_max_arguments", "value": 5 },
+        { "name": "file_lines_of_code_for_warning", "value": 1000 },
+        { "name": "file_lines_of_code_for_alert", "value": 5000 },
+        { "name": "file_mean_cyclomatic_complexity_warning", "value": 4 },
+        {
+          "name": "file_primitive_obsession_percentage_for_warning",
+          "value": 30
+        },
+        {
+          "name": "function_duplication_min_lines_of_code_for_check",
+          "value": 10
+        },
+        {
+          "name": "function_duplication_min_similarity_percentage",
+          "value": 75
+        },
+        { "name": "unit_test_consecutive_asserts_for_large_block", "value": 4 },
+        {
+          "name": "unit_test_suite_number_of_large_assertion_blocks",
+          "value": 3
+        }
+      ]
+    }
+  ]
+}
