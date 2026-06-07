@@ -1,5 +1,9 @@
 # Install global openadt-dev (~/.local/bin) — local clone CLI, not Scoop openadt.
-# Builds openadt-dev.exe so MCP Inspector can spawn it (Windows: .cmd fails in Node).
+# Builds openadt-dev.exe / openadt-mcp-dev.exe so MCP Inspector can spawn them
+# (Windows: .cmd fails in Node). The .exe is a THIN re-exec shim (dev-exe-shim.ts)
+# that runs the SOURCE entry via bun at runtime, so launcher/tool edits are picked
+# up WITHOUT rebuilding the .exe. Only re-run this installer if the shim itself or
+# the bun runtime changes.
 param(
   [string] $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 )
@@ -9,9 +13,8 @@ $binDir = Join-Path $env:USERPROFILE ".local\bin"
 New-Item -ItemType Directory -Force -Path $binDir | Out-Null
 
 $devExe = Join-Path $binDir "openadt-dev.exe"
-$devBin = Join-Path $RepoRoot "scripts\openadt-dev-bin.ts"
 $mcpExe = Join-Path $binDir "openadt-mcp-dev.exe"
-$mcpBin = Join-Path $RepoRoot "tools\sap-adt-mcp-launcher\src\mcp-dev-stdio-bin.ts"
+$shim = Join-Path $RepoRoot "scripts\dev-exe-shim.ts"
 $cmdShim = Join-Path $binDir "openadt-dev.cmd"
 
 $bun = Join-Path $env:USERPROFILE ".bun\bin\bun.exe"
@@ -23,12 +26,14 @@ if (-not (Test-Path $bun)) {
   Write-Error "bun is required. Install from https://bun.sh"
 }
 
-Write-Host "Building openadt-dev.exe ..."
-& $bun build --compile $devBin --outfile $devExe
+# Both exes are the SAME thin shim; it picks the source entry by its own name
+# (…mcp… → MCP stdio launcher, else the dev CLI). Logic stays in source.
+Write-Host "Building openadt-dev.exe (thin shim → source) ..."
+& $bun build --compile $shim --outfile $devExe
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-Write-Host "Building openadt-mcp-dev.exe (stdio shorthand, optional) ..."
-& $bun build --compile $mcpBin --outfile $mcpExe
+Write-Host "Building openadt-mcp-dev.exe (thin shim → source) ..."
+& $bun build --compile $shim --outfile $mcpExe
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 $rootFile = Join-Path $binDir "openadt-dev.root"

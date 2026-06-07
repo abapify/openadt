@@ -31,6 +31,7 @@ export function parseServeArgv(argv: string[]): McpServeConfig {
     logonTimeoutMs: DEFAULT_LOGON_TIMEOUT_MS,
     stdio: false,
     standalone: false,
+    restart: false,
   };
 
   const handlers = buildServeArgvHandlers();
@@ -64,6 +65,8 @@ type ServeArgvState = {
   stdio: boolean;
   /** When true, --stdio is monolithic (own adt-lsc, kill on exit). */
   standalone: boolean;
+  /** When true (shared stdio), stop an existing daemon first so a fresh one spawns. */
+  restart: boolean;
 };
 
 type ServeArgvHandler = {
@@ -147,6 +150,12 @@ function booleanFlagArgvHandlers(): ServeArgvHandler[] {
         s.standalone = true;
       },
       ["--standalone"],
+    ),
+    boolFlag(
+      (s) => {
+        s.restart = true;
+      },
+      ["--restart"],
     ),
     boolFlag(
       (s) => {

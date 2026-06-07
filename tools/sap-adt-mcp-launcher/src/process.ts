@@ -43,8 +43,12 @@ export function spawnAdtLsc(
     cwd: dirname(install.adtLscPath),
     env: runtime.env,
     stdio: options.onStderrLine ? ["ignore", "ignore", "pipe"] : "ignore",
-    /** Must be false on Windows so Secure Login / SSO dialogs can appear. */
-    windowsHide: false,
+    // adt-lsc is a console app — hide its window by default (it otherwise lingers
+    // on the Windows desktop). SSO / Secure Login prompts are SEPARATE GUI windows
+    // (browser / Secure Login Client) and still appear. Set
+    // OPENADT_ADT_LSC_SHOW_WINDOW=1 to show the console (debugging, or a landscape
+    // whose logon needs the native console).
+    windowsHide: !process.env.OPENADT_ADT_LSC_SHOW_WINDOW,
   });
   if (child.stderr && options.onStderrLine) {
     let pending = "";

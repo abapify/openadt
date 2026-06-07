@@ -51,6 +51,14 @@ import {
   McpHttpEndpoint,
   type StdioMcpBridge,
 } from "./stdio-proxy.ts";
+import {
+  connectionRequester,
+  HttpReadBackend,
+  LspReadBackend,
+  prewarm,
+  readEnabled,
+} from "./read-object.ts";
+import { startReadAuxServer, type ReadAuxServer } from "./read-server.ts";
 import { DEFAULT_LOGON_TIMEOUT_MS } from "./logon-handlers.ts";
 
 const EXIT_OK = 0;
@@ -287,8 +295,21 @@ async function cmdServeStandalone(cfg: McpServeConfig): Promise<number> {
   }
   const { session } = connectResult;
 
+  // Read tools (adt_read_object / adt_search_objects) run over the LSP
+  // connection this process owns. In standalone stdio mode the bridge is
+  // co-located with the LSP session, so wire the backend directly. In daemon
+  // mode (shared backend, no --stdio) we expose it over a tiny HTTP endpoint the
+  // separate stdio bridge calls (see read-server.ts + cmdServeSharedStdio).
+  const readBackend = readEnabled()
+    ? new LspReadBackend(connectionRequester(session.connection))
+    : undefined;
+  if (bridge && readBackend) {
+    bridge.setReadBackend(readBackend);
+  }
+
   let endpointWritten = false;
   let endpointPort: number | undefined;
+  let auxServer: ReadAuxServer | undefined;
   try {
     const started = await startMcpHttpAndApplyDestination(session.connection, {
       port: cfg.port,
@@ -297,12 +318,25 @@ async function cmdServeStandalone(cfg: McpServeConfig): Promise<number> {
       log,
     });
     endpointPort = started.port;
+    // Best-effort: prime the RIS index per destination so the first read/search
+    // after logon doesn't hit a cold (empty) result. Fire-and-forget.
+    if (readBackend && gui.imported.length > 0) {
+      const req = connectionRequester(session.connection);
+      void Promise.allSettled(gui.imported.map((d) => prewarm(req, d.id)));
+    }
+    // Daemon role (no in-process stdio bridge): expose read tools over HTTP so a
+    // separate shared stdio bridge can reach the LSP we own.
+    if (readBackend && !cfg.stdio) {
+      auxServer = await startReadAuxServer(readBackend);
+      log?.info(`read endpoint at ${auxServer.url}`);
+    }
     const endpoint = buildEndpointRecord(
       started,
       session,
       gui,
       cfg,
       "standalone",
+      auxServer,
     );
     writeEndpoint(endpoint);
     endpointWritten = true;
@@ -326,6 +360,7 @@ async function cmdServeStandalone(cfg: McpServeConfig): Promise<number> {
   } catch (err) {
     return failServeError(bridge, cfg, err);
   } finally {
+    auxServer?.stop();
     await shutdown(session, endpointPort, endpointWritten);
     log?.dispose();
   }
@@ -343,6 +378,22 @@ async function cmdServeSharedStdio(cfg: McpServeConfig): Promise<number> {
     (a) => a !== "--stdio" && a !== "--standalone",
   );
 
+  // --restart: stop the existing shared daemon so ensureSharedBackend spawns a
+  // fresh one (picks up new code / new tools). Restarting only the stdio bridge
+  // re-attaches to the same daemon, which is why a flag is needed here.
+  if (cfg.restart) {
+    const stopped = await stopTrackedMcpServers({
+      onlyPort: cfg.explicitPort ? cfg.port : undefined,
+    });
+    if (!cfg.json) {
+      console.error(
+        stopped > 0
+          ? `[openadt-mcp] --restart: stopped ${stopped} backend(s); spawning a fresh one.`
+          : `[openadt-mcp] --restart: no running backend to stop; spawning fresh.`,
+      );
+    }
+  }
+
   try {
     const ensured = await ensureSharedBackend({
       // Only filter by port when the user asked for a specific one. Otherwise
@@ -356,6 +407,18 @@ async function cmdServeSharedStdio(cfg: McpServeConfig): Promise<number> {
     if (!cfg.json) {
       console.error(
         `[openadt-mcp] Attached to shared backend at ${ensured.url}`,
+      );
+    }
+
+    // Wire read tools to the daemon's LSP-backed read endpoint (Option A). The
+    // bridge has no LSP of its own; the daemon does. Absent on old daemons.
+    if (readEnabled() && ensured.record.auxUrl && ensured.record.auxToken) {
+      bridge.setReadBackend(
+        new HttpReadBackend(ensured.record.auxUrl, ensured.record.auxToken),
+      );
+    } else if (readEnabled() && !cfg.json) {
+      console.error(
+        "[openadt-mcp] read tools unavailable (daemon has no read endpoint; restart the backend with: openadt mcp stop)",
       );
     }
 
@@ -476,6 +539,7 @@ function buildEndpointRecord(
   gui: ReturnType<typeof resolveDestinationImport>,
   cfg: McpServeConfig,
   mode: "daemon" | "standalone" = "daemon",
+  aux?: { url: string; token: string },
 ) {
   return {
     port: started.port,
@@ -488,6 +552,8 @@ function buildEndpointRecord(
     destinations: gui.imported.map((d) => d.id),
     workspace: gui.workspace,
     mode,
+    auxUrl: aux?.url,
+    auxToken: aux?.token,
   };
 }
 

@@ -5,6 +5,20 @@ import {
   writeMcpStdioMessage,
 } from "./mcp-framing.ts";
 import { mcpUrl } from "./mcp.ts";
+import {
+  augmentInstructions,
+  getGuidancePrompt,
+  guidanceEnabled,
+  guidancePromptDefs,
+  isGuidancePrompt,
+} from "./guidance.ts";
+import {
+  handleReadToolCall,
+  isReadTool,
+  readEnabled,
+  readToolDefs,
+  type ReadObjectBackend,
+} from "./read-object.ts";
 
 /** Parse MCP HTTP response body (JSON or SSE `data:` lines). */
 export function parseMcpHttpResponseBody({
@@ -96,6 +110,131 @@ export function jsonRpcErrorResponse(
   };
 }
 
+/** Minimal parse of a JSON-RPC request/notification body. */
+type ParsedRpc = {
+  id: string | number | null | undefined;
+  method: string;
+  params: Record<string, unknown>;
+};
+
+function parseRpc(body: string): ParsedRpc | undefined {
+  try {
+    const p = JSON.parse(body) as {
+      id?: unknown;
+      method?: unknown;
+      params?: unknown;
+    };
+    if (typeof p.method !== "string") {
+      return undefined;
+    }
+    const params =
+      p.params && typeof p.params === "object" && !Array.isArray(p.params)
+        ? (p.params as Record<string, unknown>)
+        : {};
+    return { id: p.id as ParsedRpc["id"], method: p.method, params };
+  } catch {
+    return undefined;
+  }
+}
+
+/** Extract `name` + string-valued `arguments` from a prompts/get request. */
+function promptGetParams(params: Record<string, unknown>): {
+  name: string;
+  args: Record<string, string>;
+} {
+  const name = typeof params.name === "string" ? params.name : "";
+  const rawArgs =
+    params.arguments && typeof params.arguments === "object"
+      ? (params.arguments as Record<string, unknown>)
+      : {};
+  const args: Record<string, string> = {};
+  for (const [k, v] of Object.entries(rawArgs)) {
+    if (typeof v === "string") {
+      args[k] = v;
+    }
+  }
+  return { name, args };
+}
+
+/**
+ * Inject launcher guidance into a backend response: append the workflow
+ * cheat-sheet to `initialize.instructions`, and merge our prompts into
+ * `prompts/list`. Returns the (possibly rewritten) message body. Untouched
+ * for any other method, or when the response id does not match the request.
+ */
+function injectGuidance(
+  msg: string,
+  reqId: ParsedRpc["id"],
+  method: string | undefined,
+): string {
+  if (!method || (method !== "initialize" && method !== "prompts/list")) {
+    return msg;
+  }
+  let parsed: { id?: unknown; result?: Record<string, unknown> };
+  try {
+    parsed = JSON.parse(msg);
+  } catch {
+    return msg;
+  }
+  if (parsed.id !== reqId || !parsed.result) {
+    return msg;
+  }
+  if (method === "initialize") {
+    parsed.result.instructions = augmentInstructions(
+      parsed.result.instructions as string | undefined,
+    );
+  } else {
+    const existing = Array.isArray(parsed.result.prompts)
+      ? parsed.result.prompts
+      : [];
+    parsed.result.prompts = [...existing, ...guidancePromptDefs()];
+  }
+  return JSON.stringify(parsed);
+}
+
+/** Extract `name` + `arguments` object from a tools/call request. */
+function toolCallParams(params: Record<string, unknown>): {
+  name: string;
+  args: Record<string, unknown>;
+} {
+  const name = typeof params.name === "string" ? params.name : "";
+  const args =
+    params.arguments && typeof params.arguments === "object"
+      ? (params.arguments as Record<string, unknown>)
+      : {};
+  return { name, args };
+}
+
+/**
+ * Merge our read tools into a backend `tools/list` response. No-op for any other
+ * method, when read is disabled, when no read backend is wired, or when the
+ * response id does not match the request.
+ */
+function injectReadTools(
+  msg: string,
+  reqId: ParsedRpc["id"],
+  method: string | undefined,
+  hasBackend: boolean,
+): string {
+  if (!hasBackend || !readEnabled() || method !== "tools/list") {
+    return msg;
+  }
+  let parsed: { id?: unknown; result?: Record<string, unknown> };
+  try {
+    parsed = JSON.parse(msg);
+  } catch {
+    return msg;
+  }
+  if (parsed.id !== reqId || !parsed.result) {
+    return msg;
+  }
+  const existing = Array.isArray(parsed.result.tools)
+    ? parsed.result.tools
+    : [];
+  parsed.result.tools = [...existing, ...readToolDefs()];
+  return JSON.stringify(parsed);
+}
+
 /** Result of one HTTP POST to the MCP endpoint. */
 export class McpHttpResponse {
   constructor(
@@ -179,6 +318,12 @@ function sleep(ms: number): Promise<void> {
 export type StdioMcpBridge = {
   /** Begin reading stdin immediately; queue until run(). */
   start(): void;
+  /**
+   * Wire a read-object backend (LSP-backed). When set, the bridge advertises the
+   * read tools in tools/list and answers their tools/call locally instead of
+   * forwarding to SAP. Call before run().
+   */
+  setReadBackend(backend: ReadObjectBackend | undefined): void;
   /** Wait for HTTP MCP, flush queue, forward until stdin closes and forwards drain. */
   run(
     endpoint: McpHttpEndpoint,
@@ -196,6 +341,7 @@ export function createStdioMcpBridge(): StdioMcpBridge {
   const chain = new ForwardChain();
   const lifecycle = new BridgeLifecycle();
   let backend: McpHttpEndpoint | undefined;
+  let readBackend: ReadObjectBackend | undefined;
 
   const decoder = new McpStdioDecoder();
   const encoder = new McpStdioEncoder();
@@ -229,6 +375,55 @@ export function createStdioMcpBridge(): StdioMcpBridge {
       return;
     }
     const baseEndpoint = backend;
+    const request = parseRpc(message.body);
+
+    // Answer prompts/get for our injected prompts locally — the backend has
+    // none, so forwarding would only produce an error.
+    if (
+      guidanceEnabled() &&
+      request?.method === "prompts/get" &&
+      request.id !== undefined
+    ) {
+      const { name, args } = promptGetParams(request.params);
+      if (isGuidancePrompt(name)) {
+        const result = getGuidancePrompt(name, args);
+        chain.append(() =>
+          writeMcpStdioMessage(encoder, {
+            jsonrpc: "2.0",
+            id: request.id,
+            result,
+          }),
+        );
+        return;
+      }
+    }
+
+    // Answer tools/call for our read tools locally via the LSP-backed backend —
+    // SAP's MCP cannot read object source, so these never reach the backend.
+    if (
+      readBackend &&
+      readEnabled() &&
+      request?.method === "tools/call" &&
+      request.id !== undefined
+    ) {
+      const { name, args } = toolCallParams(request.params);
+      if (isReadTool(name)) {
+        const activeBackend = readBackend;
+        chain.append(async () => {
+          const result = await handleReadToolCall(activeBackend, name, args);
+          await writeMcpStdioMessage(encoder, {
+            jsonrpc: "2.0",
+            id: request.id,
+            result,
+          });
+        });
+        return;
+      }
+    }
+
+    // Methods whose backend response we rewrite to inject guidance.
+    const injectMethod = guidanceEnabled() ? request?.method : undefined;
+
     chain.append(async () => {
       const endpoint = baseEndpoint.withSessionId(chain.sessionId);
       try {
@@ -242,7 +437,14 @@ export function createStdioMcpBridge(): StdioMcpBridge {
           return;
         }
         for (const msg of result.messages) {
-          await writeMcpStdioMessage(encoder, msg);
+          const withGuidance = injectGuidance(msg, request?.id, injectMethod);
+          const withReadTools = injectReadTools(
+            withGuidance,
+            request?.id,
+            request?.method,
+            readBackend !== undefined,
+          );
+          await writeMcpStdioMessage(encoder, withReadTools);
         }
       } catch (err) {
         await handleForwardError(message, err);
@@ -400,6 +602,9 @@ export function createStdioMcpBridge(): StdioMcpBridge {
       console.error(
         "[openadt-mcp] stdio: reading client input (SAP logon may take a minute)…",
       );
+    },
+    setReadBackend(b: ReadObjectBackend | undefined) {
+      readBackend = b;
     },
     async run(
       endpoint: McpHttpEndpoint,

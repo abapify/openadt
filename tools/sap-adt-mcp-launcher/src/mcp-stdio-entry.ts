@@ -166,11 +166,16 @@ async function drainChildStreams(
 
 // Shared mode: pass --port only when OPENADT_MCP_PORT is set. The launcher
 // will auto-ensure (or attach to) a healthy shared backend.
+// OPENADT_MCP_RESTART=1 forces a fresh daemon on launch (dev: pick up new code).
 const explicitPort = parseExplicitPort(process.env.OPENADT_MCP_PORT?.trim());
+const restartArgs = process.env.OPENADT_MCP_RESTART?.trim()
+  ? ["--restart"]
+  : [];
 const serveArgs = [
   "serve",
   "--stdio",
   ...(explicitPort !== undefined ? ["--port", String(explicitPort)] : []),
+  ...restartArgs,
   ...process.argv.slice(2),
 ];
 

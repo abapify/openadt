@@ -2,6 +2,9 @@
   "name": "@openadt/sap-adt-mcp-launcher",
   "private": true,
   "type": "module",
+  "bin": {
+    "openadt-mcp": "./src/mcp-dev-stdio-bin.ts"
+  },
   "scripts": {
     "build": "tsdown",
     "build:check": "tsc --noEmit"

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "sap-adt-dev": {
+      "command": "bun",
+      "args": ["tools/sap-adt-mcp-launcher/src/main.ts", "serve", "--stdio"]
+    }
+  }
+}

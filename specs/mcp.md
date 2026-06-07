@@ -238,6 +238,7 @@ Run via `./dev-openadt mcp …` (clone) or `openadt mcp …` (Scoop/Homebrew). R
 | `--logon-timeout`              | `300`                         | Seconds for `ensureLoggedOn`                            |
 | `--verbose` / `--log-file`     | off                           | Debug logging                                           |
 | `--standalone` (serve --stdio) | off (shared)                  | Own adt-lsc, kill on exit (monolithic path)             |
+| `--restart` (serve --stdio)    | off                           | Stop the existing shared daemon first, then spawn fresh |
 
 ### `serve --stdio` (additional behavior)
 

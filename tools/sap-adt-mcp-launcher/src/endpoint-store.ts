@@ -27,6 +27,9 @@ export type McpEndpointRecord = {
   workspace: string;
   /** Optional mode tag (daemon = shared backend; standalone = owned lifecycle). */
   mode?: McpEndpointMode;
+  /** openadt read-tool endpoint (LSP-backed) on this daemon, for the stdio bridge. */
+  auxUrl?: string;
+  auxToken?: string;
 };
 
 export function mcpEndpointsDir(): string {
