@@ -87,10 +87,10 @@ export async function startReadAuxServer(
         }
         return json({ error: "not found" }, 404);
       } catch (err) {
-        return json(
-          { error: err instanceof Error ? err.message : String(err) },
-          500,
-        );
+        // Log the real error (with stack) for the operator; return a
+        // generic message to the client — never echo the stack out over HTTP.
+        console.error(`[openadt-mcp] read aux error: ${formatError(err)}`);
+        return json({ error: "internal error" }, 500);
       }
     },
   });
@@ -106,4 +106,8 @@ export async function startReadAuxServer(
       }
     },
   };
+}
+
+function formatError(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }

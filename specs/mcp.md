@@ -250,7 +250,7 @@ Same flags as `serve`. **Shared mode (default):** finds or spawns a detached dae
 | **stderr** | Startup, logon hints, errors (never MCP payload)                                |
 | **stdin**  | Client → server MCP messages                                                    |
 
-**Not in scope for `--stdio`:** fake `initialize` responses, or attaching to a foreign long-running `serve` without owning its child. One invocation = one parent that owns `adt-lsc` and HTTP MCP (unless `--standalone` is used).
+**Not in scope for `--stdio`:** fake `initialize` responses, or attaching to a foreign long-running `serve` without owning its child. One invocation = one parent that owns `adt-lsc` and HTTP MCP; `--standalone` is the legacy monolithic path where the parent does NOT own a shared backend.
 
 ---
 

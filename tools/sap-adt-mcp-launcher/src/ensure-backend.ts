@@ -230,7 +230,12 @@ export function spawnDetachedServe(
 }
 
 function resolveDefaultLauncherPath(): string {
-  // tools/sap-adt-mcp-launcher/src/ensure-backend.ts → src/main.ts
+  // Packaged/release builds ship `dist/main.{mjs,js}` — prefer them when present.
+  // Fall back to `src/main.ts` for dev clones (`bun run ...` from a checkout).
+  const distMjs = resolve(here, "..", "dist", "main.mjs");
+  if (existsSync(distMjs)) return distMjs;
+  const distJs = resolve(here, "..", "dist", "main.js");
+  if (existsSync(distJs)) return distJs;
   return resolve(here, "main.ts");
 }
 

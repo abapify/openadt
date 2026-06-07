@@ -397,7 +397,7 @@ async function runStandaloneServe(input: {
     session,
     gui,
     cfg,
-    mode: "standalone",
+    mode: cfg.stdio ? "standalone" : "daemon",
     aux: auxServer,
   });
   writeEndpoint(endpoint);

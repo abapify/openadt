@@ -13,6 +13,13 @@ import { join } from "node:path";
 import { resolveBunExecutable } from "../tools/sap-adt-mcp-launcher/src/resolve-bun.ts";
 
 export function mcpLauncherPath(repoRoot: string): string {
+  // Packaged builds (tsdown) emit `tools/sap-adt-mcp-launcher/dist/main.{mjs,js}`.
+  // Dev clones (`bun run ...`) run `src/main.ts` directly. Prefer dist when present.
+  const distDir = join(repoRoot, "tools", "sap-adt-mcp-launcher", "dist");
+  for (const name of ["main.mjs", "main.js"]) {
+    const candidate = join(distDir, name);
+    if (existsSync(candidate)) return candidate;
+  }
   return join(repoRoot, "tools", "sap-adt-mcp-launcher", "src", "main.ts");
 }
 

@@ -547,30 +547,43 @@ async function handleReadObjectTool(
   backend: ReadObjectBackend,
   args: Record<string, unknown>,
 ): Promise<CallToolResult> {
-  const destination = String(args.destination ?? "");
-  const objectName =
-    typeof args.objectName === "string" ? args.objectName : undefined;
-  const uri = typeof args.uri === "string" ? args.uri : undefined;
-  if (!destination || (!objectName && !uri)) {
+  const input = parseReadObjectArgs(args);
+  if (!input) {
     return textResult("destination and (objectName or uri) are required", true);
   }
-  const objectType =
-    typeof args.objectType === "string" ? args.objectType : undefined;
-  const result = await backend.readObject({
-    destination,
-    objectName,
-    objectType,
-    uri,
-  });
+  const result = await backend.readObject(input);
   if (result.kind === "ambiguous") {
     return jsonResult(
-      `Multiple objects match '${objectName}'. Pass objectType (ADT code, e.g. CLAS/OC) ` +
+      `Multiple objects match '${input.objectName}'. Pass objectType (ADT code, e.g. CLAS/OC) ` +
         `or a uri to disambiguate. Candidates:\n` +
         JSON.stringify(result.candidates, null, 2),
       { ambiguous: true, candidates: result.candidates },
     );
   }
   return renderReadObject(result, args.format);
+}
+
+function parseReadObjectArgs(
+  args: Record<string, unknown>,
+): ReadObjectInput | undefined {
+  const destination = stringField(args, "destination");
+  const objectName = stringField(args, "objectName");
+  const uri = stringField(args, "uri");
+  if (!destination || (!objectName && !uri)) return undefined;
+  return {
+    destination,
+    objectName,
+    objectType: stringField(args, "objectType"),
+    uri,
+  };
+}
+
+function stringField(
+  args: Record<string, unknown>,
+  key: string,
+): string | undefined {
+  const v = args[key];
+  return typeof v === "string" ? v : undefined;
 }
 
 function renderReadObject(

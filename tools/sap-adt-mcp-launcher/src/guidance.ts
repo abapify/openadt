@@ -21,6 +21,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isTruthyEnv } from "./process.ts";
 
 const PROMPTS_DIR = join(dirname(fileURLToPath(import.meta.url)), "prompts");
 
@@ -42,7 +43,7 @@ function render(template: string, values: Record<string, string>): string {
 
 /** Whether guidance injection is enabled (default on). */
 export function guidanceEnabled(): boolean {
-  return !process.env.OPENADT_MCP_NO_GUIDANCE;
+  return !isTruthyEnv(process.env.OPENADT_MCP_NO_GUIDANCE);
 }
 
 /**

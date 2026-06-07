@@ -204,13 +204,7 @@ export async function findHealthyEndpoint(
 
   const healthy: McpEndpointRecord[] = [];
   for (const record of endpoints) {
-    if (preferredPort !== undefined && record.port !== preferredPort) {
-      continue;
-    }
-    if (!isProcessAlive(record.pid)) {
-      continue;
-    }
-    if (await probeMcpHttp(record.port, record.token)) {
+    if (await isCandidateHealthy(record, preferredPort)) {
       healthy.push(record);
     }
   }
@@ -222,6 +216,19 @@ export async function findHealthyEndpoint(
     return { status: "one", record: healthy[0]! };
   }
   return { status: "ambiguous", records: healthy };
+}
+
+async function isCandidateHealthy(
+  record: McpEndpointRecord,
+  preferredPort: number | undefined,
+): Promise<boolean> {
+  if (preferredPort !== undefined && record.port !== preferredPort) {
+    return false;
+  }
+  if (!isProcessAlive(record.pid)) {
+    return false;
+  }
+  return probeMcpHttp(record.port, record.token);
 }
 
 export type ResolveEndpointResult =

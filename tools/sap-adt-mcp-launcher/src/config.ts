@@ -331,22 +331,9 @@ export function parseStatusArgv(argv: string[]): {
   token?: string;
   json: boolean;
 } {
-  let port: number | undefined;
   let token: string | undefined;
-  let json = false;
-
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
-    if (isJsonFlag(arg)) {
-      json = true;
-      continue;
-    }
-    const portFlag = readPortFlag(argv, i);
-    if (portFlag) {
-      port = portFlag.value;
-      i = portFlag.next - 1;
-      continue;
-    }
     if (arg === "--token" && i + 1 < argv.length) {
       token = argv[++i];
       continue;
@@ -356,11 +343,7 @@ export function parseStatusArgv(argv: string[]): {
       continue;
     }
   }
-
-  if (port !== undefined && !isValidPort(port)) {
-    throw new Error(`Invalid --port: ${port}`);
-  }
-
+  const { port, json } = parsePortAndJson(argv);
   return { port, token, json };
 }
 
@@ -368,28 +351,7 @@ export function parsePrintConfigArgv(argv: string[]): {
   port?: number;
   json: boolean;
 } {
-  let port: number | undefined;
-  let json = false;
-
-  for (let i = 0; i < argv.length; i++) {
-    const arg = argv[i]!;
-    if (isJsonFlag(arg)) {
-      json = true;
-      continue;
-    }
-    const portFlag = readPortFlag(argv, i);
-    if (portFlag) {
-      port = portFlag.value;
-      i = portFlag.next - 1;
-      continue;
-    }
-  }
-
-  if (port !== undefined && !isValidPort(port)) {
-    throw new Error(`Invalid --port: ${port}`);
-  }
-
-  return { port, json };
+  return parsePortAndJson(argv);
 }
 
 export function parseListArgv(argv: string[]): { json: boolean } {
@@ -400,28 +362,7 @@ export function parseStopArgv(argv: string[]): {
   port?: number;
   json: boolean;
 } {
-  let port: number | undefined;
-  let json = false;
-
-  for (let i = 0; i < argv.length; i++) {
-    const arg = argv[i]!;
-    if (isJsonFlag(arg)) {
-      json = true;
-      continue;
-    }
-    const portFlag = readPortFlag(argv, i);
-    if (portFlag) {
-      port = portFlag.value;
-      i = portFlag.next - 1;
-      continue;
-    }
-  }
-
-  if (port !== undefined && !isValidPort(port)) {
-    throw new Error(`Invalid --port: ${port}`);
-  }
-
-  return { port, json };
+  return parsePortAndJson(argv);
 }
 
 export function parseBridgeArgv(argv: string[]): {
@@ -429,33 +370,35 @@ export function parseBridgeArgv(argv: string[]): {
   stdio: boolean;
   json: boolean;
 } {
-  let port: number | undefined;
   let stdio = false;
-  let json = false;
+  for (const arg of argv) {
+    if (arg === "--stdio") {
+      stdio = true;
+    }
+  }
+  const { port, json } = parsePortAndJson(argv);
+  return { port, stdio, json };
+}
 
+function parsePortAndJson(argv: string[]): { port?: number; json: boolean } {
+  let port: number | undefined;
+  let json = false;
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
     if (isJsonFlag(arg)) {
       json = true;
       continue;
     }
-    if (arg === "--stdio") {
-      stdio = true;
-      continue;
-    }
     const portFlag = readPortFlag(argv, i);
     if (portFlag) {
       port = portFlag.value;
       i = portFlag.next - 1;
-      continue;
     }
   }
-
   if (port !== undefined && !isValidPort(port)) {
     throw new Error(`Invalid --port: ${port}`);
   }
-
-  return { port, stdio, json };
+  return { port, json };
 }
 
 export interface ParsedSubcommand {

@@ -67,13 +67,15 @@ Three-way probe:
 ## Daemon spawn
 
 ```typescript
-spawn(launcher, ["serve", "--port", String(port), ...], {
+const child = spawn(launcher, ["serve", "--port", String(port), ...], {
   detached: true,
   stdio: "ignore",
   cwd: process.cwd(),
   env: runtimeEnv,
 });
-process.unref();
+// Unref the CHILD (not the parent) so the bridge process can exit without
+// waiting for the daemon. `process.unref()` here would do nothing useful.
+child.unref();
 ```
 
 ---

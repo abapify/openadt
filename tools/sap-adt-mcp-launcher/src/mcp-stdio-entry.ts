@@ -20,11 +20,21 @@ const here = dirname(fileURLToPath(import.meta.url));
 function resolveRepoRoot(): string {
   for (const key of ["OPENADT_DEV_ROOT", "OPENADT_REPO"] as const) {
     const raw = process.env[key]?.trim();
-    if (raw && existsSync(raw)) {
+    if (raw && isRepoRoot(raw)) {
       return raw;
     }
   }
   return join(here, "..", "..", "..");
+}
+
+function isRepoRoot(candidate: string): boolean {
+  if (!existsSync(candidate)) return false;
+  // The value must point at an actual openadt checkout (or the launcher dir),
+  // not just any existing path. Treat both layouts as valid.
+  return (
+    existsSync(join(candidate, "tools", "sap-adt-mcp-launcher")) ||
+    existsSync(join(candidate, "package.json"))
+  );
 }
 
 function resolveLauncher(): { runtime: string; launcher: string } {
@@ -173,8 +183,9 @@ async function drainChildStreams(
 // Shared mode: pass --port only when OPENADT_MCP_PORT is set. The launcher
 // will auto-ensure (or attach to) a healthy shared backend.
 // OPENADT_MCP_RESTART=1 forces a fresh daemon on launch (dev: pick up new code).
+import { isTruthyEnv } from "./process.ts";
 const explicitPort = parseExplicitPort(process.env.OPENADT_MCP_PORT?.trim());
-const restartArgs = process.env.OPENADT_MCP_RESTART?.trim()
+const restartArgs = isTruthyEnv(process.env.OPENADT_MCP_RESTART)
   ? ["--restart"]
   : [];
 const serveArgs = [

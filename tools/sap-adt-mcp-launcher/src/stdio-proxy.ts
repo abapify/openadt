@@ -205,6 +205,28 @@ function toolCallParams(params: Record<string, unknown>): {
   return { name, args };
 }
 
+/** `request` is a prompts/get call we should serve from the local guidance cache. */
+function isGuidanceRequest(
+  request: ParsedRpc | undefined,
+): request is ParsedRpc {
+  return (
+    guidanceEnabled() &&
+    request?.method === "prompts/get" &&
+    request.id !== undefined
+  );
+}
+
+/** `request` is a tools/call against one of our injected read tools and the LSP backend is wired. */
+function isReadToolRequest(
+  request: ParsedRpc | undefined,
+): request is ParsedRpc {
+  return (
+    readEnabled() &&
+    request?.method === "tools/call" &&
+    request.id !== undefined
+  );
+}
+
 /**
  * Merge our read tools into a backend `tools/list` response. No-op for any other
  * method, when read is disabled, when no read backend is wired, or when the
@@ -371,11 +393,7 @@ export function createStdioMcpBridge(): StdioMcpBridge {
   };
 
   const tryAnswerLocalGuidance = (request: ParsedRpc | undefined): boolean => {
-    if (
-      !guidanceEnabled() ||
-      request?.method !== "prompts/get" ||
-      request.id === undefined
-    ) {
+    if (!isGuidanceRequest(request)) {
       return false;
     }
     const { name, args } = promptGetParams(request.params);
@@ -394,12 +412,7 @@ export function createStdioMcpBridge(): StdioMcpBridge {
   };
 
   const tryAnswerLocalReadTool = (request: ParsedRpc | undefined): boolean => {
-    if (
-      !readBackend ||
-      !readEnabled() ||
-      request?.method !== "tools/call" ||
-      request.id === undefined
-    ) {
+    if (!readBackend || !isReadToolRequest(request)) {
       return false;
     }
     const { name, args } = toolCallParams(request.params);
@@ -422,7 +435,6 @@ export function createStdioMcpBridge(): StdioMcpBridge {
     if (!backend) {
       return;
     }
-    const baseEndpoint = backend;
     const request = parseRpc(message.body);
 
     if (tryAnswerLocalGuidance(request)) return;
@@ -431,32 +443,56 @@ export function createStdioMcpBridge(): StdioMcpBridge {
     // Methods whose backend response we rewrite to inject guidance.
     const injectMethod = guidanceEnabled() ? request?.method : undefined;
 
-    chain.append(async () => {
-      const endpoint = baseEndpoint.withSessionId(chain.sessionId);
-      try {
-        const result = await postMcpHttpMessage(endpoint, message);
-        chain.captureSessionId(result.sessionId);
-        if (result.messages.length === 0 && result.status >= 400) {
-          await replyError(
-            message,
-            new JsonRpcError(-32000, `MCP HTTP ${result.status}`),
-          );
-          return;
-        }
-        for (const msg of result.messages) {
-          const withGuidance = injectGuidance(msg, request?.id, injectMethod);
-          const withReadTools = injectReadTools(
-            withGuidance,
-            request?.id,
-            request?.method,
-            readBackend !== undefined,
-          );
-          await writeMcpStdioMessage(encoder, withReadTools);
-        }
-      } catch (err) {
-        await handleForwardError(message, err);
+    chain.append(() => forwardToBackend(message, request, injectMethod));
+  };
+
+  const forwardToBackend = async (
+    message: McpStdioMessage,
+    request: ParsedRpc | undefined,
+    injectMethod: string | undefined,
+  ): Promise<void> => {
+    if (!backend) {
+      return;
+    }
+    const endpoint = backend.withSessionId(chain.sessionId);
+    try {
+      const result = await postMcpHttpMessage(endpoint, message);
+      chain.captureSessionId(result.sessionId);
+      if (result.messages.length === 0 && result.status >= 400) {
+        await replyError(
+          message,
+          new JsonRpcError(-32000, `MCP HTTP ${result.status}`),
+        );
+        return;
       }
-    });
+      const hasReadBackend = readBackend !== undefined;
+      for (const msg of result.messages) {
+        const rewritten = rewriteForwardedMessage(
+          msg,
+          request,
+          injectMethod,
+          hasReadBackend,
+        );
+        await writeMcpStdioMessage(encoder, rewritten);
+      }
+    } catch (err) {
+      await handleForwardError(message, err);
+    }
+  };
+
+  const rewriteForwardedMessage = (
+    msg: string,
+    request: ParsedRpc | undefined,
+    injectMethod: string | undefined,
+    hasReadBackend: boolean,
+  ): string => {
+    const withGuidance = injectGuidance(msg, request?.id, injectMethod);
+    return injectReadTools(
+      withGuidance,
+      request?.id,
+      request?.method,
+      hasReadBackend,
+    );
   };
 
   const enqueuePending = (message: McpStdioMessage): void => {
