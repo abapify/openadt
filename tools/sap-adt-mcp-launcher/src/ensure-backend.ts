@@ -5,13 +5,7 @@
  * See specs/mcp-shared-backend.md.
  */
 import { createServer, type Server } from "node:net";
-import {
-  existsSync,
-  mkdirSync,
-  openSync,
-  rmSync,
-  statSync,
-} from "node:fs";
+import { existsSync, mkdirSync, openSync, rmSync, statSync } from "node:fs";
 import { spawn, type ChildProcess } from "node:child_process";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -132,7 +126,9 @@ async function withEnsureLock<T>(
     } catch (err) {
       const code = (err as NodeJS.ErrnoException | undefined)?.code;
       if (code !== "EEXIST") {
-        throw new Error(`Failed to create lock ${lockPath}: ${formatError(err)}`);
+        throw new Error(
+          `Failed to create lock ${lockPath}: ${formatError(err)}`,
+        );
       }
     }
 
@@ -193,8 +189,7 @@ export function spawnDetachedServe(
   serveArgs: string[],
   options: { launcherPath?: string; extraEnv?: NodeJS.ProcessEnv } = {},
 ): ChildProcess {
-  const launcher =
-    options.launcherPath ?? resolveDefaultLauncherPath();
+  const launcher = options.launcherPath ?? resolveDefaultLauncherPath();
   const runtime = buildAdtLscSpawnRuntime();
   const args = [
     launcher,
@@ -297,17 +292,21 @@ export async function resolveAttachTarget(
 export async function ensureSharedBackend(
   options: EnsureSharedBackendOptions = {},
 ): Promise<EnsureSharedBackendResult> {
-  const preferredPort = options.preferredPort ?? DEFAULT_MCP_PORT;
+  // Attach scope: when undefined, resolve against the whole store (attach to
+  // the single healthy endpoint regardless of port). Spawn port: the port a
+  // brand-new daemon should bind when no healthy backend exists.
+  const attachPort = options.preferredPort;
+  const spawnPort = options.preferredPort ?? DEFAULT_MCP_PORT;
   const timeoutMs = options.timeoutMs ?? DEFAULT_LOCK_TIMEOUT_MS;
 
-  if (preferredPort !== undefined && !isValidPort(preferredPort)) {
+  if (attachPort !== undefined && !isValidPort(attachPort)) {
     throw new Error(
-      `Invalid port: ${preferredPort} (must be ${PORT_MIN}-${PORT_MAX})`,
+      `Invalid port: ${attachPort} (must be ${PORT_MIN}-${PORT_MAX})`,
     );
   }
 
   // Step 1: try to attach to an existing healthy endpoint.
-  const attach = await resolveAttachTarget(preferredPort);
+  const attach = await resolveAttachTarget(attachPort);
   if (attach.kind === "healthy") {
     return {
       port: attach.record.port,
@@ -328,10 +327,10 @@ export async function ensureSharedBackend(
 
   // Step 2: ensure via lock + spawn.
   return withEnsureLock(
-    preferredPort,
+    spawnPort,
     async () => {
       // Double-check: another process may have ensured while we waited.
-      const recheck = await resolveAttachTarget(preferredPort);
+      const recheck = await resolveAttachTarget(attachPort);
       if (recheck.kind === "healthy") {
         return {
           port: recheck.record.port,
@@ -351,7 +350,7 @@ export async function ensureSharedBackend(
       }
 
       // Step 3: spawn the daemon (no --stdio) and wait for healthy.
-      const port = await pickPortForServe(preferredPort);
+      const port = await pickPortForServe(spawnPort);
       const child = spawnDetachedServe(port, options.serveArgs ?? [], {
         launcherPath: options.launcherPath,
       });

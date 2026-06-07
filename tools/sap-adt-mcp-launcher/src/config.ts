@@ -1,6 +1,7 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 import {
+  DEFAULT_IMPORT_FROM,
   DEFAULT_MCP_PORT,
   type DestinationImportMode,
   type McpServeConfig,
@@ -17,9 +18,10 @@ export const PID_FILE = join(homedir(), ".openadt", "adt-ls-mcp.pid");
 export function parseServeArgv(argv: string[]): McpServeConfig {
   const state: ServeArgvState = {
     port: DEFAULT_MCP_PORT,
+    explicitPort: false,
     workspace: DEFAULT_WORKSPACE,
     explicitWorkspace: false,
-    importFrom: "auto",
+    importFrom: DEFAULT_IMPORT_FROM,
     destination: undefined,
     json: false,
     showToken: false,
@@ -48,6 +50,7 @@ export function parseServeArgv(argv: string[]): McpServeConfig {
 
 type ServeArgvState = {
   port: number;
+  explicitPort: boolean;
   workspace: string;
   explicitWorkspace: boolean;
   importFrom: DestinationImportMode;
@@ -177,6 +180,7 @@ function valuedArgvHandlers(): ServeArgvHandler[] {
     numberValue(
       (_arg, value, s) => {
         s.port = value;
+        s.explicitPort = true;
       },
       ["--port"],
     ),

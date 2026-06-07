@@ -10,11 +10,22 @@ $ErrorActionPreference = "Stop"
 $repoRoot = $PSScriptRoot
 $launcher = Join-Path $repoRoot "scripts\nx-openadt.ts"
 
-$bun = Get-Command bun -ErrorAction SilentlyContinue
-if (-not $bun) {
-  Write-Error "bun is required for .\dev-openadt.ps1. Install bun: https://bun.sh — or use .\scripts\openadt-sdk.ps1 with the same subcommand arguments."
+$bunPath = $env:OPENADT_BUN
+if (-not $bunPath) {
+  $candidate = Join-Path $env:USERPROFILE ".bun\bin\bun.exe"
+  if (Test-Path $candidate) {
+    $bunPath = $candidate
+  } else {
+    $cmd = Get-Command bun -ErrorAction SilentlyContinue
+    if ($cmd) {
+      $bunPath = $cmd.Source
+    }
+  }
+}
+if (-not $bunPath) {
+  Write-Error "bun is required for .\dev-openadt.ps1. Install bun: https://bun.sh or set OPENADT_BUN."
   exit 1
 }
 
-& bun run $launcher @OpenAdtArgs
+& $bunPath $launcher @OpenAdtArgs
 exit $LASTEXITCODE

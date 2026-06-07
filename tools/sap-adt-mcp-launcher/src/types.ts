@@ -57,8 +57,13 @@ export type DestinationImportMode =
   | "openadt"
   | "none";
 
+/** Default `serve --import-from`: ADT LS store (Eclipse/ADT logon destinations). */
+export const DEFAULT_IMPORT_FROM: DestinationImportMode = "adtls";
+
 export type McpServeConfig = {
   port: number;
+  /** When true, --port (or OPENADT_MCP_PORT) was set explicitly on the CLI. */
+  explicitPort: boolean;
   workspace: string;
   /** When true, --workspace was set explicitly on the CLI. */
   explicitWorkspace: boolean;

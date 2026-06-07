@@ -206,16 +206,16 @@ Token never leaves the parent; agent config is command-only (no URL/headers).
 
 ## Command reference
 
-| Command                    | Role                                                           |
-| ------------------------- | -------------------------------------------------------------- |
-| `serve`                    | Child `adt-lsc` + HTTP MCP; hold until Ctrl+C; **no stdio**    |
-| `serve --stdio`            | Shared (auto-ensure + attach stdio bridge) — **default**         |
-| `serve --stdio --standalone` | Monolithic (owns adt-lsc, kills on exit)                    |
-| `status`                  | Probe HTTP MCP (`initialize` POST)                             |
-| `list`                    | List active endpoints in store                                 |
-| `print-config`             | Emit `{ url, headers }` for HTTP-native clients                |
-| `stop`                    | Stop MCP backend (see [mcp-shared-backend.md](mcp-shared-backend.md)) |
-| `bridge --stdio`           | Attach-only; fail if no healthy backend                          |
+| Command                      | Role                                                                  |
+| ---------------------------- | --------------------------------------------------------------------- |
+| `serve`                      | Child `adt-lsc` + HTTP MCP; hold until Ctrl+C; **no stdio**           |
+| `serve --stdio`              | Shared (auto-ensure + attach stdio bridge) — **default**              |
+| `serve --stdio --standalone` | Monolithic (owns adt-lsc, kills on exit)                              |
+| `status`                     | Probe HTTP MCP (`initialize` POST)                                    |
+| `list`                       | List active endpoints in store                                        |
+| `print-config`               | Emit `{ url, headers }` for HTTP-native clients                       |
+| `stop`                       | Stop MCP backend (see [mcp-shared-backend.md](mcp-shared-backend.md)) |
+| `bridge --stdio`             | Attach-only; fail if no healthy backend                               |
 
 ```bash
 ./dev-openadt mcp serve --port 2236
@@ -229,15 +229,15 @@ Run via `./dev-openadt mcp …` (clone) or `openadt mcp …` (Scoop/Homebrew). R
 
 ### `serve` flags (HTTP backend)
 
-| Flag                         | Default                       | Meaning                                                 |
-| ---------------------------- | ----------------------------- | ------------------------------------------------------- |
-| `--port`                     | `2236`                        | HTTP MCP listen port                                    |
-| `--workspace`                 | `~/.openadt/adt-ls-workspace` | Eclipse `-data` for adt-lsc                             |
-| `--import-from`               | `auto`                        | Destinations: `auto`, `adtls`, `gui`, `openadt`, `none` |
-| `--destination`               | (all imported)                | Restrict MCP destination                                |
-| `--logon-timeout`             | `300`                         | Seconds for `ensureLoggedOn`                            |
-| `--verbose` / `--log-file`    | off                           | Debug logging                                           |
-| `--standalone` (serve --stdio) | off (shared)                 | Own adt-lsc, kill on exit (monolithic path)            |
+| Flag                           | Default                       | Meaning                                                 |
+| ------------------------------ | ----------------------------- | ------------------------------------------------------- |
+| `--port`                       | `2236`                        | HTTP MCP listen port                                    |
+| `--workspace`                  | `~/.openadt/adt-ls-workspace` | Eclipse `-data` for adt-lsc                             |
+| `--import-from`                | `adtls`                       | Destinations: `auto`, `adtls`, `gui`, `openadt`, `none` |
+| `--destination`                | (all imported)                | Restrict MCP destination                                |
+| `--logon-timeout`              | `300`                         | Seconds for `ensureLoggedOn`                            |
+| `--verbose` / `--log-file`     | off                           | Debug logging                                           |
+| `--standalone` (serve --stdio) | off (shared)                  | Own adt-lsc, kill on exit (monolithic path)             |
 
 ### `serve --stdio` (additional behavior)
 
@@ -291,15 +291,15 @@ Parent exit **must** tear down HTTP MCP and `adt-lsc`; orphaned `adt-lsc` on por
 
 ### Failure modes
 
-| Condition                       | Client-visible behavior                                    | Exit code |
-| ------------------------------- | ----------------------------------------------------------- | -------- |
-| Extension missing               | JSON-RPC error on first request with `id`; exit `1`           | 1        |
-| Logon timeout / no SSO          | JSON-RPC error; stderr explains Secure Login                     | 1        |
-| Port in use                     | stderr message; exit `4`                                   | 4        |
-| HTTP never ready within timeout | JSON-RPC error on queued requests; exit `3`                | 3        |
-| Multiple active endpoints       | stderr + `mcp list` message; exit `5`                        | 5        |
-| Ensure lock timeout            | stderr; exit `6`                                          | 6        |
-| Daemon spawn failed            | stderr; exit `7`                                          | 7        |
+| Condition                       | Client-visible behavior                             | Exit code |
+| ------------------------------- | --------------------------------------------------- | --------- |
+| Extension missing               | JSON-RPC error on first request with `id`; exit `1` | 1         |
+| Logon timeout / no SSO          | JSON-RPC error; stderr explains Secure Login        | 1         |
+| Port in use                     | stderr message; exit `4`                            | 4         |
+| HTTP never ready within timeout | JSON-RPC error on queued requests; exit `3`         | 3         |
+| Multiple active endpoints       | stderr + `mcp list` message; exit `5`               | 5         |
+| Ensure lock timeout             | stderr; exit `6`                                    | 6         |
+| Daemon spawn failed             | stderr; exit `7`                                    | 7         |
 
 Exit codes 5-7: see [mcp-shared-backend.md](mcp-shared-backend.md).
 

@@ -17,6 +17,16 @@ import { buildAdtLscSpawnRuntime } from "./runtime-env.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
+function resolveRepoRoot(): string {
+  for (const key of ["OPENADT_DEV_ROOT", "OPENADT_REPO"] as const) {
+    const raw = process.env[key]?.trim();
+    if (raw && existsSync(raw)) {
+      return raw;
+    }
+  }
+  return join(here, "..", "..", "..");
+}
+
 function resolveLauncher(): { runtime: string; launcher: string } {
   for (const ext of [".mjs", ".js"]) {
     const built = join(here, `main${ext}`);
@@ -24,7 +34,16 @@ function resolveLauncher(): { runtime: string; launcher: string } {
       return { runtime: resolveBun(), launcher: built };
     }
   }
-  const repoRoot = join(here, "..", "..", "..");
+  const repoRoot = resolveRepoRoot();
+  for (const rel of [
+    join("tools", "sap-adt-mcp-launcher", "dist", "main.mjs"),
+    join("tools", "sap-adt-mcp-launcher", "src", "main.ts"),
+  ]) {
+    const candidate = join(repoRoot, rel);
+    if (existsSync(candidate)) {
+      return { runtime: resolveBun(), launcher: candidate };
+    }
+  }
   const srcMain = join(
     repoRoot,
     "tools",

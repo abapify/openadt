@@ -5,9 +5,15 @@
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, statSync } from "node:fs";
+import {
+  mcpNeedsStdioPipe,
+  runMcpLauncherInherited,
+  runMcpLauncherPiped,
+} from "./mcp-launcher-spawn.ts";
 import { spawnJavaWithClasspath } from "./java-argfile.ts";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { resolveOpenadtDevRoot } from "./resolve-openadt-dev-root.ts";
 import { loadDevRuntimeJars } from "./dev-runtime-classpath.ts";
 import {
   buildSdkClasspathEntries,
@@ -16,7 +22,7 @@ import {
   supplementFromP2,
 } from "./sdk-classpath.ts";
 
-const repoRoot = join(import.meta.dir, "..");
+const repoRoot = resolveOpenadtDevRoot();
 const cliDir = join(repoRoot, "apps", "openadt-cli");
 const configDir = join(repoRoot, "apps", "openadt-config");
 const bootstrapDir = join(repoRoot, "apps", "openadt-bootstrap");
@@ -181,31 +187,14 @@ function buildSdkClasspath(jar: string): string {
 
 const args = process.argv.slice(2);
 
-/** SAP ADT MCP uses Bun launcher (pipe LSP), not the Java classpath. */
-function runMcpLauncher(mcpArgs: string[]): number {
-  const launcher = join(
-    repoRoot,
-    "tools",
-    "sap-adt-mcp-launcher",
-    "src",
-    "main.ts",
-  );
-  if (!existsSync(launcher)) {
-    console.error(`Missing MCP launcher: ${launcher}`);
-    return 1;
-  }
-  const result = spawnSync("bun", [launcher, ...mcpArgs], {
-    stdio: "inherit",
-    cwd: repoRoot,
-    env: { ...process.env, OPENADT_REPO: repoRoot },
-  });
-  return result.status ?? 1;
-}
-
 const mcpIndex = firstSubcommandIndex(args);
 if (mcpIndex >= 0 && args[mcpIndex] === "mcp") {
   const mcpArgs = args.slice(mcpIndex + 1);
-  process.exit(runMcpLauncher(mcpArgs.length > 0 ? mcpArgs : ["--help"]));
+  const resolved = mcpArgs.length > 0 ? mcpArgs : ["--help"];
+  if (mcpNeedsStdioPipe(resolved)) {
+    process.exit(await runMcpLauncherPiped(repoRoot, resolved));
+  }
+  process.exit(runMcpLauncherInherited(repoRoot, resolved));
 }
 
 const jar = findDevJar();

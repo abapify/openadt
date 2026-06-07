@@ -23,10 +23,7 @@ import {
   stopTrackedMcpServers,
   writeEndpoint,
 } from "./endpoint-store.ts";
-import {
-  ensureSharedBackend,
-  mcpRootDir,
-} from "./ensure-backend.ts";
+import { ensureSharedBackend, mcpRootDir } from "./ensure-backend.ts";
 import { resolveDestinationImport } from "./gui-import.ts";
 import { createMcpLog, eclipseWorkspaceLogPath } from "./log.ts";
 import { isVsCodeAdtWorkspacePath, type WorkspacePath } from "./runtime-env.ts";
@@ -44,7 +41,11 @@ import {
   stopMcpServer,
   waitForMcpHttp,
 } from "./mcp.ts";
-import { MARKETPLACE_URL, type McpServeConfig } from "./types.ts";
+import {
+  DEFAULT_IMPORT_FROM,
+  MARKETPLACE_URL,
+  type McpServeConfig,
+} from "./types.ts";
 import {
   createStdioMcpBridge,
   McpHttpEndpoint,
@@ -296,7 +297,13 @@ async function cmdServeStandalone(cfg: McpServeConfig): Promise<number> {
       log,
     });
     endpointPort = started.port;
-    const endpoint = buildEndpointRecord(started, session, gui, cfg, "standalone");
+    const endpoint = buildEndpointRecord(
+      started,
+      session,
+      gui,
+      cfg,
+      "standalone",
+    );
     writeEndpoint(endpoint);
     endpointWritten = true;
     printServeState(
@@ -338,7 +345,11 @@ async function cmdServeSharedStdio(cfg: McpServeConfig): Promise<number> {
 
   try {
     const ensured = await ensureSharedBackend({
-      preferredPort: cfg.port,
+      // Only filter by port when the user asked for a specific one. Otherwise
+      // attach to the single healthy endpoint in the store regardless of its
+      // port (per specs/mcp-shared-backend.md §Attach resolution), so we never
+      // spawn a duplicate adt-lsc next to an existing backend on another port.
+      preferredPort: cfg.explicitPort ? cfg.port : undefined,
       serveArgs,
     });
 
@@ -365,7 +376,11 @@ async function cmdServeSharedStdio(cfg: McpServeConfig): Promise<number> {
       console.error(`[openadt-mcp] ${msg}`);
       return EXIT_SPAWN_FAILED;
     }
-    return failStdioAndExit(bridge, EXIT_LSP_MCP, `ensure backend failed: ${msg}`);
+    return failStdioAndExit(
+      bridge,
+      EXIT_LSP_MCP,
+      `ensure backend failed: ${msg}`,
+    );
   }
 }
 
@@ -378,17 +393,14 @@ function collectStandaloneServeArgs(cfg: McpServeConfig): string[] {
   if (cfg.destination) {
     args.push("--destination", cfg.destination);
   }
-  if (cfg.importFrom !== "auto") {
+  if (cfg.importFrom !== DEFAULT_IMPORT_FROM) {
     args.push(`--import-from=${cfg.importFrom}`);
   }
   if (cfg.workspace) {
     args.push("--workspace", cfg.workspace);
   }
   if (cfg.logonTimeoutMs !== DEFAULT_LOGON_TIMEOUT_MS) {
-    args.push(
-      "--logon-timeout",
-      String(Math.floor(cfg.logonTimeoutMs / 1000)),
-    );
+    args.push("--logon-timeout", String(Math.floor(cfg.logonTimeoutMs / 1000)));
   }
   if (cfg.verbose) {
     args.push("--verbose");
@@ -687,9 +699,7 @@ async function cmdBridge(argv: string[]): Promise<number> {
 
   const result = await findHealthyEndpoint(port);
   if (result.status === "none" || result.status === "unhealthy") {
-    console.error(
-      "No healthy MCP backend. Start one with: openadt mcp serve",
-    );
+    console.error("No healthy MCP backend. Start one with: openadt mcp serve");
     return EXIT_NO_BACKEND;
   }
   if (result.status === "ambiguous") {
@@ -721,6 +731,71 @@ function formatError(err: unknown): string {
   return String(err);
 }
 
+const KNOWN_COMMANDS = [
+  "serve",
+  "stop",
+  "bridge",
+  "status",
+  "list",
+  "print-config",
+] as const;
+
+function levenshtein(a: string, b: string): number {
+  const rows = Array.from({ length: a.length + 1 }, (_, i) => {
+    const row = new Array<number>(b.length + 1).fill(0);
+    row[0] = i;
+    return row;
+  });
+  for (let j = 0; j <= b.length; j++) {
+    rows[0]![j] = j;
+  }
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      rows[i]![j] = Math.min(
+        rows[i - 1]![j]! + 1,
+        rows[i]![j - 1]! + 1,
+        rows[i - 1]![j - 1]! + cost,
+      );
+    }
+  }
+  return rows[a.length]![b.length]!;
+}
+
+/** Closest known command within edit distance 2, or undefined. */
+function suggestCommand(name: string): string | undefined {
+  let best: string | undefined;
+  let bestDist = 3;
+  for (const cmd of KNOWN_COMMANDS) {
+    const dist = levenshtein(name, cmd);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = cmd;
+    }
+  }
+  return best;
+}
+
+/**
+ * Report an unknown subcommand. When invoked over stdio (an MCP client is
+ * listening), exiting silently makes the client respawn us in a loop — so we
+ * print a loud, actionable message that surfaces in the client's stderr pane.
+ */
+function unknownCommand(name: string, argv: string[]): void {
+  const suggestion = suggestCommand(name);
+  console.error(
+    `Unknown command: '${name}'.` +
+      (suggestion ? ` Did you mean '${suggestion}'?` : ""),
+  );
+  if (argv.includes("--stdio") && suggestion) {
+    console.error(
+      `Hint: your MCP client command should be \`openadt mcp ${suggestion} --stdio\`.`,
+    );
+  }
+  console.error("");
+  usage();
+}
+
 const subcmd = parseSubcommandArgv(process.argv.slice(2));
 
 if (!subcmd) {
@@ -743,7 +818,7 @@ const code = await (async (): Promise<number> => {
     case "print-config":
       return cmdPrintConfig(subcmd.argv);
     default:
-      usage();
+      unknownCommand(subcmd.name, subcmd.argv);
       return 1;
   }
 })();
