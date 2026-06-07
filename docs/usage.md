@@ -288,24 +288,38 @@ openadt mcp serve
 
 By default this listens on port `2236`. Flags:
 
-| Flag            | Default | Description                                               |
-| --------------- | ------- | --------------------------------------------------------- |
-| `--port`        | `2236`  | HTTP port for the MCP endpoint                            |
-| `--stdio`       | off     | stdio transport (JSON-RPC on stdin/stdout) for CLI agents |
-| `--destination` | —       | Pre-select a destination at startup                       |
-| `--verbose`     | off     | LSP trace log → `~/.openadt/logs/mcp-serve.log`           |
-| `--show-token`  | off     | Print the Bearer token to stdout                          |
+| Flag            | Default | Description                                                                       |
+| --------------- | ------- | --------------------------------------------------------------------------------- |
+| `--port`        | `2236`  | HTTP port for the MCP endpoint                                                    |
+| `--stdio`       | off     | stdio transport (JSON-RPC on stdin/stdout) for CLI agents; **shared by default**  |
+| `--standalone`  | off     | With `--stdio`: own `adt-lsc`, kill on exit (monolithic path)                    |
+| `--destination` | —       | Pre-select a destination at startup                                               |
+| `--verbose`     | off     | LSP trace log → `~/.openadt/logs/mcp-serve.log`                                   |
+| `--show-token`  | off     | Print the Bearer token to stdout                                                  |
 
 ```bash
 # HTTP mode — agent connects to http://localhost:2236/mcp
 openadt mcp serve --port 2236
 
-# stdio mode — agent connects via stdin/stdout (e.g. Devin CLI, Claude Desktop)
+# stdio mode (shared) — attach to a shared backend; do not own adt-lsc
 openadt mcp serve --stdio
+
+# stdio mode (standalone) — own adt-lsc, kill on exit
+openadt mcp serve --stdio --standalone
 
 # pre-select a destination and show the token
 openadt mcp serve --destination DEV --show-token
 ```
+
+### Shared backend (multiple agents)
+
+When `--stdio` is set without `--standalone`, OpenADT auto-ensures a shared backend: it finds a healthy MCP endpoint in the store, or spawns a detached daemon (one `adt-lsc` per workspace) and attaches a lightweight stdio bridge. The bridge **does not** kill the backend on exit — multiple agents share the same daemon.
+
+- **Stop the shared backend:** `openadt mcp stop [--port]`
+- **Attach-only (no spawn):** `openadt mcp bridge --stdio [--port]`
+- **List active backends:** `openadt mcp list`
+
+For CI or scripts that need owned lifecycle, use `openadt mcp serve --stdio --standalone`.
 
 ### Configuring your agent (`mcp.json`)
 

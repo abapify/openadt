@@ -28,6 +28,7 @@ export function parseServeArgv(argv: string[]): McpServeConfig {
     logFile: undefined,
     logonTimeoutMs: DEFAULT_LOGON_TIMEOUT_MS,
     stdio: false,
+    standalone: false,
   };
 
   const handlers = buildServeArgvHandlers();
@@ -58,6 +59,8 @@ type ServeArgvState = {
   logFile: string | undefined;
   logonTimeoutMs: number;
   stdio: boolean;
+  /** When true, --stdio is monolithic (own adt-lsc, kill on exit). */
+  standalone: boolean;
 };
 
 type ServeArgvHandler = {
@@ -135,6 +138,12 @@ function booleanFlagArgvHandlers(): ServeArgvHandler[] {
         s.stdio = true;
       },
       ["--stdio"],
+    ),
+    boolFlag(
+      (s) => {
+        s.standalone = true;
+      },
+      ["--standalone"],
     ),
     boolFlag(
       (s) => {
@@ -357,6 +366,72 @@ export function parsePrintConfigArgv(argv: string[]): {
 
 export function parseListArgv(argv: string[]): { json: boolean } {
   return { json: argv.includes("--json") };
+}
+
+export function parseStopArgv(argv: string[]): {
+  port?: number;
+  json: boolean;
+} {
+  let port: number | undefined;
+  let json = false;
+
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]!;
+    if (arg === "--json") {
+      json = true;
+      continue;
+    }
+    if (arg === "--port" && i + 1 < argv.length) {
+      port = Number(argv[++i]!);
+      continue;
+    }
+    if (arg.startsWith("--port=")) {
+      port = Number(arg.slice("--port=".length));
+      continue;
+    }
+  }
+
+  if (port !== undefined && !isValidPort(port)) {
+    throw new Error(`Invalid --port: ${port}`);
+  }
+
+  return { port, json };
+}
+
+export function parseBridgeArgv(argv: string[]): {
+  port?: number;
+  stdio: boolean;
+  json: boolean;
+} {
+  let port: number | undefined;
+  let stdio = false;
+  let json = false;
+
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]!;
+    if (arg === "--json") {
+      json = true;
+      continue;
+    }
+    if (arg === "--stdio") {
+      stdio = true;
+      continue;
+    }
+    if (arg === "--port" && i + 1 < argv.length) {
+      port = Number(argv[++i]!);
+      continue;
+    }
+    if (arg.startsWith("--port=")) {
+      port = Number(arg.slice("--port=".length));
+      continue;
+    }
+  }
+
+  if (port !== undefined && !isValidPort(port)) {
+    throw new Error(`Invalid --port: ${port}`);
+  }
+
+  return { port, stdio, json };
 }
 
 export interface ParsedSubcommand {

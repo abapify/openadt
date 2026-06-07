@@ -1,18 +1,21 @@
 #!/usr/bin/env bun
 /**
  * Headless launcher for SAP ADT MCP (adt-lsc + adtLs/mcp/startMCPServer).
- * See specs/mcp.md.
+ * See specs/mcp.md, specs/mcp-shared-backend.md.
  */
 import { locateAdtLs } from "./locate.ts";
 import {
+  parseBridgeArgv,
   parseListArgv,
   parsePrintConfigArgv,
   parseServeArgv,
   parseStatusArgv,
+  parseStopArgv,
   parseSubcommandArgv,
 } from "./config.ts";
 import {
   endpointFilePath,
+  findHealthyEndpoint,
   listEndpoints,
   mcpEndpointsDir,
   removeEndpoint,
@@ -20,6 +23,10 @@ import {
   stopTrackedMcpServers,
   writeEndpoint,
 } from "./endpoint-store.ts";
+import {
+  ensureSharedBackend,
+  mcpRootDir,
+} from "./ensure-backend.ts";
 import { resolveDestinationImport } from "./gui-import.ts";
 import { createMcpLog, eclipseWorkspaceLogPath } from "./log.ts";
 import { isVsCodeAdtWorkspacePath, type WorkspacePath } from "./runtime-env.ts";
@@ -43,23 +50,29 @@ import {
   McpHttpEndpoint,
   type StdioMcpBridge,
 } from "./stdio-proxy.ts";
+import { DEFAULT_LOGON_TIMEOUT_MS } from "./logon-handlers.ts";
 
 const EXIT_OK = 0;
 const EXIT_NO_EXTENSION = 1;
 const EXIT_LSC_START = 2;
 const EXIT_LSP_MCP = 3;
 const EXIT_PORT_IN_USE = 4;
+const EXIT_AMBIGUOUS = 5;
+const EXIT_LOCK_TIMEOUT = 6;
+const EXIT_SPAWN_FAILED = 7;
+const EXIT_NO_BACKEND = 8;
 
 function usage(): void {
   console.error(`Usage: openadt mcp <command>
 
 Commands:
   serve         Start SAP ADT language server and MCP HTTP endpoint
+  serve --stdio Stdio MCP transport; shared (ensure + attach) by default
+  stop          Stop MCP backend(s) tracked in endpoint store
+  bridge        Attach stdio to existing healthy backend
   status        Probe MCP HTTP endpoint
   list          List active MCP endpoints (one store file per port)
   print-config  Emit HTTP MCP client JSON (url + headers) from endpoint store
-
-  serve --stdio   Stdio MCP transport (proxies stdin/stdout to local HTTP MCP)
 
 Install SAP ADT for VS Code: ${MARKETPLACE_URL}
 `);
@@ -219,6 +232,21 @@ async function waitForIdleHttpServe(session: LspSession): Promise<void> {
 async function cmdServe(argv: string[]): Promise<number> {
   const cfg = parseServeArgv(argv);
 
+  // Route based on mode:
+  // - `serve --stdio`           → shared (ensure + attach; default)
+  // - `serve --stdio --standalone` → monolithic (own adt-lsc, kill on exit)
+  // - `serve` (no --stdio)      → monolithic HTTP-only daemon
+  if (cfg.stdio && !cfg.standalone) {
+    return cmdServeSharedStdio(cfg);
+  }
+  return cmdServeStandalone(cfg);
+}
+
+/**
+ * Standalone (monolithic) path: owns adt-lsc, kills on exit.
+ * Used when `--standalone` is set, or for `serve` without --stdio.
+ */
+async function cmdServeStandalone(cfg: McpServeConfig): Promise<number> {
   const bridge = cfg.stdio ? createStdioMcpBridge() : undefined;
   if (bridge) {
     bridge.start();
@@ -268,7 +296,7 @@ async function cmdServe(argv: string[]): Promise<number> {
       log,
     });
     endpointPort = started.port;
-    const endpoint = buildEndpointRecord(started, session, gui, cfg);
+    const endpoint = buildEndpointRecord(started, session, gui, cfg, "standalone");
     writeEndpoint(endpoint);
     endpointWritten = true;
     printServeState(
@@ -294,6 +322,81 @@ async function cmdServe(argv: string[]): Promise<number> {
     await shutdown(session, endpointPort, endpointWritten);
     log?.dispose();
   }
+}
+
+/**
+ * Shared stdio path: ensure a healthy backend, attach stdio bridge.
+ * Bridge exit does NOT kill the backend.
+ */
+async function cmdServeSharedStdio(cfg: McpServeConfig): Promise<number> {
+  const bridge = createStdioMcpBridge();
+  bridge.start();
+
+  const serveArgs = collectStandaloneServeArgs(cfg).filter(
+    (a) => a !== "--stdio" && a !== "--standalone",
+  );
+
+  try {
+    const ensured = await ensureSharedBackend({
+      preferredPort: cfg.port,
+      serveArgs,
+    });
+
+    if (!cfg.json) {
+      console.error(
+        `[openadt-mcp] Attached to shared backend at ${ensured.url}`,
+      );
+    }
+
+    await bridge.run(McpHttpEndpoint.forConfig(ensured.port, ensured.token));
+    return EXIT_OK;
+  } catch (err) {
+    const msg = formatError(err);
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "OPENADT_MCP_AMBIGUOUS") {
+      console.error(`[openadt-mcp] ${msg}`);
+      return EXIT_AMBIGUOUS;
+    }
+    if (code === "OPENADT_MCP_TIMEOUT") {
+      console.error(`[openadt-mcp] ${msg}`);
+      return EXIT_LOCK_TIMEOUT;
+    }
+    if (code === "OPENADT_MCP_SPAWN_FAILED") {
+      console.error(`[openadt-mcp] ${msg}`);
+      return EXIT_SPAWN_FAILED;
+    }
+    return failStdioAndExit(bridge, EXIT_LSP_MCP, `ensure backend failed: ${msg}`);
+  }
+}
+
+/**
+ * Collect serve arguments that should be forwarded to the detached daemon.
+ * Strips stdio-related flags (the daemon does not need them).
+ */
+function collectStandaloneServeArgs(cfg: McpServeConfig): string[] {
+  const args: string[] = [];
+  if (cfg.destination) {
+    args.push("--destination", cfg.destination);
+  }
+  if (cfg.importFrom !== "auto") {
+    args.push(`--import-from=${cfg.importFrom}`);
+  }
+  if (cfg.workspace) {
+    args.push("--workspace", cfg.workspace);
+  }
+  if (cfg.logonTimeoutMs !== DEFAULT_LOGON_TIMEOUT_MS) {
+    args.push(
+      "--logon-timeout",
+      String(Math.floor(cfg.logonTimeoutMs / 1000)),
+    );
+  }
+  if (cfg.verbose) {
+    args.push("--verbose");
+  }
+  if (cfg.logFile) {
+    args.push("--log-file", cfg.logFile);
+  }
+  return args;
 }
 
 function logImportDiagnostics(
@@ -360,6 +463,7 @@ function buildEndpointRecord(
   session: LspSession,
   gui: ReturnType<typeof resolveDestinationImport>,
   cfg: McpServeConfig,
+  mode: "daemon" | "standalone" = "daemon",
 ) {
   return {
     port: started.port,
@@ -371,6 +475,7 @@ function buildEndpointRecord(
     destination: cfg.destination,
     destinations: gui.imported.map((d) => d.id),
     workspace: gui.workspace,
+    mode,
   };
 }
 
@@ -550,6 +655,65 @@ function cmdPrintConfig(argv: string[]): number {
   return EXIT_OK;
 }
 
+/**
+ * Stop MCP backend(s) tracked in the endpoint store.
+ * Mirrors the legacy `stopTrackedMcpServers` behavior; exposes it as a CLI subcommand.
+ */
+async function cmdStop(argv: string[]): Promise<number> {
+  const { port, json } = parseStopArgv(argv);
+  const stopped = await stopTrackedMcpServers({ onlyPort: port });
+  if (json) {
+    console.log(JSON.stringify({ stopped, port: port ?? null }));
+  } else if (stopped > 0) {
+    const target = port !== undefined ? ` on port ${port}` : "";
+    console.log(`Stopped ${stopped} MCP backend(s)${target}.`);
+  } else {
+    const target = port !== undefined ? ` on port ${port}` : "";
+    console.log(`No active MCP backends${target}; nothing to stop.`);
+  }
+  return EXIT_OK;
+}
+
+/**
+ * Attach stdio to an existing healthy backend (no spawn).
+ * Fails if no healthy backend is found.
+ */
+async function cmdBridge(argv: string[]): Promise<number> {
+  const { port, stdio, json } = parseBridgeArgv(argv);
+  if (!stdio) {
+    console.error("bridge subcommand requires --stdio");
+    return 1;
+  }
+
+  const result = await findHealthyEndpoint(port);
+  if (result.status === "none" || result.status === "unhealthy") {
+    console.error(
+      "No healthy MCP backend. Start one with: openadt mcp serve",
+    );
+    return EXIT_NO_BACKEND;
+  }
+  if (result.status === "ambiguous") {
+    const ports = result.records.map((r) => String(r.port)).join(", ");
+    console.error(
+      `Multiple active MCP endpoints (ports ${ports}). ` +
+        `Use: openadt mcp bridge --stdio --port <port>`,
+    );
+    return EXIT_AMBIGUOUS;
+  }
+
+  const record = result.record;
+  if (!json) {
+    console.error(
+      `[openadt-mcp] Attached to existing backend at ${record.url}`,
+    );
+  }
+
+  const bridge = createStdioMcpBridge();
+  bridge.start();
+  await bridge.run(McpHttpEndpoint.forConfig(record.port, record.token));
+  return EXIT_OK;
+}
+
 function formatError(err: unknown): string {
   if (err instanceof Error) {
     return err.message;
@@ -568,6 +732,10 @@ const code = await (async (): Promise<number> => {
   switch (subcmd.name) {
     case "serve":
       return cmdServe(subcmd.argv);
+    case "stop":
+      return cmdStop(subcmd.argv);
+    case "bridge":
+      return cmdBridge(subcmd.argv);
     case "status":
       return cmdStatus(subcmd.argv);
     case "list":

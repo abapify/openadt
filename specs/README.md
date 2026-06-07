@@ -14,6 +14,7 @@ Behavior contracts for OpenADT. **SDD enforcement:** [DESIGN.md](../DESIGN.md). 
 | [proxy.md](proxy.md)                       | Local HTTP proxy, auth, redaction                             |
 | [setup.md](setup.md)                       | Detectors and bootstrap output                                |
 | [mcp.md](mcp.md)                           | SAP ADT MCP launcher + official server interface (LSP + HTTP) |
+| [mcp-shared-backend.md](mcp-shared-backend.md) | MCP shared backend (auto-ensure + attach)                     |
 | [packaging.md](packaging.md)               | Releases, Scoop, Homebrew                                     |
 
 ## Workflow

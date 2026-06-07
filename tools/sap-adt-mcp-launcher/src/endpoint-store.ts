@@ -8,7 +8,11 @@ import {
 } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { probeMcpHttp } from "./mcp.ts";
 import { killProcessByPid, sleep, waitForProcessExit } from "./process.ts";
+
+/** Mode tag for endpoint records (see specs/mcp-shared-backend.md). */
+export type McpEndpointMode = "daemon" | "standalone";
 
 export type McpEndpointRecord = {
   port: number;
@@ -21,6 +25,8 @@ export type McpEndpointRecord = {
   destination?: string;
   destinations: string[];
   workspace: string;
+  /** Optional mode tag (daemon = shared backend; standalone = owned lifecycle). */
+  mode?: McpEndpointMode;
 };
 
 export function mcpEndpointsDir(): string {
@@ -168,6 +174,51 @@ export function listEndpoints(): McpEndpointRecord[] {
     }
   }
   return out.sort((a, b) => a.port - b.port);
+}
+
+/**
+ * Find the single healthy endpoint in the store, probing HTTP.
+ *
+ * Returns:
+ * - `{ status: "none" }` — no records in store.
+ * - `{ status: "one", record }` — exactly one healthy endpoint.
+ * - `{ status: "ambiguous", records }` — multiple healthy endpoints (caller should exit 5).
+ * - `{ status: "unhealthy" }` — records exist but none respond (caller should ensure).
+ */
+export type FindHealthyEndpointResult =
+  | { status: "none" }
+  | { status: "one"; record: McpEndpointRecord }
+  | { status: "ambiguous"; records: McpEndpointRecord[] }
+  | { status: "unhealthy" };
+
+export async function findHealthyEndpoint(
+  preferredPort?: number,
+): Promise<FindHealthyEndpointResult> {
+  const endpoints = listEndpoints();
+  if (endpoints.length === 0) {
+    return { status: "none" };
+  }
+
+  const healthy: McpEndpointRecord[] = [];
+  for (const record of endpoints) {
+    if (preferredPort !== undefined && record.port !== preferredPort) {
+      continue;
+    }
+    if (!isProcessAlive(record.pid)) {
+      continue;
+    }
+    if (await probeMcpHttp(record.port, record.token)) {
+      healthy.push(record);
+    }
+  }
+
+  if (healthy.length === 0) {
+    return { status: "unhealthy" };
+  }
+  if (healthy.length === 1) {
+    return { status: "one", record: healthy[0]! };
+  }
+  return { status: "ambiguous", records: healthy };
 }
 
 export type ResolveEndpointResult =

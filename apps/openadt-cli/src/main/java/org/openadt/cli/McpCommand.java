@@ -8,6 +8,8 @@ import picocli.CommandLine.Command;
     description = "Launch official SAP ADT MCP (requires SAP ADT VS Code extension and Bun)",
     subcommands = {
         McpServeCommand.class,
+        McpStopCommand.class,
+        McpBridgeCommand.class,
         McpStatusCommand.class,
         McpListCommand.class,
         McpPrintConfigCommand.class,

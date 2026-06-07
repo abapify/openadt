@@ -57,6 +57,7 @@ Module and package map: [apps/ARCHITECTURE.md](apps/ARCHITECTURE.md).
 | [sdk-capabilities.md](specs/sdk-capabilities.md) | SAP SDK APIs in use                              |
 | [sdk-services.md](specs/sdk-services.md)         | Registered SDK services                          |
 | [mcp.md](specs/mcp.md)                           | SAP ADT MCP launcher + official server interface |
+| [mcp-shared-backend.md](specs/mcp-shared-backend.md) | MCP shared backend (auto-ensure + attach)       |
 | [packaging.md](specs/packaging.md)               | Releases, Scoop, Homebrew                        |
 
 Full index and verify commands: [specs/README.md](specs/README.md).

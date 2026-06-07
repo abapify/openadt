@@ -72,6 +72,8 @@ export type McpServeConfig = {
   logonTimeoutMs: number;
   /** Stdio MCP transport: proxy stdin/stdout to local HTTP MCP (no token in agent config). */
   stdio: boolean;
+  /** Monolithic mode: own adt-lsc, kill on exit. Default false (shared). */
+  standalone: boolean;
 };
 
 export type McpRuntimeState = {

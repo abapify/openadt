@@ -3,16 +3,17 @@
  * Stdio MCP entry for agents with a minimal PATH (Cursor agent CLI, IDE MCP).
  * Resolves Bun from ~/.bun/bin without absolute paths in .cursor/mcp.json.
  * Proxies stdin/stdout explicitly (inherit breaks some MCP clients on Windows).
+ *
+ * Uses shared mode (default) so multiple agents share one adt-lsc. Set
+ * OPENADT_MCP_PORT to pin a specific port. See specs/mcp-shared-backend.md.
  */
 import { existsSync } from "node:fs";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { createServer } from "node:net";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 import { buildAdtLscSpawnRuntime } from "./runtime-env.ts";
-import { DEFAULT_MCP_PORT } from "./types.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -61,43 +62,11 @@ function parseExplicitPort(raw: string | undefined): number | undefined {
   const port = Number(raw);
   if (!isValidPort(port)) {
     console.error(
-      `[openadt-mcp] Invalid OPENADT_MCP_PORT=${raw} (expected integer ${PORT_MIN}-${PORT_MAX}); falling back to ephemeral.`,
+      `[openadt-mcp] Invalid OPENADT_MCP_PORT=${raw} (expected integer ${PORT_MIN}-${PORT_MAX}); using shared default.`,
     );
     return undefined;
   }
   return port;
-}
-
-async function pickMcpPort(): Promise<number> {
-  const explicit = parseExplicitPort(process.env.OPENADT_MCP_PORT?.trim());
-  if (explicit !== undefined) {
-    return explicit;
-  }
-  return bindEphemeralPort();
-}
-
-function bindEphemeralPort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const server = createServer();
-    server.unref();
-    server.on("error", reject);
-    server.listen(0, "127.0.0.1", () => {
-      const address = server.address();
-      if (!address || typeof address === "string") {
-        server.close();
-        reject(new Error("Could not bind ephemeral port"));
-        return;
-      }
-      const port = address.port;
-      server.close((err) => {
-        if (err) {
-          reject(err);
-          return;
-        }
-        resolve(port >= PORT_MIN ? port : DEFAULT_MCP_PORT);
-      });
-    });
-  });
 }
 
 function pipeStdio(child: ChildProcessWithoutNullStreams): void {
@@ -176,12 +145,13 @@ async function drainChildStreams(
   await drainStdoutWritable();
 }
 
-const port = await pickMcpPort();
+// Shared mode: pass --port only when OPENADT_MCP_PORT is set. The launcher
+// will auto-ensure (or attach to) a healthy shared backend.
+const explicitPort = parseExplicitPort(process.env.OPENADT_MCP_PORT?.trim());
 const serveArgs = [
   "serve",
   "--stdio",
-  "--port",
-  String(port),
+  ...(explicitPort !== undefined ? ["--port", String(explicitPort)] : []),
   ...process.argv.slice(2),
 ];
 
