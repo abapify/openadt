@@ -21,6 +21,7 @@
   },
   "devDependencies": {
     "@nx/workspace": "22.7.2",
+    "@octokit/rest": "^22.0.1",
     "@types/adm-zip": "^0.5.7",
     "@types/node": "^22.15.21",
     "adm-zip": "^0.5.17",

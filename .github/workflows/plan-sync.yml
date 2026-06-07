@@ -1,0 +1,47 @@
+# Sync Cursor plan files to GitHub issues (deterministic; no LLM).
+# Trigger: push that adds a .cursor/plans/*.plan.md (updates to existing plans are skipped for now).
+name: Plan sync
+
+on:
+  push:
+    paths:
+      - ".cursor/plans/**/*.plan.md"
+  workflow_dispatch:
+    inputs:
+      plan_file:
+        description: Optional plan path under .cursor/plans/ (sync all when empty)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+
+      - run: bun install --frozen-lockfile
+
+      - name: Sync Cursor plans to issues
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_EVENT_BEFORE: ${{ github.event.before }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          PLAN_FILE: ${{ github.event.inputs.plan_file }}
+        run: |
+          if [ -n "${PLAN_FILE}" ]; then
+            bun scripts/plan-to-issue.ts --file "${PLAN_FILE}"
+          elif [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            bun scripts/plan-to-issue.ts --all
+          else
+            bun scripts/plan-to-issue.ts --from-push
+          fi
