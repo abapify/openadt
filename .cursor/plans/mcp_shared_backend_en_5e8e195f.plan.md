@@ -77,7 +77,7 @@ sequenceDiagram
 
 - **All plans in English** (this file and future CreatePlan output).
 - After approval, copy this plan to **[docs/plans/2026-06-07-mcp-shared-backend.md](docs/plans/2026-06-07-mcp-shared-backend.md)** (tracked in git).
-- Update **[.agents/backlog/2026-06-07-mcp-shared-backend.md](.agents/backlog/2026-06-07-mcp-shared-backend.md)** to mirror the 7 todos below 1:1; `source:` points to the docs/plans file.
+- Update **[.agents/backlog/2026-06-07-mcp-shared-backend.md](.agents/backlog/2026-06-07-mcp-shared-backend.md)** to mirror the 9 todos below 1:1; `source:` points to the docs/plans file.
 
 ---
 
