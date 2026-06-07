@@ -47,8 +47,9 @@ export function spawnAdtLsc(
     // on the Windows desktop). SSO / Secure Login prompts are SEPARATE GUI windows
     // (browser / Secure Login Client) and still appear. Set
     // OPENADT_ADT_LSC_SHOW_WINDOW=1 to show the console (debugging, or a landscape
-    // whose logon needs the native console).
-    windowsHide: !process.env.OPENADT_ADT_LSC_SHOW_WINDOW,
+    // whose logon needs the native console). Treat any truthy value ("1", "true",
+    // "yes", case-insensitive) as on so tests / scripts can flip it.
+    windowsHide: !isTruthyEnv(process.env.OPENADT_ADT_LSC_SHOW_WINDOW),
   });
   if (child.stderr && options.onStderrLine) {
     let pending = "";
@@ -133,6 +134,12 @@ export function killProcessByPid(pid: number): void {
 
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** True for `1` / `true` / `yes` (case-insensitive); everything else is false. */
+export function isTruthyEnv(value: string | undefined): boolean {
+  if (!value) return false;
+  return /^(1|true|yes)$/i.test(value.trim());
 }
 
 export async function waitForProcessExit(

@@ -23,7 +23,7 @@ import {
   stopTrackedMcpServers,
   writeEndpoint,
 } from "./endpoint-store.ts";
-import { ensureSharedBackend, mcpRootDir } from "./ensure-backend.ts";
+import { ensureSharedBackend } from "./ensure-backend.ts";
 import { resolveDestinationImport } from "./gui-import.ts";
 import { createMcpLog, eclipseWorkspaceLogPath } from "./log.ts";
 import { isVsCodeAdtWorkspacePath, type WorkspacePath } from "./runtime-env.ts";
@@ -311,52 +311,20 @@ async function cmdServeStandalone(cfg: McpServeConfig): Promise<number> {
   let endpointPort: number | undefined;
   let auxServer: ReadAuxServer | undefined;
   try {
-    const started = await startMcpHttpAndApplyDestination(session.connection, {
-      port: cfg.port,
-      token,
-      destination: cfg.destination,
-      log,
-    });
-    endpointPort = started.port;
-    // Best-effort: prime the RIS index per destination so the first read/search
-    // after logon doesn't hit a cold (empty) result. Fire-and-forget.
-    if (readBackend && gui.imported.length > 0) {
-      const req = connectionRequester(session.connection);
-      void Promise.allSettled(gui.imported.map((d) => prewarm(req, d.id)));
-    }
-    // Daemon role (no in-process stdio bridge): expose read tools over HTTP so a
-    // separate shared stdio bridge can reach the LSP we own.
-    if (readBackend && !cfg.stdio) {
-      auxServer = await startReadAuxServer(readBackend);
-      log?.info(`read endpoint at ${auxServer.url}`);
-    }
-    const endpoint = buildEndpointRecord(
-      started,
+    const result = await runStandaloneServe({
+      bridge,
       session,
+      readBackend,
+      cfg,
       gui,
-      cfg,
-      "standalone",
-      auxServer,
-    );
-    writeEndpoint(endpoint);
+      log,
+      token,
+      install,
+    });
+    endpointPort = result.endpointPort;
+    auxServer = result.auxServer;
     endpointWritten = true;
-    printServeState(
-      toServerState({
-        endpoint,
-        install,
-        cfg,
-        gui,
-        version: started.version,
-      }),
-      cfg,
-    );
-
-    if (cfg.stdio && bridge) {
-      await runStdioBridgeOrHttpLoop(bridge, session, started);
-      return EXIT_OK;
-    }
-    await waitForIdleHttpServe(session);
-    return EXIT_OK;
+    return result.exit;
   } catch (err) {
     return failServeError(bridge, cfg, err);
   } finally {
@@ -364,6 +332,65 @@ async function cmdServeStandalone(cfg: McpServeConfig): Promise<number> {
     await shutdown(session, endpointPort, endpointWritten);
     log?.dispose();
   }
+}
+
+type StandaloneServeResult = {
+  endpointPort: number;
+  auxServer: ReadAuxServer | undefined;
+  exit: number;
+};
+
+async function runStandaloneServe(input: {
+  bridge: StdioMcpBridge | undefined;
+  session: LspSession;
+  readBackend: LspReadBackend | undefined;
+  cfg: McpServeConfig;
+  gui: ReturnType<typeof resolveDestinationImport>;
+  log: ReturnType<typeof createMcpLog>;
+  token: string;
+  install: NonNullable<ReturnType<typeof locateAdtLs>>;
+}): Promise<StandaloneServeResult> {
+  const { bridge, session, readBackend, cfg, gui, log, token, install } = input;
+  const started = await startMcpHttpAndApplyDestination(session.connection, {
+    port: cfg.port,
+    token,
+    destination: cfg.destination,
+    log,
+  });
+  let auxServer: ReadAuxServer | undefined;
+  if (readBackend && gui.imported.length > 0) {
+    const req = connectionRequester(session.connection);
+    void Promise.allSettled(gui.imported.map((d) => prewarm(req, d.id)));
+  }
+  if (readBackend && !cfg.stdio) {
+    auxServer = await startReadAuxServer(readBackend);
+    log?.info(`read endpoint at ${auxServer.url}`);
+  }
+  const endpoint = buildEndpointRecord({
+    started,
+    session,
+    gui,
+    cfg,
+    mode: "standalone",
+    aux: auxServer,
+  });
+  writeEndpoint(endpoint);
+  printServeState(
+    toServerState({
+      endpoint,
+      install,
+      cfg,
+      gui,
+      version: started.version,
+    }),
+    cfg,
+  );
+  if (cfg.stdio && bridge) {
+    await runStdioBridgeOrHttpLoop(bridge, session, started);
+  } else {
+    await waitForIdleHttpServe(session);
+  }
+  return { endpointPort: started.port, auxServer, exit: EXIT_OK };
 }
 
 /**
@@ -425,26 +452,28 @@ async function cmdServeSharedStdio(cfg: McpServeConfig): Promise<number> {
     await bridge.run(McpHttpEndpoint.forConfig(ensured.port, ensured.token));
     return EXIT_OK;
   } catch (err) {
-    const msg = formatError(err);
-    const code = (err as NodeJS.ErrnoException).code;
-    if (code === "OPENADT_MCP_AMBIGUOUS") {
-      console.error(`[openadt-mcp] ${msg}`);
-      return EXIT_AMBIGUOUS;
-    }
-    if (code === "OPENADT_MCP_TIMEOUT") {
-      console.error(`[openadt-mcp] ${msg}`);
-      return EXIT_LOCK_TIMEOUT;
-    }
-    if (code === "OPENADT_MCP_SPAWN_FAILED") {
-      console.error(`[openadt-mcp] ${msg}`);
-      return EXIT_SPAWN_FAILED;
-    }
-    return failStdioAndExit(
-      bridge,
-      EXIT_LSP_MCP,
-      `ensure backend failed: ${msg}`,
-    );
+    return exitCodeForEnsureError(err, bridge);
   }
+}
+
+/** Map an `ensureSharedBackend` error code to the corresponding CLI exit code. */
+function exitCodeForEnsureError(
+  err: unknown,
+  bridge: StdioMcpBridge,
+): Promise<number> {
+  const code = (err as NodeJS.ErrnoException).code;
+  const message = `[openadt-mcp] ${formatError(err)}`;
+  if (code === "OPENADT_MCP_AMBIGUOUS")
+    return failStdioAndExit(bridge, EXIT_AMBIGUOUS, message);
+  if (code === "OPENADT_MCP_TIMEOUT")
+    return failStdioAndExit(bridge, EXIT_LOCK_TIMEOUT, message);
+  if (code === "OPENADT_MCP_SPAWN_FAILED")
+    return failStdioAndExit(bridge, EXIT_SPAWN_FAILED, message);
+  return failStdioAndExit(
+    bridge,
+    EXIT_LSP_MCP,
+    `ensure backend failed: ${formatError(err)}`,
+  );
 }
 
 /**
@@ -502,6 +531,21 @@ async function startMcpHttpAndApplyDestination(
     log: ReturnType<typeof createMcpLog>;
   },
 ): Promise<{ port: number; token: string; version?: string }> {
+  const started = await startMcpHttp(connection, options);
+  if (options.destination) {
+    await applyDestination(connection, options.destination, options.log);
+  }
+  return started;
+}
+
+async function startMcpHttp(
+  connection: LspSession["connection"],
+  options: {
+    port: number;
+    token: string;
+    log: ReturnType<typeof createMcpLog>;
+  },
+): Promise<{ port: number; token: string; version?: string }> {
   options.log?.info(`LSP → adtLs/mcp/startMCPServer port=${options.port}`);
   const started = await startMcpServer(connection, {
     port: options.port,
@@ -523,24 +567,32 @@ async function startMcpHttpAndApplyDestination(
     );
     throw err;
   }
-  if (options.destination) {
-    options.log?.info(`LSP → adtLs/mcp/setDestination ${options.destination}`);
-    await setMcpDestination(connection, options.destination);
-    options.log?.info(`LSP ← adtLs/mcp/setDestination ok`);
-  }
   return started;
+}
+
+async function applyDestination(
+  connection: LspSession["connection"],
+  destination: string,
+  log: ReturnType<typeof createMcpLog>,
+): Promise<void> {
+  log?.info(`LSP → adtLs/mcp/setDestination ${destination}`);
+  await setMcpDestination(connection, destination);
+  log?.info(`LSP ← adtLs/mcp/setDestination ok`);
 }
 
 type EndpointRecord = ReturnType<typeof buildEndpointRecord>;
 
-function buildEndpointRecord(
-  started: { port: number; token: string; version?: string },
-  session: LspSession,
-  gui: ReturnType<typeof resolveDestinationImport>,
-  cfg: McpServeConfig,
-  mode: "daemon" | "standalone" = "daemon",
-  aux?: { url: string; token: string },
-) {
+type EndpointRecordInput = {
+  started: { port: number; token: string; version?: string };
+  session: LspSession;
+  gui: ReturnType<typeof resolveDestinationImport>;
+  cfg: McpServeConfig;
+  mode: "daemon" | "standalone";
+  aux: { url: string; token: string } | undefined;
+};
+
+function buildEndpointRecord(input: EndpointRecordInput) {
+  const { started, session, gui, cfg, mode, aux } = input;
   return {
     port: started.port,
     url: mcpUrl(started.port),

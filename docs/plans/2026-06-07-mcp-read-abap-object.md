@@ -19,7 +19,7 @@ We reuse them, adapted to OpenADT's transport.
 
 Same chain everywhere (param names are verified — do not get them wrong):
 
-```
+```text
 adtLs/repository/quickSearch { destination, pattern, maxResults, types[] }
     → references[]: AdtObjectReference { name, type, uri /* = ADT path */, description }
 adtLs/repository/getLsUri    { destination, adtUri: <ADT path from quickSearch> }
@@ -84,7 +84,7 @@ classic → placeholder" boundary is inherited from adt-ls (and from VS Code its
 
 ## Architecture (Option A — implemented)
 
-```
+```text
 standalone:  Agent ─stdio─► [openadt] {bridge + LSP + adt-lsc}      read handled in-process, 0 new servers
 shared:      Agent ─stdio─► [bridge] ─HTTP(MCP)──► SAP MCP (daemon/adt-lsc)
                                └────HTTP(read)─► [daemon: aux /read-object,/search] ─LSP─► adt-lsc

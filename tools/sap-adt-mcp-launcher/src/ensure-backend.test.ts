@@ -21,7 +21,7 @@ function sampleRecord(port: number): McpEndpointRecord {
     token: `token-${port}`,
     pid: process.pid,
     startedAt: new Date().toISOString(),
-    destinations: ["DEV_100_developer_en"],
+    destinations: ["DEV"],
     workspace: "/tmp/workspace",
   };
 }

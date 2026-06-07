@@ -29,6 +29,29 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
+function readObjectArgs(body: Record<string, unknown>) {
+  return {
+    destination: String(body.destination ?? ""),
+    objectName:
+      typeof body.objectName === "string" ? body.objectName : undefined,
+    objectType:
+      typeof body.objectType === "string" ? body.objectType : undefined,
+    uri: typeof body.uri === "string" ? body.uri : undefined,
+  };
+}
+
+function searchArgs(body: Record<string, unknown>) {
+  return {
+    destination: String(body.destination ?? ""),
+    pattern: String(body.pattern ?? ""),
+    types: Array.isArray(body.types)
+      ? body.types.filter((t): t is string => typeof t === "string")
+      : undefined,
+    maxResults:
+      typeof body.maxResults === "number" ? body.maxResults : undefined,
+  };
+}
+
 /** Start the daemon read endpoint backed by an LSP-backed `ReadObjectBackend`. */
 export async function startReadAuxServer(
   backend: ReadObjectBackend,
@@ -56,26 +79,10 @@ export async function startReadAuxServer(
       const path = new URL(req.url).pathname;
       try {
         if (path === "/read-object") {
-          const result = await backend.readObject({
-            destination: String(body.destination ?? ""),
-            objectName:
-              typeof body.objectName === "string" ? body.objectName : undefined,
-            objectType:
-              typeof body.objectType === "string" ? body.objectType : undefined,
-            uri: typeof body.uri === "string" ? body.uri : undefined,
-          });
-          return json(result);
+          return json(await backend.readObject(readObjectArgs(body)));
         }
         if (path === "/search") {
-          const references = await backend.search({
-            destination: String(body.destination ?? ""),
-            pattern: String(body.pattern ?? ""),
-            types: Array.isArray(body.types)
-              ? body.types.filter((t): t is string => typeof t === "string")
-              : undefined,
-            maxResults:
-              typeof body.maxResults === "number" ? body.maxResults : undefined,
-          });
+          const references = await backend.search(searchArgs(body));
           return json({ references });
         }
         return json({ error: "not found" }, 404);

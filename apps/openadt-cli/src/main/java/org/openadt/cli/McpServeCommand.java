@@ -67,6 +67,10 @@ public class McpServeCommand implements Callable<Integer> {
 
     @Override
     public Integer call() {
+        if (standalone && !stdio) {
+            System.err.println("--standalone requires --stdio");
+            return 1;
+        }
         return McpLauncherInvoker.invoke(
             "serve",
             McpCommandSupport.launcherArgs(remainder)

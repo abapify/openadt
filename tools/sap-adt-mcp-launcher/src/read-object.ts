@@ -374,85 +374,90 @@ export const SEARCH_OBJECTS_TOOL = "adt_search_objects";
 
 /** MCP tool definitions to merge into the backend's `tools/list`. */
 export function readToolDefs(): object[] {
-  return [
-    {
-      name: READ_OBJECT_TOOL,
-      description:
-        "Read an ABAP object's source by name (emulates VS Code 'Open ABAP Object'). " +
-        "Returns the source for modern/RAP types (classes, interfaces, CDS/DDLS, " +
-        "service bindings, behavior/service definitions); classic types (programs, " +
-        "tables, function groups) return an 'open in Eclipse' note from ADT.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          destination: {
-            type: "string",
-            description: "Destination id, e.g. ABC_000_USER_EN.",
-          },
-          objectName: {
-            type: "string",
-            description:
-              "Object name, e.g. CL_ABAP_TYPEDESCR (provide this or uri).",
-          },
-          objectType: {
-            type: "string",
-            description:
-              "Optional ADT type code to narrow the name search, e.g. CLAS/OC, INTF/OI, " +
-              "DDLS/DF. NOTE: this is the code adt-ls's search filters on — not the " +
-              "display label ('Class') it returns.",
-          },
-          uri: {
-            type: "string",
-            description:
-              "ADT object path from a search result (e.g. /sap/bc/adt/oo/classes/cl_x). " +
-              "When given, the object is read directly — no name lookup or type needed.",
-          },
-          format: {
-            type: "string",
-            enum: ["source", "json"],
-            description:
-              "Text output: 'source' (default, raw ABAP) or 'json' (metadata + content). structuredContent is always JSON.",
-          },
+  return [readObjectToolDef(), searchObjectsToolDef()];
+}
+
+function readObjectToolDef(): object {
+  return {
+    name: READ_OBJECT_TOOL,
+    description:
+      "Read an ABAP object's source by name (emulates VS Code 'Open ABAP Object'). " +
+      "Returns the source for modern/RAP types (classes, interfaces, CDS/DDLS, " +
+      "service bindings, behavior/service definitions); classic types (programs, " +
+      "tables, function groups) return an 'open in Eclipse' note from ADT.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        destination: {
+          type: "string",
+          description: "Destination id, e.g. ABC_000_USER_EN.",
         },
-        required: ["destination"],
-      },
-    },
-    {
-      name: SEARCH_OBJECTS_TOOL,
-      description:
-        "Search ABAP repository objects by name pattern (RIS quick search). " +
-        "Returns matching objects with their name, type and ADT path.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          destination: { type: "string", description: "Destination id." },
-          pattern: {
-            type: "string",
-            description:
-              "Name pattern, e.g. CL_ABAP_TYPE* (RIS facet syntax supported).",
-          },
-          types: {
-            type: "array",
-            items: { type: "string" },
-            description:
-              "Optional ADT type codes to filter by, e.g. CLAS/OC, INTF/OI, DDLS/DF. " +
-              "(The result's `type` is a display label like 'Class' — not a filter value.)",
-          },
-          maxResults: {
-            type: "integer",
-            description: "Maximum number of results (default 50).",
-          },
-          format: {
-            type: "string",
-            enum: ["json", "markdown", "compact"],
-            description:
-              "Text output format (default 'json'). structuredContent is always JSON.",
-          },
+        objectName: {
+          type: "string",
+          description:
+            "Object name, e.g. CL_ABAP_TYPEDESCR (provide this or uri).",
         },
-        required: ["destination", "pattern"],
+        objectType: {
+          type: "string",
+          description:
+            "Optional ADT type code to narrow the name search, e.g. CLAS/OC, INTF/OI, " +
+            "DDLS/DF. NOTE: this is the code adt-ls's search filters on — not the " +
+            "display label ('Class') it returns.",
+        },
+        uri: {
+          type: "string",
+          description:
+            "ADT object path from a search result (e.g. /sap/bc/adt/oo/classes/cl_x). " +
+            "When given, the object is read directly — no name lookup or type needed.",
+        },
+        format: {
+          type: "string",
+          enum: ["source", "json"],
+          description:
+            "Text output: 'source' (default, raw ABAP) or 'json' (metadata + content). structuredContent is always JSON.",
+        },
       },
+      required: ["destination"],
     },
-  ];
+  };
+}
+
+function searchObjectsToolDef(): object {
+  return {
+    name: SEARCH_OBJECTS_TOOL,
+    description:
+      "Search ABAP repository objects by name pattern (RIS quick search). " +
+      "Returns matching objects with their name, type and ADT path.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        destination: { type: "string", description: "Destination id." },
+        pattern: {
+          type: "string",
+          description:
+            "Name pattern, e.g. CL_ABAP_TYPE* (RIS facet syntax supported).",
+        },
+        types: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Optional ADT type codes to filter by, e.g. CLAS/OC, INTF/OI, DDLS/DF. " +
+            "(The result's `type` is a display label like 'Class' — not a filter value.)",
+        },
+        maxResults: {
+          type: "integer",
+          description: "Maximum number of results (default 50).",
+        },
+        format: {
+          type: "string",
+          enum: ["json", "markdown", "compact"],
+          description:
+            "Text output format (default 'json'). structuredContent is always JSON.",
+        },
+      },
+      required: ["destination", "pattern"],
+    },
+  };
 }
 
 /** Whether `name` is one of our injected read tools. */
@@ -513,78 +518,93 @@ export async function handleReadToolCall(
 ): Promise<CallToolResult> {
   try {
     if (name === READ_OBJECT_TOOL) {
-      const destination = String(args.destination ?? "");
-      const objectName =
-        typeof args.objectName === "string" ? args.objectName : undefined;
-      const uri = typeof args.uri === "string" ? args.uri : undefined;
-      if (!destination || (!objectName && !uri)) {
-        return textResult(
-          "destination and (objectName or uri) are required",
-          true,
-        );
-      }
-      const objectType =
-        typeof args.objectType === "string" ? args.objectType : undefined;
-      const result = await backend.readObject({
-        destination,
-        objectName,
-        objectType,
-        uri,
-      });
-      if (result.kind === "ambiguous") {
-        return jsonResult(
-          `Multiple objects match '${objectName}'. Pass objectType (ADT code, e.g. CLAS/OC) ` +
-            `or a uri to disambiguate. Candidates:\n` +
-            JSON.stringify(result.candidates, null, 2),
-          { ambiguous: true, candidates: result.candidates },
-        );
-      }
-      const r = result.reference;
-      const meta = {
-        name: r.name,
-        type: r.type,
-        uri: r.uri,
-        unsupported: result.unsupported,
-      };
-      if (args.format === "json") {
-        return jsonResult(
-          JSON.stringify({ ...meta, content: result.content }, null, 2),
-          meta,
-        );
-      }
-      const header =
-        `* ${r.name} (${r.type ?? "?"}) — ${r.uri ?? ""}`.trimEnd();
-      return {
-        content: [{ type: "text", text: `${header}\n\n${result.content}` }],
-        structuredContent: meta,
-      };
+      return await handleReadObjectTool(backend, args);
     }
-
     if (name === SEARCH_OBJECTS_TOOL) {
-      const destination = String(args.destination ?? "");
-      const pattern = String(args.pattern ?? "");
-      if (!destination || !pattern) {
-        return textResult("destination and pattern are required", true);
-      }
-      const types = Array.isArray(args.types)
-        ? args.types.filter((t): t is string => typeof t === "string")
-        : undefined;
-      const maxResults =
-        typeof args.maxResults === "number" ? args.maxResults : undefined;
-      const references = await backend.search({
-        destination,
-        pattern,
-        types,
-        maxResults,
-      });
-      return jsonResult(
-        renderReferences(references, parseReferencesFormat(args.format)),
-        { references },
-      );
+      return await handleSearchObjectsTool(backend, args);
     }
-
     return textResult(`Unknown read tool: ${name}`, true);
   } catch (err) {
     return textResult(formatError(err), true);
   }
+}
+
+async function handleReadObjectTool(
+  backend: ReadObjectBackend,
+  args: Record<string, unknown>,
+): Promise<CallToolResult> {
+  const destination = String(args.destination ?? "");
+  const objectName =
+    typeof args.objectName === "string" ? args.objectName : undefined;
+  const uri = typeof args.uri === "string" ? args.uri : undefined;
+  if (!destination || (!objectName && !uri)) {
+    return textResult("destination and (objectName or uri) are required", true);
+  }
+  const objectType =
+    typeof args.objectType === "string" ? args.objectType : undefined;
+  const result = await backend.readObject({
+    destination,
+    objectName,
+    objectType,
+    uri,
+  });
+  if (result.kind === "ambiguous") {
+    return jsonResult(
+      `Multiple objects match '${objectName}'. Pass objectType (ADT code, e.g. CLAS/OC) ` +
+        `or a uri to disambiguate. Candidates:\n` +
+        JSON.stringify(result.candidates, null, 2),
+      { ambiguous: true, candidates: result.candidates },
+    );
+  }
+  return renderReadObject(result, args.format);
+}
+
+function renderReadObject(
+  result: Extract<ReadObjectResult, { kind: "source" }>,
+  format: unknown,
+): CallToolResult {
+  const r = result.reference;
+  const meta = {
+    name: r.name,
+    type: r.type,
+    uri: r.uri,
+    unsupported: result.unsupported,
+  };
+  if (format === "json") {
+    return jsonResult(
+      JSON.stringify({ ...meta, content: result.content }, null, 2),
+      meta,
+    );
+  }
+  const header = `* ${r.name} (${r.type ?? "?"}) — ${r.uri ?? ""}`.trimEnd();
+  return {
+    content: [{ type: "text", text: `${header}\n\n${result.content}` }],
+    structuredContent: meta,
+  };
+}
+
+async function handleSearchObjectsTool(
+  backend: ReadObjectBackend,
+  args: Record<string, unknown>,
+): Promise<CallToolResult> {
+  const destination = String(args.destination ?? "");
+  const pattern = String(args.pattern ?? "");
+  if (!destination || !pattern) {
+    return textResult("destination and pattern are required", true);
+  }
+  const types = Array.isArray(args.types)
+    ? args.types.filter((t): t is string => typeof t === "string")
+    : undefined;
+  const maxResults =
+    typeof args.maxResults === "number" ? args.maxResults : undefined;
+  const references = await backend.search({
+    destination,
+    pattern,
+    types,
+    maxResults,
+  });
+  return jsonResult(
+    renderReferences(references, parseReferencesFormat(args.format)),
+    { references },
+  );
 }

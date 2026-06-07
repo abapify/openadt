@@ -5,15 +5,22 @@
  * See specs/mcp-shared-backend.md.
  */
 import { createServer, type Server } from "node:net";
-import { existsSync, mkdirSync, openSync, rmSync, statSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  rmSync,
+  statSync,
+} from "node:fs";
 import { spawn, type ChildProcess } from "node:child_process";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { probeMcpHttp } from "./mcp.ts";
 import { sleep } from "./process.ts";
 import {
+  endpointFilePath,
   findHealthyEndpoint,
   type McpEndpointRecord,
 } from "./endpoint-store.ts";
@@ -113,42 +120,7 @@ async function withEnsureLock<T>(
 
   const timeoutMs = options.timeoutMs ?? DEFAULT_LOCK_TIMEOUT_MS;
   const deadline = Date.now() + timeoutMs;
-
-  while (Date.now() < deadline) {
-    try {
-      // O_EXCL: fail if file exists.
-      const fd = openSync(lockPath, "wx", 0o600);
-      // Keep the fd in the process table so the lock file persists.
-      // Close via process exit; on success the file is removed explicitly.
-      // Suppress unused var lint:
-      void fd;
-      break;
-    } catch (err) {
-      const code = (err as NodeJS.ErrnoException | undefined)?.code;
-      if (code !== "EEXIST") {
-        throw new Error(
-          `Failed to create lock ${lockPath}: ${formatError(err)}`,
-        );
-      }
-    }
-
-    // Check if the lock holder is still alive (stale lock detection).
-    if (isLockStale(lockPath)) {
-      try {
-        rmSync(lockPath);
-      } catch {
-        /* race: another process cleared it */
-      }
-      continue;
-    }
-
-    if (Date.now() >= deadline) {
-      throw new Error(
-        `Timed out waiting for ensure lock on port ${port} (lock: ${lockPath})`,
-      );
-    }
-    await sleep(LOCK_POLL_INTERVAL_MS);
-  }
+  await acquireEnsureLock(lockPath, deadline);
 
   try {
     return await fn();
@@ -159,6 +131,50 @@ async function withEnsureLock<T>(
       /* already removed */
     }
   }
+}
+
+async function acquireEnsureLock(
+  lockPath: string,
+  deadline: number,
+): Promise<void> {
+  while (Date.now() < deadline) {
+    if (tryClaimEnsureLock(lockPath)) {
+      return;
+    }
+    await waitForLockOrStale(lockPath, deadline);
+  }
+  throw new Error(`Timed out waiting for ensure lock (lock: ${lockPath})`);
+}
+
+function tryClaimEnsureLock(lockPath: string): boolean {
+  try {
+    // O_EXCL: fail if file exists. Close immediately — the lock is the
+    // file's presence (rmSync in finally, stale-check via mtime).
+    closeSync(openSync(lockPath, "wx", 0o600));
+    return true;
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException | undefined)?.code;
+    if (code !== "EEXIST") {
+      throw new Error(`Failed to create lock ${lockPath}: ${formatError(err)}`);
+    }
+    return false;
+  }
+}
+
+async function waitForLockOrStale(
+  lockPath: string,
+  deadline: number,
+): Promise<void> {
+  if (isLockStale(lockPath)) {
+    try {
+      rmSync(lockPath);
+    } catch {
+      /* race: another process cleared it */
+    }
+    return;
+  }
+  await sleep(LOCK_POLL_INTERVAL_MS);
+  void deadline; // deadline is enforced by the outer loop in acquireEnsureLock
 }
 
 function ensureLockPathForRoot(root: string, port: number): string {
@@ -245,21 +261,6 @@ async function waitForHealthyRecord(
   return undefined;
 }
 
-async function isHttpReady(
-  port: number,
-  token: string,
-  timeoutMs: number,
-): Promise<boolean> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (await probeMcpHttp(port, token)) {
-      return true;
-    }
-    await sleep(HEALTHY_PROBE_INTERVAL_MS);
-  }
-  return false;
-}
-
 /**
  * Resolve the attach target: an existing healthy endpoint if one exists.
  * Used by `ensureSharedBackend` before deciding to spawn a new daemon.
@@ -308,21 +309,13 @@ export async function ensureSharedBackend(
   // Step 1: try to attach to an existing healthy endpoint.
   const attach = await resolveAttachTarget(attachPort);
   if (attach.kind === "healthy") {
-    return {
-      port: attach.record.port,
-      token: attach.record.token,
-      url: attach.record.url,
-      record: attach.record,
-    };
+    return attachToRecord(attach.record);
   }
   if (attach.kind === "ambiguous") {
-    const ports = attach.records.map((r) => String(r.port)).join(", ");
-    const err = new Error(
-      `Multiple active MCP endpoints (ports ${ports}). ` +
-        `Run: openadt mcp list. Cannot auto-attach.`,
+    throwAmbiguousError(
+      attach.records,
+      "Run: openadt mcp list. Cannot auto-attach.",
     );
-    (err as NodeJS.ErrnoException).code = "OPENADT_MCP_AMBIGUOUS";
-    throw err;
   }
 
   // Step 2: ensure via lock + spawn.
@@ -332,67 +325,68 @@ export async function ensureSharedBackend(
       // Double-check: another process may have ensured while we waited.
       const recheck = await resolveAttachTarget(attachPort);
       if (recheck.kind === "healthy") {
-        return {
-          port: recheck.record.port,
-          token: recheck.record.token,
-          url: recheck.record.url,
-          record: recheck.record,
-        };
+        return attachToRecord(recheck.record);
       }
       if (recheck.kind === "ambiguous") {
-        const ports = recheck.records.map((r) => String(r.port)).join(", ");
-        const err = new Error(
-          `Multiple active MCP endpoints (ports ${ports}). ` +
-            `Run: openadt mcp list.`,
-        );
-        (err as NodeJS.ErrnoException).code = "OPENADT_MCP_AMBIGUOUS";
-        throw err;
+        throwAmbiguousError(recheck.records, "Run: openadt mcp list.");
       }
-
-      // Step 3: spawn the daemon (no --stdio) and wait for healthy.
-      const port = await pickPortForServe(spawnPort);
-      const child = spawnDetachedServe(port, options.serveArgs ?? [], {
+      return spawnAndAwaitHealthy({
+        spawnPort,
+        timeoutMs,
+        serveArgs: options.serveArgs ?? [],
         launcherPath: options.launcherPath,
       });
-      if (!child.pid) {
-        const err = new Error(`Failed to spawn MCP daemon on port ${port}`);
-        (err as NodeJS.ErrnoException).code = "OPENADT_MCP_SPAWN_FAILED";
-        throw err;
-      }
-
-      // Wait for the daemon to write an endpoint record + respond to HTTP.
-      const healthy = await waitForHealthyRecord(port, timeoutMs);
-      if (!healthy) {
-        const err = new Error(
-          `MCP daemon on port ${port} did not become healthy within ${timeoutMs}ms`,
-        );
-        (err as NodeJS.ErrnoException).code = "OPENADT_MCP_TIMEOUT";
-        throw err;
-      }
-      // Verify the token matches what the store wrote (defensive).
-      if (healthy.pid !== child.pid && !isAlive(child.pid)) {
-        // Detached process may have been reaped; trust the store record.
-      }
-      return {
-        port: healthy.port,
-        token: healthy.token,
-        url: healthy.url,
-        record: healthy,
-      };
     },
     { timeoutMs, mcpRootDir: options.mcpRootDir },
   );
 }
 
-function isAlive(pid: number | undefined): boolean {
-  if (!pid) return false;
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (err) {
-    const code = (err as NodeJS.ErrnoException | undefined)?.code;
-    return code === "EPERM";
+function attachToRecord(record: McpEndpointRecord): EnsureSharedBackendResult {
+  return {
+    port: record.port,
+    token: record.token,
+    url: record.url,
+    record,
+  };
+}
+
+function throwAmbiguousError(
+  records: McpEndpointRecord[],
+  suffix: string,
+): never {
+  const ports = records.map((r) => String(r.port)).join(", ");
+  const err = new Error(
+    `Multiple active MCP endpoints (ports ${ports}). ${suffix}`,
+  );
+  (err as NodeJS.ErrnoException).code = "OPENADT_MCP_AMBIGUOUS";
+  throw err;
+}
+
+async function spawnAndAwaitHealthy(input: {
+  spawnPort: number;
+  timeoutMs: number;
+  serveArgs: string[];
+  launcherPath?: string;
+}): Promise<EnsureSharedBackendResult> {
+  const port = await pickPortForServe(input.spawnPort);
+  const child = spawnDetachedServe(port, input.serveArgs, {
+    launcherPath: input.launcherPath,
+  });
+  if (!child.pid) {
+    const err = new Error(`Failed to spawn MCP daemon on port ${port}`);
+    (err as NodeJS.ErrnoException).code = "OPENADT_MCP_SPAWN_FAILED";
+    throw err;
   }
+  const healthy = await waitForHealthyRecord(port, input.timeoutMs);
+  if (!healthy) {
+    const err = new Error(
+      `MCP daemon on port ${port} did not become healthy within ${input.timeoutMs}ms`,
+    );
+    (err as NodeJS.ErrnoException).code = "OPENADT_MCP_TIMEOUT";
+    throw err;
+  }
+  // Detached daemon may have been reaped; trust the store record.
+  return attachToRecord(healthy);
 }
 
 /**
@@ -401,7 +395,7 @@ function isAlive(pid: number | undefined): boolean {
  */
 async function pickPortForServe(preferredPort: number): Promise<number> {
   // Quick check: does the endpoint store already have a record for this port?
-  if (existsSync(join(mcpRootDir(), "endpoints", `${preferredPort}.json`))) {
+  if (existsSync(endpointFilePath(preferredPort))) {
     // Endpoint exists — but we already checked findHealthyEndpoint and it
     // was unhealthy. Try the next port to avoid racing the dead daemon.
     return findAvailablePort(preferredPort + 1).catch(() => preferredPort);

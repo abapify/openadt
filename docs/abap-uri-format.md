@@ -4,7 +4,7 @@ When using MCP tools like `abap_run_unit_tests`, URIs must follow the VS Code AB
 
 ## Format
 
-```
+```text
 abap://project/repotree-v1/{destination}/{path-to-file}.{extension}
 ```
 
@@ -26,13 +26,13 @@ Where:
 
 **Class:**
 
-```
+```text
 abap://project/repotree-v1/S0D_200_PPLENKOV_EN/System%20Library/ZCA_OTEL/Source%20Code%20Library/Classes/ZCL_OTEL/zcl_otel.clas.abap
 ```
 
 **Interface:**
 
-```
+```text
 abap://project/repotree-v1/S0D_200_PPLENKOV_EN/System%20Library/ZCA_OTEL/Source%20Code%20Library/Interfaces/ZIF_OTEL/zif_otel.intf.abap
 ```
 
@@ -67,5 +67,5 @@ The path reflects the ABAP repository hierarchy as exposed by SAP ADT backend:
 
 ## Used By
 
-- `abab_run_unit_tests` — run ABAP Unit Tests for specified objects
+- `abap_run_unit_tests` — run ABAP Unit Tests for specified objects
 - Other SAP ADT MCP tools that accept URIs

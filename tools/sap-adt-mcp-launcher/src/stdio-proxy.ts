@@ -370,6 +370,54 @@ export function createStdioMcpBridge(): StdioMcpBridge {
     await replyError(message, new JsonRpcError(-32000, errorMessage));
   };
 
+  const tryAnswerLocalGuidance = (request: ParsedRpc | undefined): boolean => {
+    if (
+      !guidanceEnabled() ||
+      request?.method !== "prompts/get" ||
+      request.id === undefined
+    ) {
+      return false;
+    }
+    const { name, args } = promptGetParams(request.params);
+    if (!isGuidancePrompt(name)) {
+      return false;
+    }
+    const result = getGuidancePrompt(name, args);
+    chain.append(() =>
+      writeMcpStdioMessage(encoder, {
+        jsonrpc: "2.0",
+        id: request.id,
+        result,
+      }),
+    );
+    return true;
+  };
+
+  const tryAnswerLocalReadTool = (request: ParsedRpc | undefined): boolean => {
+    if (
+      !readBackend ||
+      !readEnabled() ||
+      request?.method !== "tools/call" ||
+      request.id === undefined
+    ) {
+      return false;
+    }
+    const { name, args } = toolCallParams(request.params);
+    if (!isReadTool(name)) {
+      return false;
+    }
+    const activeBackend = readBackend;
+    chain.append(async () => {
+      const result = await handleReadToolCall(activeBackend, name, args);
+      await writeMcpStdioMessage(encoder, {
+        jsonrpc: "2.0",
+        id: request.id,
+        result,
+      });
+    });
+    return true;
+  };
+
   const forwardHttpOne = (message: McpStdioMessage): void => {
     if (!backend) {
       return;
@@ -377,49 +425,8 @@ export function createStdioMcpBridge(): StdioMcpBridge {
     const baseEndpoint = backend;
     const request = parseRpc(message.body);
 
-    // Answer prompts/get for our injected prompts locally — the backend has
-    // none, so forwarding would only produce an error.
-    if (
-      guidanceEnabled() &&
-      request?.method === "prompts/get" &&
-      request.id !== undefined
-    ) {
-      const { name, args } = promptGetParams(request.params);
-      if (isGuidancePrompt(name)) {
-        const result = getGuidancePrompt(name, args);
-        chain.append(() =>
-          writeMcpStdioMessage(encoder, {
-            jsonrpc: "2.0",
-            id: request.id,
-            result,
-          }),
-        );
-        return;
-      }
-    }
-
-    // Answer tools/call for our read tools locally via the LSP-backed backend —
-    // SAP's MCP cannot read object source, so these never reach the backend.
-    if (
-      readBackend &&
-      readEnabled() &&
-      request?.method === "tools/call" &&
-      request.id !== undefined
-    ) {
-      const { name, args } = toolCallParams(request.params);
-      if (isReadTool(name)) {
-        const activeBackend = readBackend;
-        chain.append(async () => {
-          const result = await handleReadToolCall(activeBackend, name, args);
-          await writeMcpStdioMessage(encoder, {
-            jsonrpc: "2.0",
-            id: request.id,
-            result,
-          });
-        });
-        return;
-      }
-    }
+    if (tryAnswerLocalGuidance(request)) return;
+    if (tryAnswerLocalReadTool(request)) return;
 
     // Methods whose backend response we rewrite to inject guidance.
     const injectMethod = guidanceEnabled() ? request?.method : undefined;
