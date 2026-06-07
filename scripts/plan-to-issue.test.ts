@@ -59,7 +59,7 @@ describe("planLabelForId", () => {
 
 describe("parsePlanFrontmatter", () => {
   test("reads name, overview, and todos", () => {
-    const parsed = parsePlanFrontmatter(sampleFrontmatter);
+    const parsed = parsePlanFrontmatter({ frontmatter: sampleFrontmatter });
     expect(parsed.name).toBe("MCP shared backend EN");
     expect(parsed.overview).toContain("auto-ensure MCP shared HTTP backend");
     expect(parsed.todos).toHaveLength(2);
@@ -72,14 +72,14 @@ describe("parsePlanFrontmatter", () => {
   });
 
   test("terminates todo block at next root-level key (isProject)", () => {
-    const parsed = parsePlanFrontmatter(sampleFrontmatter);
+    const parsed = parsePlanFrontmatter({ frontmatter: sampleFrontmatter });
     // isProject is a root-level key and should NOT have been swallowed
     // into a todo entry; the parsed todos count is still 2.
     expect(parsed.todos).toHaveLength(2);
   });
 
   test("preserves escaped sequences and doubled single quotes via js-yaml", () => {
-    const parsed = parsePlanFrontmatter(fixtureFrontmatter);
+    const parsed = parsePlanFrontmatter({ frontmatter: fixtureFrontmatter });
     expect(parsed.name).toBe('Escaped "quoted" name');
     expect(parsed.overview).toBe("Single-quoted with 'apostrophe' inside");
     expect(parsed.todos[0]?.content).toBe("Line one\nLine two");
@@ -88,17 +88,23 @@ describe("parsePlanFrontmatter", () => {
   });
 
   test("throws on missing name", () => {
-    expect(() => parsePlanFrontmatter("overview: x\n")).toThrow(/missing name/);
+    expect(() =>
+      parsePlanFrontmatter({ frontmatter: "overview: x\n" }),
+    ).toThrow(/missing name/);
   });
 
   test("returns empty todos when field is absent", () => {
-    const parsed = parsePlanFrontmatter("name: x\noverview: y\n");
+    const parsed = parsePlanFrontmatter({
+      frontmatter: "name: x\noverview: y\n",
+    });
     expect(parsed.todos).toEqual([]);
   });
 
   test("rejects todos that are not an array", () => {
     expect(() =>
-      parsePlanFrontmatter("name: x\noverview: y\ntodos: oops\n"),
+      parsePlanFrontmatter({
+        frontmatter: "name: x\noverview: y\ntodos: oops\n",
+      }),
     ).toThrow(/todos/);
   });
 });
@@ -109,7 +115,7 @@ describe("parsePlanContent", () => {
       import.meta.dir,
       "../.cursor/plans/mcp_shared_backend_en_5e8e195f.plan.md",
     );
-    const parsed = parsePlanContent(readFileSync0(fixture));
+    const parsed = parsePlanContent({ content: readFileSync0(fixture) });
     expect(parsed.name).toBe("MCP shared backend EN");
     expect(parsed.todos.length).toBeGreaterThan(0);
     expect(parsed.bodyMarkdown).toContain("# MCP shared backend");
@@ -118,9 +124,9 @@ describe("parsePlanContent", () => {
   test("throws a clear error when the file does not exist", () => {
     const dir = mkdtempSync(join(tmpdir(), "plan-to-issue-"));
     try {
-      expect(() => parsePlanFile(join(dir, "missing.plan.md"), dir)).toThrow(
-        /Plan file not found/,
-      );
+      expect(() =>
+        parsePlanFile({ absPath: join(dir, "missing.plan.md"), root: dir }),
+      ).toThrow(/Plan file not found/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -129,7 +135,7 @@ describe("parsePlanContent", () => {
 
 describe("buildIssueBody", () => {
   test("includes overview, tasks, markers, and blob link", () => {
-    const plan = parsePlanFrontmatter(sampleFrontmatter);
+    const plan = parsePlanFrontmatter({ frontmatter: sampleFrontmatter });
     const body = buildIssueBody({
       plan: { ...plan, bodyMarkdown: "# Body" },
       relPath: ".cursor/plans/mcp_shared_backend_en_5e8e195f.plan.md",
@@ -169,7 +175,7 @@ describe("listAllPlanFiles (recursive)", () => {
       );
       writeFileSync(join(plansDir, "ignored.txt"), "not a plan");
 
-      const files = listAllPlanFiles(root);
+      const files = listAllPlanFiles({ root });
       expect(files).toContain(".cursor/plans/top.plan.md");
       expect(files).toContain(".cursor/plans/nested/mid.plan.md");
       expect(files).toContain(".cursor/plans/nested/deep/deep.plan.md");
@@ -183,7 +189,7 @@ describe("listAllPlanFiles (recursive)", () => {
   test("returns an empty list when the plan directory is missing", () => {
     const root = mkdtempSync(join(tmpdir(), "plan-to-issue-walk-"));
     try {
-      expect(listAllPlanFiles(root)).toEqual([]);
+      expect(listAllPlanFiles({ root })).toEqual([]);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
