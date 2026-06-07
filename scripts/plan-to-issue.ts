@@ -5,12 +5,15 @@
  */
 import { Octokit } from "@octokit/rest";
 import { RequestError } from "@octokit/request-error";
-import { readFileSync, readdirSync } from "node:fs";
+import yaml from "js-yaml";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { basename, join, relative } from "node:path";
 
 const PLAN_DIR_PREFIX = ".cursor/plans/";
 const PLAN_ID_MARKER = "openadt-plan-id";
 const CATEGORY_LABEL = "cursor-plan";
+const MAX_LABEL_LENGTH = 50;
+const ZERO_SHA = /^0+$/;
 
 export type PlanTodo = {
   id: string;
@@ -28,6 +31,32 @@ export type ParsedPlan = {
 export type GitHubRepo = {
   owner: string;
   repo: string;
+};
+
+export type SyncContext = {
+  octokit?: Octokit;
+  repo: GitHubRepo;
+  sha?: string;
+  dryRun: boolean;
+  labelCache: Set<string>;
+};
+
+export type PlanContext = {
+  relPath: string;
+  absPath: string;
+  planId: string;
+  planLabel: string;
+  plan: ParsedPlan;
+  blobUrl: string;
+};
+
+export type Mode = "file" | "fromPush" | "all";
+
+export type CliArgs = {
+  dryRun: boolean;
+  fromPush: boolean;
+  syncAll: boolean;
+  fileFlag: number;
 };
 
 function repoFromEnv(): GitHubRepo {
@@ -59,13 +88,55 @@ export function planLabelForId(planId: string): string {
   return `plan-id/${planId}`;
 }
 
-function unquoteYamlScalar(raw: string): string {
-  const value = raw.trim();
-  if (
-    (value.startsWith('"') && value.endsWith('"')) ||
-    (value.startsWith("'") && value.endsWith("'"))
-  ) {
-    return value.slice(1, -1);
+function validateLabelName(name: string, relPath?: string): void {
+  if (name.length > MAX_LABEL_LENGTH) {
+    const where = relPath ? ` for ${relPath}` : "";
+    throw new Error(
+      `GitHub label name exceeds ${MAX_LABEL_LENGTH} chars${where}: ${name} (length=${name.length})`,
+    );
+  }
+}
+
+function sanitizeErrorMessage(message: string): string {
+  let out = message;
+  out = out.replace(/(authorization\s*[:=]\s*)[^\s,'"]+/gi, "$1[redacted]");
+  out = out.replace(/(token\s*[:=]\s*)[^\s,'"]+/gi, "$1[redacted]");
+  out = out.replace(/ghs_[A-Za-z0-9_]+/g, "[redacted-token]");
+  out = out.replace(/ghp_[A-Za-z0-9_]+/g, "[redacted-token]");
+  out = out.replace(/x-access-token:[^\s,'"]+/gi, "x-access-token:[redacted]");
+  return out;
+}
+
+function toTodo(raw: unknown, index: number): PlanTodo {
+  if (raw === null || typeof raw !== "object") {
+    throw new Error(`todos[${index}] is not an object`);
+  }
+  const obj = raw as Record<string, unknown>;
+  if (typeof obj.id !== "string") {
+    throw new Error(`todos[${index}].id must be a string`);
+  }
+  const content = typeof obj.content === "string" ? obj.content : "";
+  const status = typeof obj.status === "string" ? obj.status : "pending";
+  return { id: obj.id, content, status };
+}
+
+function parseTodos(raw: unknown): PlanTodo[] {
+  if (raw === undefined) {
+    return [];
+  }
+  if (!Array.isArray(raw)) {
+    throw new Error("Plan frontmatter 'todos' must be an array");
+  }
+  return raw.map((item, i) => toTodo(item, i));
+}
+
+function requireStringField(
+  data: Record<string, unknown>,
+  key: string,
+): string {
+  const value = data[key];
+  if (typeof value !== "string") {
+    throw new Error(`Plan frontmatter missing ${key}:`);
   }
   return value;
 }
@@ -73,50 +144,15 @@ function unquoteYamlScalar(raw: string): string {
 export function parsePlanFrontmatter(
   frontmatter: string,
 ): Omit<ParsedPlan, "bodyMarkdown"> {
-  const nameMatch = frontmatter.match(/^name:\s*(.+)$/m);
-  if (!nameMatch) {
-    throw new Error("Plan frontmatter missing name:");
+  const loaded = yaml.load(frontmatter);
+  if (loaded === null || typeof loaded !== "object" || Array.isArray(loaded)) {
+    throw new Error("Plan frontmatter must be a YAML mapping");
   }
-
-  const overviewMatch = frontmatter.match(/^overview:\s*(.+)$/m);
-  if (!overviewMatch) {
-    throw new Error("Plan frontmatter missing overview:");
-  }
-
-  const todos: PlanTodo[] = [];
-  const lines = frontmatter.split("\n");
-  let i = 0;
-  while (i < lines.length) {
-    const line = lines[i]!;
-    const itemMatch = line.match(/^\s*-\s*id:\s*(.+)$/);
-    if (!itemMatch) {
-      i++;
-      continue;
-    }
-    const todo: PlanTodo = {
-      id: unquoteYamlScalar(itemMatch[1]!),
-      content: "",
-      status: "pending",
-    };
-    i++;
-    while (i < lines.length && !/^\s*-\s*id:/.test(lines[i]!)) {
-      const field = lines[i]!;
-      const contentMatch = field.match(/^\s*content:\s*(.+)$/);
-      const statusMatch = field.match(/^\s*status:\s*(.+)$/);
-      if (contentMatch) {
-        todo.content = unquoteYamlScalar(contentMatch[1]!);
-      } else if (statusMatch) {
-        todo.status = unquoteYamlScalar(statusMatch[1]!);
-      }
-      i++;
-    }
-    todos.push(todo);
-  }
-
+  const data = loaded as Record<string, unknown>;
   return {
-    name: unquoteYamlScalar(nameMatch[1]!),
-    overview: unquoteYamlScalar(overviewMatch[1]!),
-    todos,
+    name: requireStringField(data, "name"),
+    overview: requireStringField(data, "overview"),
+    todos: parseTodos(data.todos),
   };
 }
 
@@ -133,9 +169,20 @@ export function parsePlanContent(content: string): ParsedPlan {
 
 export function parsePlanFile(
   absPath: string,
-  root = join(import.meta.dir, ".."),
+  _root = join(import.meta.dir, ".."),
 ): ParsedPlan {
-  const content = readFileSync(absPath, "utf8");
+  let content: string;
+  try {
+    content = readFileSync(absPath, "utf8");
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      (error as NodeJS.ErrnoException).code === "ENOENT"
+    ) {
+      throw new Error(`Plan file not found: ${absPath}`);
+    }
+    throw error;
+  }
   return parsePlanContent(content);
 }
 
@@ -189,162 +236,304 @@ function createOctokit(token: string): Octokit {
 }
 
 async function ensureLabel(
-  octokit: Octokit,
-  repo: GitHubRepo,
+  ctx: SyncContext,
   name: string,
   color = "1d76db",
+  relPath?: string,
 ): Promise<void> {
+  if (ctx.labelCache.has(name)) {
+    return;
+  }
+  validateLabelName(name, relPath);
+  const { octokit, repo } = ctx;
+  if (!octokit) {
+    return;
+  }
   try {
     await octokit.rest.issues.getLabel({
       owner: repo.owner,
       repo: repo.repo,
       name,
     });
+    ctx.labelCache.add(name);
   } catch (error) {
     if (!(error instanceof RequestError) || error.status !== 404) {
       throw error;
     }
-    await octokit.rest.issues.createLabel({
-      owner: repo.owner,
-      repo: repo.repo,
-      name,
-      color,
-      description: "Cursor plan sync",
-    });
+    try {
+      await octokit.rest.issues.createLabel({
+        owner: repo.owner,
+        repo: repo.repo,
+        name,
+        color,
+        description: "Cursor plan sync",
+      });
+      ctx.labelCache.add(name);
+    } catch (createError) {
+      throw new Error(sanitizeErrorMessage(safeMessage(createError)));
+    }
   }
+}
+
+function safeMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
+
+function logRequestError(action: string, error: unknown): void {
+  const message =
+    error instanceof RequestError
+      ? `${action} failed: ${error.status} ${error.message}`
+      : `${action} failed: ${safeMessage(error)}`;
+  console.error(sanitizeErrorMessage(message));
+}
+
+type IssueRef = { number: number; isPullRequest: boolean };
+
+function isPullRequest(item: { pull_request?: unknown }): boolean {
+  return item.pull_request !== undefined && item.pull_request !== null;
 }
 
 async function findOpenIssueForPlan(
-  octokit: Octokit,
-  repo: GitHubRepo,
+  ctx: SyncContext,
   planLabel: string,
-): Promise<{ number: number } | undefined> {
-  const { data: issues } = await octokit.rest.issues.listForRepo({
-    owner: repo.owner,
-    repo: repo.repo,
-    state: "open",
-    labels: `${CATEGORY_LABEL},${planLabel}`,
-    per_page: 1,
-  });
-  return issues[0];
+): Promise<IssueRef | undefined> {
+  const { octokit, repo } = ctx;
+  if (!octokit) {
+    return undefined;
+  }
+  try {
+    const { data: issues } = await octokit.rest.issues.listForRepo({
+      owner: repo.owner,
+      repo: repo.repo,
+      state: "open",
+      labels: `${CATEGORY_LABEL},${planLabel}`,
+      per_page: 10,
+    });
+    for (const item of issues) {
+      if (isPullRequest(item)) {
+        continue;
+      }
+      return { number: item.number, isPullRequest: false };
+    }
+    return undefined;
+  } catch (error) {
+    logRequestError("listForRepo", error);
+    throw error;
+  }
 }
 
-async function syncPlanFile(options: {
-  absPath: string;
-  root: string;
-  octokit?: Octokit;
-  repo: GitHubRepo;
-  sha?: string;
-  dryRun?: boolean;
-}): Promise<{
-  action: "created" | "skipped";
-  issueNumber?: number;
-  title: string;
-}> {
-  const relPath = relative(options.root, options.absPath).replace(/\\/g, "/");
+function buildBlobUrl(ctx: SyncContext, relPath: string): string {
+  const { owner, repo } = ctx.repo;
+  const ref = ctx.sha ?? "HEAD";
+  return `https://github.com/${owner}/${repo}/blob/${ref}/${relPath}`;
+}
+
+function buildPlanContext(ctx: SyncContext, absPath: string): PlanContext {
+  const root = join(import.meta.dir, "..");
+  const relPath = relative(root, absPath).replace(/\\/g, "/");
   if (!relPath.startsWith(PLAN_DIR_PREFIX)) {
     throw new Error(`Plan path must be under ${PLAN_DIR_PREFIX}: ${relPath}`);
   }
-
-  const plan = parsePlanFile(options.absPath, options.root);
+  const plan = parsePlanFile(absPath, root);
   const planId = planIdFromRelPath(relPath);
   const planLabel = planLabelForId(planId);
-  const title = `[Plan] ${plan.name}`;
-  const blobUrl = options.sha
-    ? `https://github.com/${options.repo.owner}/${options.repo.repo}/blob/${options.sha}/${relPath}`
-    : `https://github.com/${options.repo.owner}/${options.repo.repo}/blob/HEAD/${relPath}`;
-  const body = buildIssueBody({
-    plan,
+  return {
     relPath,
+    absPath,
     planId,
-    blobUrl,
-    sha: options.sha,
-  });
-
-  if (options.dryRun) {
-    console.log(`[dry-run] ${relPath}`);
-    console.log(`  title: ${title}`);
-    console.log(`  labels: ${CATEGORY_LABEL}, ${planLabel}`);
-    console.log(body);
-    return { action: "created", title };
-  }
-
-  if (!options.octokit) {
-    throw new Error("Octokit client is required unless --dry-run");
-  }
-  const octokit = options.octokit;
-
-  await ensureLabel(octokit, options.repo, CATEGORY_LABEL, "5319e7");
-  await ensureLabel(octokit, options.repo, planLabel, "0e8a16");
-
-  const existing = await findOpenIssueForPlan(octokit, options.repo, planLabel);
-
-  if (existing) {
-    console.log(
-      `Skipping ${relPath}: open issue #${existing.number} already exists (plan updates are not synced yet)`,
-    );
-    return { action: "skipped", issueNumber: existing.number, title };
-  }
-
-  const { data: created } = await octokit.rest.issues.create({
-    owner: options.repo.owner,
-    repo: options.repo.repo,
-    title,
-    body,
-    labels: [CATEGORY_LABEL, planLabel],
-  });
-  console.log(`Created issue #${created.number} for ${relPath}`);
-  return { action: "created", issueNumber: created.number, title };
+    planLabel,
+    plan,
+    blobUrl: buildBlobUrl(ctx, relPath),
+  };
 }
 
-function listAllPlanFiles(root: string): string[] {
-  const dir = join(root, PLAN_DIR_PREFIX);
+async function syncPlanFile(ctx: SyncContext, absPath: string): Promise<void> {
+  const planCtx = buildPlanContext(ctx, absPath);
+  const title = `[Plan] ${planCtx.plan.name}`;
+  const body = buildIssueBody({
+    plan: planCtx.plan,
+    relPath: planCtx.relPath,
+    planId: planCtx.planId,
+    blobUrl: planCtx.blobUrl,
+    sha: ctx.sha,
+  });
+
+  if (ctx.dryRun) {
+    console.log(`[dry-run] ${planCtx.relPath}`);
+    console.log(`  title: ${title}`);
+    console.log(`  labels: ${CATEGORY_LABEL}, ${planCtx.planLabel}`);
+    console.log(body);
+    return;
+  }
+
+  if (!ctx.octokit) {
+    throw new Error("Octokit client is required unless --dry-run");
+  }
+
+  await ensureLabel(ctx, CATEGORY_LABEL, "5319e7", planCtx.relPath);
+  await ensureLabel(ctx, planCtx.planLabel, "0e8a16", planCtx.relPath);
+
+  const existing = await findOpenIssueForPlan(ctx, planCtx.planLabel);
+  if (existing) {
+    console.log(
+      `Skipping ${planCtx.relPath}: open issue #${existing.number} already exists (plan updates are not synced yet)`,
+    );
+    return;
+  }
+
   try {
-    return readdirSync(dir)
-      .filter((name) => name.endsWith(".plan.md"))
-      .map((name) => `${PLAN_DIR_PREFIX}${name}`)
-      .sort();
+    const { data: created } = await ctx.octokit.rest.issues.create({
+      owner: ctx.repo.owner,
+      repo: ctx.repo.repo,
+      title,
+      body,
+      labels: [CATEGORY_LABEL, planCtx.planLabel],
+    });
+    console.log(`Created issue #${created.number} for ${planCtx.relPath}`);
+  } catch (error) {
+    logRequestError("create issue", error);
+    throw error;
+  }
+}
+
+function walk(dir: string): string[] {
+  let entries: string[];
+  try {
+    entries = readdirSync(dir);
   } catch {
     return [];
   }
+  const out: string[] = [];
+  for (const name of entries) {
+    const abs = join(dir, name);
+    let isDir = false;
+    try {
+      isDir = statSync(abs).isDirectory();
+    } catch {
+      continue;
+    }
+    if (isDir) {
+      out.push(...walk(abs));
+    } else {
+      out.push(abs);
+    }
+  }
+  return out;
 }
 
-function changedPlanFilesFromPush(root: string): string[] {
-  const before = process.env.GITHUB_EVENT_BEFORE;
+export function listAllPlanFiles(root: string): string[] {
+  const dir = join(root, PLAN_DIR_PREFIX);
+  return walk(dir)
+    .filter((abs) => abs.endsWith(".plan.md"))
+    .map((abs) => relative(root, abs).replace(/\\/g, "/"))
+    .sort();
+}
+
+type PushPayload = {
+  before?: string;
+  commits?: Array<{
+    added?: string[];
+    modified?: string[];
+    removed?: string[];
+  }>;
+};
+
+function readPushEvent(): PushPayload | undefined {
+  const eventPath = process.env.GITHUB_EVENT_PATH;
+  if (!eventPath) {
+    return undefined;
+  }
+  try {
+    const raw = readFileSync(eventPath, "utf8");
+    const parsed = JSON.parse(raw) as PushPayload;
+    return parsed;
+  } catch {
+    return undefined;
+  }
+}
+
+function collectChangedFromPayload(payload: PushPayload): string[] {
+  if (!Array.isArray(payload.commits)) {
+    return [];
+  }
+  const changed = new Set<string>();
+  for (const commit of payload.commits) {
+    for (const arr of [commit.added, commit.modified]) {
+      if (Array.isArray(arr)) {
+        for (const path of arr) {
+          if (path.startsWith(PLAN_DIR_PREFIX) && path.endsWith(".plan.md")) {
+            changed.add(path);
+          }
+        }
+      }
+    }
+  }
+  return [...changed].sort();
+}
+
+function runGit(
+  root: string,
+  args: string[],
+): { exitCode: number; stdout: string; stderr: string } {
+  const proc = Bun.spawnSync(["git", ...args], {
+    cwd: root,
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  return {
+    exitCode: proc.exitCode,
+    stdout: new TextDecoder().decode(proc.stdout),
+    stderr: new TextDecoder().decode(proc.stderr),
+  };
+}
+
+export function changedPlanFilesFromPush(root: string): string[] {
   const sha = process.env.GITHUB_SHA;
   if (!sha) {
     throw new Error("GITHUB_SHA is required for --from-push");
   }
 
-  const zeroSha = /^0+$/;
-  const proc =
-    before && !zeroSha.test(before)
-      ? Bun.spawnSync(
-          ["git", "diff", "--name-only", before, sha, "--", PLAN_DIR_PREFIX],
-          { cwd: root, stdout: "pipe", stderr: "pipe" },
-        )
-      : Bun.spawnSync(
-          [
-            "git",
-            "diff-tree",
-            "--no-commit-id",
-            "--name-only",
-            "-r",
-            sha,
-            "--",
-            PLAN_DIR_PREFIX,
-          ],
-          { cwd: root, stdout: "pipe", stderr: "pipe" },
-        );
-
-  if (proc.exitCode !== 0) {
-    throw new Error(
-      `git diff failed: ${new TextDecoder().decode(proc.stderr)}`,
-    );
+  const before = process.env.GITHUB_EVENT_BEFORE;
+  const payload = readPushEvent();
+  let fromPayload: string[] = [];
+  if (payload) {
+    fromPayload = collectChangedFromPayload(payload);
+    if (fromPayload.length > 0) {
+      return fromPayload;
+    }
   }
 
-  const changed = new TextDecoder()
-    .decode(proc.stdout)
+  const isNewBranch = !before || ZERO_SHA.test(before);
+  const diffArgs = isNewBranch
+    ? [
+        "diff-tree",
+        "--no-commit-id",
+        "--name-only",
+        "--diff-filter=ACMRT",
+        "-r",
+        sha,
+        "--",
+        PLAN_DIR_PREFIX,
+      ]
+    : [
+        "diff",
+        "--name-only",
+        "--diff-filter=ACMRT",
+        before!,
+        sha,
+        "--",
+        PLAN_DIR_PREFIX,
+      ];
+
+  const result = runGit(root, diffArgs);
+  if (result.exitCode !== 0) {
+    throw new Error(`git diff failed: ${result.stderr.trim()}`);
+  }
+
+  const changed = result.stdout
     .split("\n")
     .map((line) => line.trim())
     .filter((line) => line.endsWith(".plan.md"));
@@ -353,7 +542,6 @@ function changedPlanFilesFromPush(root: string): string[] {
     return changed;
   }
 
-  // workflow_dispatch or first push: sync every tracked plan file.
   if (process.env.GITHUB_EVENT_NAME === "workflow_dispatch") {
     return listAllPlanFiles(root);
   }
@@ -371,61 +559,107 @@ Environment:
   GITHUB_TOKEN, GITHUB_REPOSITORY — required unless --dry-run with --file
   GITHUB_SHA — commit for plan blob links (--from-push)
   GITHUB_EVENT_BEFORE — previous commit for changed-file detection
-  GITHUB_EVENT_NAME — workflow_dispatch syncs all plans when diff is empty`);
+  GITHUB_EVENT_NAME — workflow_dispatch syncs all plans when diff is empty
+  GITHUB_EVENT_PATH — push event payload (preferred over git diff for multi-commit pushes)`);
   process.exit(2);
 }
 
-async function main(): Promise<void> {
-  const args = process.argv.slice(2);
-  const dryRun = args.includes("--dry-run");
-  const fromPush = args.includes("--from-push");
-  const syncAll = args.includes("--all");
-  const fileFlag = args.indexOf("--file");
-  const root = join(import.meta.dir, "..");
+function parseArgs(argv: string[]): CliArgs {
+  return {
+    dryRun: argv.includes("--dry-run"),
+    fromPush: argv.includes("--from-push"),
+    syncAll: argv.includes("--all"),
+    fileFlag: argv.indexOf("--file"),
+  };
+}
 
-  let files: string[] = [];
-  if (syncAll) {
-    files = listAllPlanFiles(root);
-  } else if (fromPush) {
-    files = changedPlanFilesFromPush(root);
-  } else if (fileFlag >= 0) {
-    const file = args[fileFlag + 1];
-    if (!file) {
-      usage();
-    }
-    files = [relative(root, join(process.cwd(), file)).replace(/\\/g, "/")];
-  } else {
+function resolveFileArg(args: CliArgs, argv: string[], root: string): string[] {
+  const file = argv[args.fileFlag + 1];
+  if (!file) {
     usage();
   }
+  return [relative(root, join(process.cwd(), file!)).replace(/\\/g, "/")];
+}
+
+export function resolveMode(
+  args: CliArgs,
+  argv: string[],
+  root: string,
+): { mode: Mode; files: string[] } {
+  if (args.syncAll) {
+    return { mode: "all", files: listAllPlanFiles(root) };
+  }
+  if (args.fromPush) {
+    return { mode: "fromPush", files: changedPlanFilesFromPush(root) };
+  }
+  if (args.fileFlag >= 0) {
+    return { mode: "file", files: resolveFileArg(args, argv, root) };
+  }
+  usage();
+}
+
+function buildSyncContext(args: CliArgs, root: string): SyncContext {
+  const repo =
+    args.dryRun && !process.env.GITHUB_REPOSITORY
+      ? { owner: "owner", repo: "repo" }
+      : repoFromEnv();
+  const token = args.dryRun ? undefined : tokenFromEnv();
+  return {
+    octokit: token ? createOctokit(token) : undefined,
+    repo,
+    sha: process.env.GITHUB_SHA,
+    dryRun: args.dryRun,
+    labelCache: new Set<string>(),
+  };
+}
+
+async function runMode(
+  ctx: SyncContext,
+  files: string[],
+  root: string,
+): Promise<void> {
+  for (const relPath of files) {
+    const absPath = join(root, relPath);
+    if (relPath === "") {
+      continue;
+    }
+    try {
+      await syncPlanFile(ctx, absPath);
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message.startsWith("Plan file not found:")
+      ) {
+        console.log(`Skipping ${relPath}: file no longer exists`);
+        continue;
+      }
+      throw error;
+    }
+  }
+}
+
+async function main(): Promise<void> {
+  const argv = process.argv.slice(2);
+  const args = parseArgs(argv);
+  const root = join(import.meta.dir, "..");
+  const { files } = resolveMode(args, argv, root);
 
   if (files.length === 0) {
     console.log("No changed Cursor plan files.");
     return;
   }
 
-  const repo =
-    dryRun && !process.env.GITHUB_REPOSITORY
-      ? { owner: "owner", repo: "repo" }
-      : repoFromEnv();
-  const token = dryRun ? undefined : tokenFromEnv();
-  const sha = process.env.GITHUB_SHA;
-  const octokit = token ? createOctokit(token) : undefined;
-
-  for (const relPath of files) {
-    await syncPlanFile({
-      absPath: join(root, relPath),
-      root,
-      octokit,
-      repo,
-      sha,
-      dryRun,
-    });
-  }
+  const ctx = buildSyncContext(args, root);
+  await runMode(ctx, files, root);
 }
 
 if (import.meta.main) {
   main().catch((error) => {
-    console.error(error instanceof Error ? error.message : error);
+    const message =
+      error instanceof Error
+        ? sanitizeErrorMessage(error.message)
+        : sanitizeErrorMessage(String(error));
+    console.error(message);
     process.exit(1);
   });
 }
