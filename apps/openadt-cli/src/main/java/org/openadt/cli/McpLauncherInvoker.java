@@ -23,6 +23,10 @@ final class McpLauncherInvoker {
         "tools/sap-adt-mcp-launcher/src/main.ts",
     };
     private static final int CWD_WALK_MAX_DEPTH = 8;
+    private static final String[] NATIVE_BINARY_NAMES = {
+        "openadt-mcp.exe",
+        "openadt-mcp",
+    };
 
     private McpLauncherInvoker() {}
 
@@ -44,33 +48,28 @@ final class McpLauncherInvoker {
     }
 
     private static int spawnDirect(Path binary, String subcommand, String[] extraArgs) {
-        ProcessBuilder pb = new ProcessBuilder(buildArgv(binary, subcommand, extraArgs, null));
-        pb.inheritIO();
-        try {
-            return pb.start().waitFor();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            CliLog.error("Failed to run openadt-mcp: " + e.getMessage());
-            return 1;
-        } catch (IOException e) {
-            CliLog.error("Failed to run openadt-mcp: " + e.getMessage());
-            return 1;
-        }
+        return runAndWait(
+            new ProcessBuilder(buildArgv(binary, subcommand, extraArgs, null)),
+            "openadt-mcp");
     }
 
     private static int spawnBun(Path script, String subcommand, String[] extraArgs) {
         ProcessBuilder pb = new ProcessBuilder(
                 buildArgv(script, subcommand, extraArgs, resolveBunExecutable()));
-        pb.inheritIO();
         applyRepoEnv(pb, script);
+        return runAndWait(pb, "MCP launcher");
+    }
+
+    private static int runAndWait(ProcessBuilder pb, String errorLabel) {
+        pb.inheritIO();
         try {
             return pb.start().waitFor();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            CliLog.error("Failed to run MCP launcher: " + e.getMessage());
+            CliLog.error("Failed to run " + errorLabel + ": " + e.getMessage());
             return 1;
         } catch (IOException e) {
-            CliLog.error("Failed to run MCP launcher: " + e.getMessage());
+            CliLog.error("Failed to run " + errorLabel + ": " + e.getMessage());
             return 1;
         }
     }
@@ -90,26 +89,39 @@ final class McpLauncherInvoker {
     }
 
     static Path resolveOpenAdtMcpBinary() {
+        Path override = tryOpenAdtMcpOverride();
+        if (override != null) {
+            return override;
+        }
+        return scanPathForBinary();
+    }
+
+    private static Path tryOpenAdtMcpOverride() {
         String override = System.getenv("OPENADT_MCP");
-        if (override != null && !override.isBlank()) {
-            Path envHit = Path.of(override.trim());
-            if (Files.isRegularFile(envHit)) {
-                return envHit.toAbsolutePath().normalize();
-            }
+        if (override == null || override.isBlank()) {
             return null;
         }
+        Path envHit = Path.of(override.trim());
+        if (Files.isRegularFile(envHit)) {
+            return envHit.toAbsolutePath().normalize();
+        }
+        return null;
+    }
+
+    private static Path scanPathForBinary() {
         String pathEnv = System.getenv("PATH");
         if (pathEnv == null) {
             return null;
         }
-        String exeName = isWindows() ? "openadt-mcp.exe" : "openadt-mcp";
         for (String dir : pathEnv.split(File.pathSeparator)) {
             if (dir.isBlank()) {
                 continue;
             }
-            Path candidate = Path.of(dir).resolve(exeName);
-            if (Files.isRegularFile(candidate)) {
-                return candidate.toAbsolutePath().normalize();
+            for (String name : NATIVE_BINARY_NAMES) {
+                Path candidate = Path.of(dir).resolve(name);
+                if (Files.isRegularFile(candidate)) {
+                    return candidate.toAbsolutePath().normalize();
+                }
             }
         }
         return null;

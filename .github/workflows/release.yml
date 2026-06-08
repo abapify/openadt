@@ -265,7 +265,10 @@ jobs:
             echo "No openadt jar sha256 found, skipping openadt manifests." >&2
           fi
 
-          # openadt-mcp — one manifest per platform artifact.
+          # openadt-mcp — Scoop is Windows-only, so only patch the Scoop
+          # manifest on the win-x64 shard. The Homebrew formula is
+          # darwin-arm64-only in v1 (see packaging/homebrew/openadt-mcp.rb);
+          # only patch it on the darwin-arm64 shard.
           for platform in win-x64 linux-x64 darwin-arm64 darwin-x64; do
             if [[ "${platform}" == "win-x64" ]]; then
               ext="zip"
@@ -279,22 +282,31 @@ jobs:
             fi
             sha="$(awk '{print tolower($1)}' "${sha_file}")"
             url="https://github.com/abapify/openadt/releases/download/${tag}/openadt-mcp-${version}-${platform}.${ext}"
-            extract_dir="openadt-mcp-${version}-${platform}"
-            echo "Patching openadt-mcp (${platform}) with SHA256: ${sha}"
-            jq --arg sha "${sha}" \
-               --arg ver "${version}" \
-               --arg url "${url}" \
-               --arg dir "${extract_dir}" \
-               '.version = $ver | .extract_dir = $dir | .architecture["64bit"].url = $url | .architecture["64bit"].hash = $sha' \
-               packaging/scoop/openadt-mcp.json > /tmp/openadt-mcp.json
-            mv /tmp/openadt-mcp.json packaging/scoop/openadt-mcp.json
-            sed -i "s/sha256 \"[^\"]*\"/sha256 \"${sha}\"/" Formula/openadt-mcp.rb
+
+            if [[ "${platform}" == "win-x64" ]]; then
+              extract_dir="openadt-mcp-${version}-${platform}"
+              echo "Patching openadt-mcp Scoop manifest (${platform}) with SHA256: ${sha}"
+              jq --arg sha "${sha}" \
+                 --arg ver "${version}" \
+                 --arg url "${url}" \
+                 --arg dir "${extract_dir}" \
+                 '.version = $ver | .extract_dir = $dir | .architecture["64bit"].url = $url | .architecture["64bit"].hash = $sha' \
+                 packaging/scoop/openadt-mcp.json > /tmp/openadt-mcp.json
+              mv /tmp/openadt-mcp.json packaging/scoop/openadt-mcp.json
+            elif [[ "${platform}" == "darwin-arm64" ]]; then
+              echo "Patching openadt-mcp Homebrew formula (${platform}) with SHA256: ${sha}"
+              sed -i "s/sha256 \"[^\"]*\"/sha256 \"${sha}\"/" Formula/openadt-mcp.rb
+            else
+              echo "openadt-mcp ${platform}: archive produced but not wired into a manifest in v1." >&2
+            fi
           done
 
           echo "--- Patched packaging/scoop/openadt.json ---"
           cat packaging/scoop/openadt.json
           echo "--- Patched packaging/scoop/openadt-mcp.json ---"
           cat packaging/scoop/openadt-mcp.json
+          echo "--- Patched Formula/openadt-mcp.rb ---"
+          cat Formula/openadt-mcp.rb
 
       - name: Create packaging sync token (GitHub App)
         id: packaging-sync-token

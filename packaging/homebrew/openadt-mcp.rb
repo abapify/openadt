@@ -3,8 +3,12 @@ class OpenadtMcp < Formula
   homepage "https://github.com/abapify/openadt"
   license "Apache-2.0"
 
-  # Stable: prebuilt tarball / zip from GitHub Releases.
-  # STABLE and sha256 are refreshed by `bun run package:release`.
+  # Stable: prebuilt tarball from GitHub Releases.
+  # STABLE and sha256 are refreshed by `bun run package:release` on the
+  # darwin-arm64 runner (see `MCP_HOMEBREW_PLATFORM` in
+  # tools/package-release/src/main.ts). darwin-x64 and linux-x64 archives
+  # are produced by the release matrix but not yet wired into a per-platform
+  # formula — install from the release tarball directly for now.
   STABLE = "1.3.13"
   url "https://github.com/abapify/openadt/releases/download/v#{STABLE}/openadt-mcp-#{STABLE}-darwin-arm64.tar.gz"
   sha256 "PLACEHOLDER_RUN_PACKAGE_RELEASE"
@@ -16,18 +20,6 @@ class OpenadtMcp < Formula
   # extension bundles its own JRE. JDK 21 is only needed if you wire
   # openadt-mcp up to an adt-lsc install that needs an external runtime
   # (e.g. SNC). Documented in caveats below.
-
-  on_macos do
-    if Hardware::CPU.arm?
-      url "https://github.com/abapify/openadt/releases/download/v#{STABLE}/openadt-mcp-#{STABLE}-darwin-arm64.tar.gz"
-    else
-      url "https://github.com/abapify/openadt/releases/download/v#{STABLE}/openadt-mcp-#{STABLE}-darwin-x64.tar.gz"
-    end
-  end
-
-  on_linux do
-    url "https://github.com/abapify/openadt/releases/download/v#{STABLE}/openadt-mcp-#{STABLE}-linux-x64.tar.gz"
-  end
 
   def install
     bin.install "openadt-mcp"
