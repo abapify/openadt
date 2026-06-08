@@ -68,3 +68,6 @@ packaging/windows/launcher/obj/
 .codacy/codacy.yaml
 __pycache__/
 .env
+
+# Local tool installs (never commit binaries)
+.local/
