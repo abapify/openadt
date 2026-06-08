@@ -292,7 +292,15 @@ Behavior:
 
 ### openadt mcp
 
-Launch the **official SAP ADT MCP** (child `adt-lsc` from SAP ADT VS Code extension + optional stdio bridge). Requires extension and **Bun**. See [mcp.md](mcp.md), [mcp-shared-backend.md](mcp-shared-backend.md).
+Launch the **official SAP ADT MCP** (child `adt-lsc` from SAP ADT VS Code extension + optional stdio bridge). See [mcp.md](mcp.md), [mcp-shared-backend.md](mcp-shared-backend.md).
+
+`openadt mcp` is a **Java wrapper around the standalone `openadt-mcp` product** ([mcp.md](mcp.md#product-openadt-mcp), [packaging.md](packaging.md)). The wrapper **resolves and spawns** `openadt-mcp` directly — no Bun hop, no bundled launcher in the `openadt` zip. Users with only the `openadt` package get the same MCP surface via this wrapper; users with `openadt-mcp` installed get the native binary on PATH and skip the JVM hop entirely.
+
+**Resolution order** (first match wins):
+
+1. **`openadt-mcp` on PATH** — `openadt-mcp.exe` on Windows, `openadt-mcp` elsewhere. The `OPENADT_MCP` env var, when set, overrides PATH. This is the production fast path.
+2. **Dev clone** — when `OPENADT_REPO` is set or the current working directory is inside a clone, run `bun` against `tools/sap-adt-mcp-launcher/src/main.ts` with the same argv (Bun + source).
+3. **Error** — print to stderr: `openadt-mcp is not installed. Install with: scoop install openadt-mcp  (or)  brew install openadt-mcp` and exit `1`.
 
 **`serve --stdio` (default):** finds or spawns a detached daemon, attaches stdio bridge, does NOT kill backend on exit. **`--standalone`:** owns `adt-lsc`, kills on exit (monolithic path).
 
@@ -308,7 +316,33 @@ Launch the **official SAP ADT MCP** (child `adt-lsc` from SAP ADT VS Code extens
 ./dev-openadt mcp bridge --stdio
 ```
 
-Subcommands: `serve`, `stop`, `bridge`, `status`, `list`, `print-config`. The release ZIP includes `sap-adt-mcp-launcher/` next to `openadt.jar`.
+Subcommands: `serve`, `stop`, `bridge`, `status`, `list`, `print-config`. Flags, exit codes, and behavior match the standalone binary — see [Standalone `openadt-mcp` CLI](#standalone-openadt-mcp-cli) below.
+
+---
+
+### Standalone `openadt-mcp` CLI
+
+The standalone product is the primary MCP surface ([mcp.md](mcp.md#product-openadt-mcp), [packaging.md](packaging.md)). It exposes the same subcommands as `openadt mcp` and is **equivalent** to `openadt mcp serve --stdio` when invoked as `openadt-mcp serve --stdio`. Install independently via `scoop install openadt-mcp` or `brew install openadt-mcp`.
+
+| Subcommand       | Role                                                                  |
+| ---------------- | --------------------------------------------------------------------- |
+| `serve`          | Child `adt-lsc` + HTTP MCP; hold until Ctrl+C; **no stdio**           |
+| `serve --stdio`  | Shared (auto-ensure + attach stdio bridge) — **default**              |
+| `list`           | List active endpoints in the store                                    |
+| `status`         | Probe HTTP MCP (`initialize` POST)                                    |
+| `stop`           | Stop MCP backend (see [mcp-shared-backend.md](mcp-shared-backend.md)) |
+| `bridge --stdio` | Attach-only; fail if no healthy backend                               |
+| `print-config`   | Emit `{ url, headers }` for HTTP-native clients                       |
+
+Flags (`--port`, `--workspace`, `--import-from`, `--destination`, `--logon-timeout`, `--verbose`, `--log-file`, `--standalone`, `--restart`) and exit codes match `openadt mcp` exactly — see [mcp.md](mcp.md).
+
+```bash
+openadt-mcp serve --stdio
+openadt-mcp serve --port 2236 --destination DEV_100_developer_en
+openadt-mcp list
+openadt-mcp print-config --port 2236
+openadt-mcp stop --port 2236
+```
 
 ---
 

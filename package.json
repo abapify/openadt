@@ -8,6 +8,7 @@
     "release:version": "bun tools/release-version/src/main.ts",
     "mcp:build": "cd tools/sap-adt-mcp-launcher && bun run build",
     "mcp:build:check": "cd tools/sap-adt-mcp-launcher && bun run build:check",
+    "mcp:build:compile": "bun scripts/build-openadt-mcp-release.ts",
     "format:write": "nx format:write",
     "openadt": "nx run openadt-cli:run --output-style=stream --",
     "openadt:mcp": "bun scripts/nx-openadt.ts mcp",

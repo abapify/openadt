@@ -26,7 +26,7 @@ OpenADT is a **thin Java wrapper around the official SAP ADT SDK** (`com.sap.adt
 
 ## Roadmap: MCP
 
-Agents call **official SAP ADT MCP** via OpenADT launcher: child `adt-lsc`, HTTP MCP, optional stdio bridge (`serve --stdio`). OpenADT does not define tools. See [mcp.md](mcp.md).
+MCP is a **separate installable** product, `openadt-mcp`: a standalone compiled Bun binary with its own Scoop bucket (`scoop install openadt-mcp`) and Homebrew tap (`brew install openadt-mcp`). It is the same launcher described in [mcp.md](mcp.md) — child `adt-lsc`, HTTP MCP, optional stdio bridge (`serve --stdio`). The Java `openadt mcp` subcommand stays and wraps `openadt-mcp`; OpenADT does not define MCP tools.
 
 ## Package map (code navigation)
 
