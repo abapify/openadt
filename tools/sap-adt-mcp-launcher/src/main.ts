@@ -908,6 +908,14 @@ async function cmdBridge(argv: string[]): Promise<number> {
 
   const bridge = createStdioMcpBridge();
   bridge.start();
+  const http = httpReadBackendFor(record);
+  if (http) {
+    bridge.setReadBackend(http);
+  } else if (!json) {
+    console.error(
+      "[openadt-mcp] read tools unavailable (daemon has no read endpoint; restart the backend with: openadt mcp stop)",
+    );
+  }
   await bridge.run(McpHttpEndpoint.forConfig(record.port, record.token));
   return EXIT_OK;
 }

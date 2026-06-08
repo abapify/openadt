@@ -343,9 +343,17 @@ export class HttpReadBackend implements ReadObjectBackend {
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(this.timeoutMs),
     });
-    const data = (await res.json().catch(() => undefined)) as
-      | (T & { error?: string })
-      | undefined;
+    let data: (T & { error?: string }) | undefined;
+    try {
+      data = (await res.json()) as T & { error?: string };
+    } catch {
+      // 2xx with non-JSON body is still a protocol violation — surface it
+      // instead of returning `undefined` and silently violating the return
+      // type contract.
+      throw new Error(
+        `read endpoint returned invalid JSON (HTTP ${res.status})`,
+      );
+    }
     if (!res.ok) {
       const msg = data?.error ?? `read endpoint HTTP ${res.status}`;
       throw new Error(msg);
