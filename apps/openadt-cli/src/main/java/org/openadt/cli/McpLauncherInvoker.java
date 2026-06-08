@@ -28,23 +28,39 @@ final class McpLauncherInvoker {
         "openadt-mcp",
     };
 
+    /** Bundles the resolved launcher with a discriminator so internal helpers
+     *  can take a single record instead of (Path, kind) primitives. */
+    private record McpLaunchPlan(McpLaunchKind kind, Path executable) {}
+
+    private enum McpLaunchKind { NATIVE, DEV_CLONE }
+
     private McpLauncherInvoker() {}
 
     static int invoke(String subcommand, String[] extraArgs) {
-        Path binary = resolveOpenAdtMcpBinary();
-        if (binary != null) {
-            return spawnDirect(binary, subcommand, extraArgs);
+        McpLaunchPlan plan = chooseLaunchPlan();
+        if (plan == null) {
+            CliLog.error("""
+                    openadt-mcp is not installed and no dev clone was found.
+                    Install: scoop install openadt-mcp
+                           brew install openadt-mcp
+                    Or set OPENADT_REPO to your git clone (and have Bun on PATH).""");
+            return 1;
         }
-        Path script = resolveLauncherMain();
-        if (script != null) {
-            return spawnBun(script, subcommand, extraArgs);
+        return plan.kind() == McpLaunchKind.NATIVE
+                ? spawnDirect(plan.executable(), subcommand, extraArgs)
+                : spawnBun(plan.executable(), subcommand, extraArgs);
+    }
+
+    private static McpLaunchPlan chooseLaunchPlan() {
+        Path nativeBinary = resolveOpenAdtMcpBinary();
+        if (nativeBinary != null) {
+            return new McpLaunchPlan(McpLaunchKind.NATIVE, nativeBinary);
         }
-        CliLog.error("""
-                openadt-mcp is not installed and no dev clone was found.
-                Install: scoop install openadt-mcp
-                       brew install openadt-mcp
-                Or set OPENADT_REPO to your git clone (and have Bun on PATH).""");
-        return 1;
+        Path devScript = resolveLauncherMain();
+        if (devScript != null) {
+            return new McpLaunchPlan(McpLaunchKind.DEV_CLONE, devScript);
+        }
+        return null;
     }
 
     private static int spawnDirect(Path binary, String subcommand, String[] extraArgs) {
