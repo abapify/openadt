@@ -117,11 +117,19 @@ final class McpLauncherInvoker {
             if (dir.isBlank()) {
                 continue;
             }
-            for (String name : NATIVE_BINARY_NAMES) {
-                Path candidate = Path.of(dir).resolve(name);
-                if (Files.isRegularFile(candidate)) {
-                    return candidate.toAbsolutePath().normalize();
-                }
+            Path hit = findBinaryInDir(dir);
+            if (hit != null) {
+                return hit;
+            }
+        }
+        return null;
+    }
+
+    private static Path findBinaryInDir(String dir) {
+        for (String name : NATIVE_BINARY_NAMES) {
+            Path candidate = Path.of(dir).resolve(name);
+            if (Files.isRegularFile(candidate)) {
+                return candidate.toAbsolutePath().normalize();
             }
         }
         return null;
