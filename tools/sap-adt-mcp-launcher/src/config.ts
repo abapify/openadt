@@ -308,16 +308,19 @@ function isValidPort(value: number): boolean {
 }
 
 /** Read `--port` / `--port=N` from argv, or undefined if absent. */
-function readPortFlag(
-  argv: string[],
-  i: number,
-): { value: number; next: number } | undefined {
-  const arg = argv[i]!;
-  if (arg === "--port" && i + 1 < argv.length) {
-    return { value: Number(argv[i + 1]), next: i + 2 };
+function readPortFlag(request: {
+  argv: string[];
+  i: number;
+}): { value: number; next: number } | undefined {
+  const arg = request.argv[request.i]!;
+  if (arg === "--port" && request.i + 1 < request.argv.length) {
+    return { value: Number(request.argv[request.i + 1]), next: request.i + 2 };
   }
   if (arg.startsWith("--port=")) {
-    return { value: Number(arg.slice("--port=".length)), next: i + 1 };
+    return {
+      value: Number(arg.slice("--port=".length)),
+      next: request.i + 1,
+    };
   }
   return undefined;
 }
@@ -389,7 +392,7 @@ function parsePortAndJson(argv: string[]): { port?: number; json: boolean } {
       json = true;
       continue;
     }
-    const portFlag = readPortFlag(argv, i);
+    const portFlag = readPortFlag({ argv, i });
     if (portFlag) {
       port = portFlag.value;
       i = portFlag.next - 1;
@@ -410,8 +413,7 @@ export function parseSubcommandArgv(
   argv: string[],
 ): ParsedSubcommand | undefined {
   const sub = argv[0];
-  if (!sub || sub === "--help" || sub === "-h") {
-    return undefined;
-  }
+  if (!sub) return undefined;
+  if (sub === "--help" || sub === "-h") return undefined;
   return { name: sub, argv: argv.slice(1) };
 }

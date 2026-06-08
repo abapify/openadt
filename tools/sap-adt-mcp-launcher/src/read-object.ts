@@ -83,15 +83,14 @@ export function quickSearch(
 
 export async function getLsUri(
   req: LspRequester,
-  destination: string,
-  adtUri: string,
+  request: { destination: string; adtUri: string },
 ): Promise<string> {
   const r = await req<{ uri?: string }>(LSP_METHOD_REPOSITORY_GET_LS_URI, {
-    destination,
-    adtUri,
+    destination: request.destination,
+    adtUri: request.adtUri,
   });
   if (!r.uri) {
-    throw new Error(`getLsUri returned no uri for ${adtUri}`);
+    throw new Error(`getLsUri returned no uri for ${request.adtUri}`);
   }
   return r.uri;
 }
@@ -175,11 +174,10 @@ function lastUriSegment(uri: string): string {
  */
 export function pickReference(
   refs: AdtObjectReference[],
-  name: string,
-  type?: string,
+  request: { name: string; type?: string },
 ): { match: AdtObjectReference } | { candidates: AdtObjectReference[] } {
-  const pool = poolForType(refs, type);
-  const exact = exactNameMatches(pool, name);
+  const pool = poolForType(refs, request);
+  const exact = exactNameMatches(pool, request);
   if (exact.length === 1) {
     return { match: exact[0]! };
   }
@@ -192,19 +190,19 @@ export function pickReference(
 /** Narrow `refs` to those whose `type` matches (uppercased). Fall back to `refs` when no type or none match. */
 function poolForType(
   refs: AdtObjectReference[],
-  type: string | undefined,
+  request: { type?: string },
 ): AdtObjectReference[] {
-  if (!type) return refs;
-  const target = type.toUpperCase();
+  if (!request.type) return refs;
+  const target = request.type.toUpperCase();
   const filtered = refs.filter((r) => r.type?.toUpperCase() === target);
   return filtered.length > 0 ? filtered : refs;
 }
 
 function exactNameMatches(
   refs: AdtObjectReference[],
-  name: string,
+  request: { name: string },
 ): AdtObjectReference[] {
-  const target = name.toUpperCase();
+  const target = request.name.toUpperCase();
   return refs.filter((r) => r.name?.toUpperCase() === target);
 }
 
@@ -250,16 +248,16 @@ export class LspReadBackend implements ReadObjectBackend {
     private readonly retry: RetryOptions = {},
   ) {}
 
-  private async resolve(
-    destination: string,
-    pattern: string,
-    types?: string[],
-    maxResults?: number,
-  ): Promise<AdtObjectReference[]> {
+  private async resolve(request: {
+    destination: string;
+    pattern: string;
+    types?: string[];
+    maxResults?: number;
+  }): Promise<AdtObjectReference[]> {
     const result = await retryUntilNonEmpty(
-      () => quickSearch(this.req, { destination, pattern, types, maxResults }),
+      () => quickSearch(this.req, request),
       (r) => (r.references?.length ?? 0) === 0,
-      `quickSearch '${pattern}'`,
+      `quickSearch '${request.pattern}'`,
       this.retry,
     );
     return result.references ?? [];
@@ -280,12 +278,12 @@ export class LspReadBackend implements ReadObjectBackend {
       }
       // objectType is an ADT type code (CLAS/OC) — adt-ls's quickSearch `types`
       // filter expects codes, not the display label it returns ("Class").
-      const refs = await this.resolve(
-        input.destination,
-        input.objectName,
-        input.objectType ? [input.objectType] : undefined,
-      );
-      const picked = pickReference(refs, input.objectName);
+      const refs = await this.resolve({
+        destination: input.destination,
+        pattern: input.objectName,
+        types: input.objectType ? [input.objectType] : undefined,
+      });
+      const picked = pickReference(refs, { name: input.objectName });
       if ("candidates" in picked) {
         return { kind: "ambiguous", candidates: picked.candidates };
       }
@@ -294,7 +292,10 @@ export class LspReadBackend implements ReadObjectBackend {
     if (!ref.uri) {
       throw new Error(`Object ${ref.name} has no ADT uri to resolve`);
     }
-    const lsUri = await getLsUri(this.req, input.destination, ref.uri);
+    const lsUri = await getLsUri(this.req, {
+      destination: input.destination,
+      adtUri: ref.uri,
+    });
     const content = await retryUntilNonEmpty(
       () => readFile(this.req, lsUri),
       (c) => c.length === 0,
@@ -310,12 +311,12 @@ export class LspReadBackend implements ReadObjectBackend {
   }
 
   async search(input: SearchInput): Promise<AdtObjectReference[]> {
-    return this.resolve(
-      input.destination,
-      input.pattern,
-      input.types,
-      input.maxResults,
-    );
+    return this.resolve({
+      destination: input.destination,
+      pattern: input.pattern,
+      types: input.types,
+      maxResults: input.maxResults,
+    });
   }
 }
 
@@ -372,10 +373,14 @@ export class HttpReadBackend implements ReadObjectBackend {
  */
 export async function prewarm(
   req: LspRequester,
-  destination: string,
+  request: { destination: string },
 ): Promise<void> {
   try {
-    await quickSearch(req, { destination, pattern: "*", maxResults: 1 });
+    await quickSearch(req, {
+      destination: request.destination,
+      pattern: "*",
+      maxResults: 1,
+    });
   } catch {
     /* best effort */
   }
@@ -487,12 +492,24 @@ export type CallToolResult = {
   isError?: boolean;
 };
 
-function textResult(text: string, isError = false): CallToolResult {
-  return { content: [{ type: "text", text }], isError };
+function textResult(request: {
+  text: string;
+  isError?: boolean;
+}): CallToolResult {
+  return {
+    content: [{ type: "text", text: request.text }],
+    isError: request.isError,
+  };
 }
 
-function jsonResult(text: string, structuredContent: unknown): CallToolResult {
-  return { content: [{ type: "text", text }], structuredContent };
+function jsonResult(request: {
+  text: string;
+  structuredContent: unknown;
+}): CallToolResult {
+  return {
+    content: [{ type: "text", text: request.text }],
+    structuredContent: request.structuredContent,
+  };
 }
 
 export type ReferencesFormat = "json" | "markdown" | "compact";
@@ -504,8 +521,9 @@ function parseReferencesFormat(value: unknown): ReferencesFormat {
 /** Render a reference list as the chosen text format (structuredContent stays JSON). */
 function renderReferences(
   refs: AdtObjectReference[],
-  format: ReferencesFormat,
+  request: { format: ReferencesFormat },
 ): string {
+  const format = request.format;
   if (format === "markdown") {
     const head = "| Name | Type | Description |\n|------|------|-------------|";
     const rows = refs.map(
@@ -527,19 +545,21 @@ function renderReferences(
 /** Run a read tool call against `backend` and shape the MCP CallToolResult. */
 export async function handleReadToolCall(
   backend: ReadObjectBackend,
-  name: string,
-  args: Record<string, unknown>,
+  request: { name: string; args: Record<string, unknown> },
 ): Promise<CallToolResult> {
   try {
-    if (name === READ_OBJECT_TOOL) {
-      return await handleReadObjectTool(backend, args);
+    if (request.name === READ_OBJECT_TOOL) {
+      return await handleReadObjectTool(backend, request.args);
     }
-    if (name === SEARCH_OBJECTS_TOOL) {
-      return await handleSearchObjectsTool(backend, args);
+    if (request.name === SEARCH_OBJECTS_TOOL) {
+      return await handleSearchObjectsTool(backend, request.args);
     }
-    return textResult(`Unknown read tool: ${name}`, true);
+    return textResult({
+      text: `Unknown read tool: ${request.name}`,
+      isError: true,
+    });
   } catch (err) {
-    return textResult(formatError(err), true);
+    return textResult({ text: formatError(err), isError: true });
   }
 }
 
@@ -549,47 +569,42 @@ async function handleReadObjectTool(
 ): Promise<CallToolResult> {
   const input = parseReadObjectArgs(args);
   if (!input) {
-    return textResult("destination and (objectName or uri) are required", true);
+    return textResult({
+      text: "destination and (objectName or uri) are required",
+      isError: true,
+    });
   }
   const result = await backend.readObject(input);
   if (result.kind === "ambiguous") {
-    return jsonResult(
-      `Multiple objects match '${input.objectName}'. Pass objectType (ADT code, e.g. CLAS/OC) ` +
+    return jsonResult({
+      text:
+        `Multiple objects match '${input.objectName}'. Pass objectType (ADT code, e.g. CLAS/OC) ` +
         `or a uri to disambiguate. Candidates:\n` +
         JSON.stringify(result.candidates, null, 2),
-      { ambiguous: true, candidates: result.candidates },
-    );
+      structuredContent: { ambiguous: true, candidates: result.candidates },
+    });
   }
-  return renderReadObject(result, args.format);
+  return renderReadObject(result, { format: args.format });
 }
 
 function parseReadObjectArgs(
   args: Record<string, unknown>,
 ): ReadObjectInput | undefined {
-  const destination = stringField(args, "destination");
-  const objectName = stringField(args, "objectName");
-  const uri = stringField(args, "uri");
+  const destination =
+    typeof args.destination === "string" ? args.destination : undefined;
+  const objectName =
+    typeof args.objectName === "string" ? args.objectName : undefined;
+  const uri = typeof args.uri === "string" ? args.uri : undefined;
   if (!destination) return undefined;
   if (!objectName && !uri) return undefined;
-  return {
-    destination,
-    objectName,
-    objectType: stringField(args, "objectType"),
-    uri,
-  };
-}
-
-function stringField(
-  args: Record<string, unknown>,
-  key: string,
-): string | undefined {
-  const v = args[key];
-  return typeof v === "string" ? v : undefined;
+  const objectType =
+    typeof args.objectType === "string" ? args.objectType : undefined;
+  return { destination, objectName, objectType, uri };
 }
 
 function renderReadObject(
   result: Extract<ReadObjectResult, { kind: "source" }>,
-  format: unknown,
+  request: { format: unknown },
 ): CallToolResult {
   const r = result.reference;
   const meta = {
@@ -598,11 +613,11 @@ function renderReadObject(
     uri: r.uri,
     unsupported: result.unsupported,
   };
-  if (format === "json") {
-    return jsonResult(
-      JSON.stringify({ ...meta, content: result.content }, null, 2),
-      meta,
-    );
+  if (request.format === "json") {
+    return jsonResult({
+      text: JSON.stringify({ ...meta, content: result.content }, null, 2),
+      structuredContent: meta,
+    });
   }
   const header = `* ${r.name} (${r.type ?? "?"}) — ${r.uri ?? ""}`.trimEnd();
   return {
@@ -618,7 +633,10 @@ async function handleSearchObjectsTool(
   const destination = String(args.destination ?? "");
   const pattern = String(args.pattern ?? "");
   if (!destination || !pattern) {
-    return textResult("destination and pattern are required", true);
+    return textResult({
+      text: "destination and pattern are required",
+      isError: true,
+    });
   }
   const types = Array.isArray(args.types)
     ? args.types.filter((t): t is string => typeof t === "string")
@@ -631,8 +649,10 @@ async function handleSearchObjectsTool(
     types,
     maxResults,
   });
-  return jsonResult(
-    renderReferences(references, parseReferencesFormat(args.format)),
-    { references },
-  );
+  return jsonResult({
+    text: renderReferences(references, {
+      format: parseReferencesFormat(args.format),
+    }),
+    structuredContent: { references },
+  });
 }

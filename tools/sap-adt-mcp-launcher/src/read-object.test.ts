@@ -53,17 +53,19 @@ describe("read-object: pickReference", () => {
   ];
 
   test("exact name + type → single match", () => {
-    const got = pickReference(refs, "cl_x", "CLAS/OC");
+    const got = pickReference(refs, { name: "cl_x", type: "CLAS/OC" });
     expect("match" in got && got.match.uri).toBe("/sap/bc/adt/oo/classes/cl_x");
   });
 
   test("ambiguous name without type → candidates", () => {
-    const got = pickReference(refs, "CL_X");
+    const got = pickReference(refs, { name: "CL_X" });
     expect("candidates" in got && got.candidates.length).toBe(2);
   });
 
   test("single hit, name not exact → match", () => {
-    const got = pickReference([ref("CL_XYZ", "CLAS/OC", "u")], "CL_X");
+    const got = pickReference([ref("CL_XYZ", "CLAS/OC", "u")], {
+      name: "CL_X",
+    });
     expect("match" in got && got.match.name).toBe("CL_XYZ");
   });
 });
@@ -177,9 +179,9 @@ describe("read-object: LspReadBackend over a fake requester", () => {
       "adtLs/fileSystem/readFile": () => ({ content: "CLASS cl_x." }),
     });
     const backend = new LspReadBackend(req, { timeoutMs: 500, intervalMs: 5 });
-    const res = await handleReadToolCall(backend, "adt_read_object", {
-      destination: "A4H",
-      objectName: "CL_X",
+    const res = await handleReadToolCall(backend, {
+      name: "adt_read_object",
+      args: { destination: "A4H", objectName: "CL_X" },
     });
     expect(res.isError).toBeFalsy();
     expect(res.content[0]!.text).toContain("CLASS cl_x.");
@@ -216,7 +218,10 @@ describe("read-object: LspReadBackend over a fake requester", () => {
 
   test("handleReadToolCall validates required args", async () => {
     const backend = new LspReadBackend(fakeRequester({}));
-    const res = await handleReadToolCall(backend, "adt_read_object", {});
+    const res = await handleReadToolCall(backend, {
+      name: "adt_read_object",
+      args: {},
+    });
     expect(res.isError).toBe(true);
   });
 
@@ -234,9 +239,9 @@ describe("read-object: LspReadBackend over a fake requester", () => {
       }),
     });
     const backend = new LspReadBackend(req, { timeoutMs: 500, intervalMs: 5 });
-    const res = await handleReadToolCall(backend, "adt_search_objects", {
-      destination: "A4H",
-      pattern: "ZCL_*",
+    const res = await handleReadToolCall(backend, {
+      name: "adt_search_objects",
+      args: { destination: "A4H", pattern: "ZCL_*" },
     });
     expect(res.isError).toBeFalsy();
     const parsed = JSON.parse(res.content[0]!.text) as {
@@ -259,18 +264,16 @@ describe("read-object: LspReadBackend over a fake requester", () => {
       }),
     });
     const backend = new LspReadBackend(req, { timeoutMs: 500, intervalMs: 5 });
-    const md = await handleReadToolCall(backend, "adt_search_objects", {
-      destination: "A4H",
-      pattern: "ZCL_*",
-      format: "markdown",
+    const md = await handleReadToolCall(backend, {
+      name: "adt_search_objects",
+      args: { destination: "A4H", pattern: "ZCL_*", format: "markdown" },
     });
     expect(md.content[0]!.text).toContain("| Name | Type | Description |");
     expect(md.content[0]!.text).toContain("| ZCL_X | Class | demo |");
 
-    const compact = await handleReadToolCall(backend, "adt_search_objects", {
-      destination: "A4H",
-      pattern: "ZCL_*",
-      format: "compact",
+    const compact = await handleReadToolCall(backend, {
+      name: "adt_search_objects",
+      args: { destination: "A4H", pattern: "ZCL_*", format: "compact" },
     });
     expect(compact.content[0]!.text).toBe("ZCL_X — demo (Class)");
     // structuredContent stays JSON regardless of text format

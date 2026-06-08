@@ -427,7 +427,9 @@ function prewarmIfNeeded(
 ): void {
   if (!readBackend || gui.imported.length === 0) return;
   const req = connectionRequester(session.connection);
-  void Promise.allSettled(gui.imported.map((d) => prewarm(req, d.id)));
+  void Promise.allSettled(
+    gui.imported.map((d) => prewarm(req, { destination: d.id })),
+  );
 }
 
 async function serveUntilIdle(

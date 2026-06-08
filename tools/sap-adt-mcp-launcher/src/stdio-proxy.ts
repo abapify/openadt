@@ -421,7 +421,7 @@ export function createStdioMcpBridge(): StdioMcpBridge {
     }
     const activeBackend = readBackend;
     chain.append(async () => {
-      const result = await handleReadToolCall(activeBackend, name, args);
+      const result = await handleReadToolCall(activeBackend, { name, args });
       await writeMcpStdioMessage(encoder, {
         jsonrpc: "2.0",
         id: request.id,
