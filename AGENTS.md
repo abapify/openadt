@@ -121,8 +121,8 @@ The CodeScene GitHub App runs "Delta Analysis" and "Code Health Review (main)" a
 bunx eslint scripts/ .agents/skills/ --max-warnings 0
 # Advisory on the rest of the TS surface (errors fail, warnings are visible).
 bunx eslint .
-# CodeScene delta — must match what CI does.
-bash scripts/ci-codescene-delta.sh origin/<baseRefName> HEAD
+# CodeScene delta — use cs CLI directly (cloud-agent safe, no Docker).
+CS_BIN="$(bash scripts/ensure-cs-cli.sh)" && "$CS_BIN" delta origin/<baseRefName> HEAD --error-on-warnings
 ```
 
 The strict gate must be clean. Treat `bunx eslint .` as advisory signal for broader cleanup, and fix any reported errors before merge.
@@ -150,7 +150,8 @@ agents must clear it on the first push, not chase it across three.
 
 ```bash
 bunx eslint . --max-warnings 0
-bash scripts/ci-codescene-delta.sh origin/<baseRef> HEAD
+# CodeScene delta — use cs CLI directly (cloud-agent safe, no Docker).
+CS_BIN="$(bash scripts/ensure-cs-cli.sh)" && "$CS_BIN" delta origin/<baseRef> HEAD --error-on-warnings
 ```
 
 Both must be clean. If a refactor is needed, load

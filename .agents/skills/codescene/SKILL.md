@@ -81,6 +81,26 @@ bash /tmp/cs -y
 
 The versioned download endpoint requires `CS_ACCESS_TOKEN` in the `Authorization` header (403 otherwise). The install script in the repo uses the redirect-stable "latest" channel instead.
 
+### Option D: Cloud agent (no Docker, sandbox-safe)
+
+Cloud-agent containers have no Docker and restricted `/tmp`/`~/.local/bin` writes.
+Use the bootstrap script — it downloads the binary to `/tmp/kilo/cs/` (pre-approved path):
+
+```bash
+# One-liner: ensures cs is available, prints its path.
+CS_BIN="$(bash scripts/ensure-cs-cli.sh)"
+
+# Run delta analysis:
+"$CS_BIN" delta origin/main HEAD --error-on-warnings
+```
+
+The script is a no-op if `cs` is already on PATH. `CS_ACCESS_TOKEN` must be set as an
+env var (it's injected as a GitHub org secret). Never install cs inside the worktree root —
+the pre-commit `nx format:write --uncommitted` hook re-stages whatever lands there.
+
+**Do not load the CodeScene MCP server** — it consumes too much context for a cloud-agent session.
+Use the CLI (`cs`) directly for delta analysis and single-file checks.
+
 ## Key commands
 
 ```bash
