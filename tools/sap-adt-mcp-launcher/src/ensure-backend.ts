@@ -114,81 +114,89 @@ async function withEnsureLock<T>(
   fn: () => Promise<T>,
   options: { timeoutMs?: number; mcpRootDir?: string } = {},
 ): Promise<T> {
-  const root = options.mcpRootDir ?? mcpRootDir();
-  const lockPath = ensureLockPathForRoot(root, port);
-  mkdirSync(root, { recursive: true, mode: 0o700 });
-
-  const timeoutMs = options.timeoutMs ?? DEFAULT_LOCK_TIMEOUT_MS;
-  const deadline = Date.now() + timeoutMs;
-  await acquireEnsureLock(lockPath, deadline);
+  const lock = new EnsureLock({
+    root: options.mcpRootDir ?? mcpRootDir(),
+    port,
+    timeoutMs: options.timeoutMs ?? DEFAULT_LOCK_TIMEOUT_MS,
+  });
+  await lock.acquire();
 
   try {
     return await fn();
   } finally {
+    lock.release();
+  }
+}
+
+/** Coordinate an `ensure-<port>.lock` file for one ensure attempt. */
+class EnsureLock {
+  readonly lockPath: string;
+  private readonly deadline: number;
+
+  constructor(request: { root: string; port: number; timeoutMs: number }) {
+    this.lockPath = join(request.root, `ensure-${request.port}.lock`);
+    this.deadline = Date.now() + request.timeoutMs;
+    mkdirSync(request.root, { recursive: true, mode: 0o700 });
+  }
+
+  async acquire(): Promise<void> {
+    while (Date.now() < this.deadline) {
+      if (this.tryClaim()) {
+        return;
+      }
+      await this.waitOrReapStale();
+    }
+    throw new Error(
+      `Timed out waiting for ensure lock (lock: ${this.lockPath})`,
+    );
+  }
+
+  release(): void {
     try {
-      rmSync(lockPath);
+      rmSync(this.lockPath);
     } catch {
       /* already removed */
     }
   }
-}
 
-async function acquireEnsureLock(
-  lockPath: string,
-  deadline: number,
-): Promise<void> {
-  while (Date.now() < deadline) {
-    if (tryClaimEnsureLock(lockPath)) {
+  private tryClaim(): boolean {
+    try {
+      // O_EXCL: fail if file exists. Close immediately — the lock is the
+      // file's presence (rmSync in release, stale-check via mtime).
+      closeSync(openSync(this.lockPath, "wx", 0o600));
+      return true;
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException | undefined)?.code;
+      if (code !== "EEXIST") {
+        throw new Error(
+          `Failed to create lock ${this.lockPath}: ${formatError(err)}`,
+        );
+      }
+      return false;
+    }
+  }
+
+  private async waitOrReapStale(): Promise<void> {
+    if (this.isStale()) {
+      try {
+        rmSync(this.lockPath);
+      } catch {
+        /* race: another process cleared it */
+      }
       return;
     }
-    await waitForLockOrStale(lockPath, deadline);
+    await sleep(LOCK_POLL_INTERVAL_MS);
   }
-  throw new Error(`Timed out waiting for ensure lock (lock: ${lockPath})`);
-}
 
-function tryClaimEnsureLock(lockPath: string): boolean {
-  try {
-    // O_EXCL: fail if file exists. Close immediately — the lock is the
-    // file's presence (rmSync in finally, stale-check via mtime).
-    closeSync(openSync(lockPath, "wx", 0o600));
-    return true;
-  } catch (err) {
-    const code = (err as NodeJS.ErrnoException | undefined)?.code;
-    if (code !== "EEXIST") {
-      throw new Error(`Failed to create lock ${lockPath}: ${formatError(err)}`);
-    }
-    return false;
-  }
-}
-
-async function waitForLockOrStale(
-  lockPath: string,
-  deadline: number,
-): Promise<void> {
-  if (isLockStale(lockPath)) {
+  private isStale(): boolean {
+    // Lock is considered stale if the file is older than 2x the SAP logon timeout.
     try {
-      rmSync(lockPath);
+      const stat = statSync(this.lockPath);
+      const ageMs = Date.now() - stat.mtimeMs;
+      return ageMs > DEFAULT_LOCK_TIMEOUT_MS * 2;
     } catch {
-      /* race: another process cleared it */
+      return false;
     }
-    return;
-  }
-  await sleep(LOCK_POLL_INTERVAL_MS);
-  void deadline; // deadline is enforced by the outer loop in acquireEnsureLock
-}
-
-function ensureLockPathForRoot(root: string, port: number): string {
-  return join(root, `ensure-${port}.lock`);
-}
-
-function isLockStale(lockPath: string): boolean {
-  // Lock is considered stale if the file is older than 2x the SAP logon timeout.
-  try {
-    const stat = statSync(lockPath);
-    const ageMs = Date.now() - stat.mtimeMs;
-    return ageMs > DEFAULT_LOCK_TIMEOUT_MS * 2;
-  } catch {
-    return false;
   }
 }
 
@@ -205,22 +213,30 @@ export function spawnDetachedServe(
   serveArgs: string[],
   options: { launcherPath?: string; extraEnv?: NodeJS.ProcessEnv } = {},
 ): ChildProcess {
-  const launcher = options.launcherPath ?? resolveDefaultLauncherPath();
+  return spawnDetachedServeInternal({ port, serveArgs, options });
+}
+
+function spawnDetachedServeInternal(request: {
+  port: number;
+  serveArgs: string[];
+  options: { launcherPath?: string; extraEnv?: NodeJS.ProcessEnv };
+}): ChildProcess {
+  const launcher = request.options.launcherPath ?? resolveDefaultLauncherPath();
   const runtime = buildAdtLscSpawnRuntime();
   const args = [
     launcher,
     "serve",
     "--port",
-    String(port),
+    String(request.port),
     "--foreground",
-    ...serveArgs,
+    ...request.serveArgs,
   ];
   const child = spawn(resolveBunExecutable(), args, {
     cwd: process.cwd(),
     stdio: "ignore",
     env: {
       ...runtime.env,
-      ...(options.extraEnv ?? {}),
+      ...(request.options.extraEnv ?? {}),
     },
     detached: true,
     windowsHide: true,
@@ -243,13 +259,13 @@ function resolveDefaultLauncherPath(): string {
  * Poll the endpoint store for a healthy record on `port`.
  * Returns the record once it responds to HTTP probe, or undefined on timeout.
  */
-async function waitForHealthyRecord(
-  port: number,
-  timeoutMs: number,
-): Promise<McpEndpointRecord | undefined> {
-  const deadline = Date.now() + timeoutMs;
+async function waitForHealthyRecord(request: {
+  port: number;
+  timeoutMs: number;
+}): Promise<McpEndpointRecord | undefined> {
+  const deadline = Date.now() + request.timeoutMs;
   while (Date.now() < deadline) {
-    const found = await probeHealthyRecord(port);
+    const found = await probeHealthyRecord(request.port);
     if (found) return found;
     await sleep(HEALTHY_PROBE_INTERVAL_MS);
   }
@@ -387,7 +403,10 @@ async function spawnAndAwaitHealthy(input: {
     (err as NodeJS.ErrnoException).code = "OPENADT_MCP_SPAWN_FAILED";
     throw err;
   }
-  const healthy = await waitForHealthyRecord(port, input.timeoutMs);
+  const healthy = await waitForHealthyRecord({
+    port,
+    timeoutMs: input.timeoutMs,
+  });
   if (!healthy) {
     const err = new Error(
       `MCP daemon on port ${port} did not become healthy within ${input.timeoutMs}ms`,

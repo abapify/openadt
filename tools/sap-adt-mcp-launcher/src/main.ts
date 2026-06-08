@@ -383,15 +383,8 @@ async function runStandaloneServe(input: {
     destination: cfg.destination,
     log,
   });
-  let auxServer: ReadAuxServer | undefined;
-  if (readBackend && gui.imported.length > 0) {
-    const req = connectionRequester(session.connection);
-    void Promise.allSettled(gui.imported.map((d) => prewarm(req, d.id)));
-  }
-  if (readBackend && !cfg.stdio) {
-    auxServer = await startReadAuxServer(readBackend);
-    log?.info(`read endpoint at ${auxServer.url}`);
-  }
+  const auxServer = await maybeStartAuxServer(readBackend, cfg, log, session);
+  prewarmIfNeeded(readBackend, gui, session);
   const endpoint = buildEndpointRecord({
     started,
     session,
@@ -411,12 +404,43 @@ async function runStandaloneServe(input: {
     }),
     cfg,
   );
+  await serveUntilIdle(cfg, bridge, session, started);
+  return { endpointPort: started.port, auxServer, exit: EXIT_OK };
+}
+
+async function maybeStartAuxServer(
+  readBackend: LspReadBackend | undefined,
+  cfg: McpServeConfig,
+  log: ReturnType<typeof createMcpLog> | undefined,
+  session: LspSession,
+): Promise<ReadAuxServer | undefined> {
+  if (!readBackend || cfg.stdio) return undefined;
+  const aux = await startReadAuxServer(readBackend);
+  log?.info(`read endpoint at ${aux.url}`);
+  return aux;
+}
+
+function prewarmIfNeeded(
+  readBackend: LspReadBackend | undefined,
+  gui: ReturnType<typeof resolveDestinationImport>,
+  session: LspSession,
+): void {
+  if (!readBackend || gui.imported.length === 0) return;
+  const req = connectionRequester(session.connection);
+  void Promise.allSettled(gui.imported.map((d) => prewarm(req, d.id)));
+}
+
+async function serveUntilIdle(
+  cfg: McpServeConfig,
+  bridge: StdioMcpBridge | undefined,
+  session: LspSession,
+  started: { port: number; token: string },
+): Promise<void> {
   if (cfg.stdio && bridge) {
     await runStdioBridgeOrHttpLoop(bridge, session, started);
-  } else {
-    await waitForIdleHttpServe(session);
+    return;
   }
-  return { endpointPort: started.port, auxServer, exit: EXIT_OK };
+  await waitForIdleHttpServe(session);
 }
 
 /**

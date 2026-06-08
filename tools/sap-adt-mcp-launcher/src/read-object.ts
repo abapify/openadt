@@ -569,7 +569,8 @@ function parseReadObjectArgs(
   const destination = stringField(args, "destination");
   const objectName = stringField(args, "objectName");
   const uri = stringField(args, "uri");
-  if (!destination || (!objectName && !uri)) return undefined;
+  if (!destination) return undefined;
+  if (!objectName && !uri) return undefined;
   return {
     destination,
     objectName,
