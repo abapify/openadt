@@ -21,6 +21,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@marianfoo/adt-ls": "^0.2.0",
     "@nx/workspace": "22.7.2",
     "@octokit/rest": "^22.0.1",
     "@types/adm-zip": "^0.5.7",

@@ -39,17 +39,6 @@ export type DestinationsInitParams = {
   fileUris: string[];
 };
 
-export type McpStartParams = {
-  port: number;
-  token: string;
-};
-
-export type McpStartResult = {
-  port: number;
-  token: string;
-  version?: string;
-};
-
 export type DestinationImportMode =
   | "auto"
   | "adtls"

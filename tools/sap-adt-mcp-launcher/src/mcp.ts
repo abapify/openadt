@@ -1,59 +1,21 @@
+import {
+  setMcpDestination,
+  startMcpServer,
+  stopMcpServer,
+} from "@marianfoo/adt-ls";
 import { v4 as uuidv4 } from "uuid";
 import { sleep } from "./process.ts";
-import { ParameterStructures, type MessageConnection } from "./rpc.ts";
-import {
-  LSP_METHOD_MCP_SET_DESTINATION,
-  LSP_METHOD_MCP_START,
-  LSP_METHOD_MCP_STOP,
-  type McpStartParams,
-  type McpStartResult,
-} from "./types.ts";
+
+/**
+ * The adt-lsc MCP control-plane calls (`adtLs/mcp/{startMCPServer,stopMCPServer,setDestination}`)
+ * are delegated to @marianfoo/adt-ls — the shared SDK over headless adt-ls — and re-exported so
+ * the launcher's call sites stay stable. OpenADT keeps the HTTP-side helpers below: it proxies
+ * the resulting HTTP MCP endpoint to agents itself (the SDK only drives the control plane).
+ */
+export { setMcpDestination, startMcpServer, stopMcpServer };
 
 export function generateMcpToken(): string {
   return uuidv4();
-}
-
-export async function startMcpServer(
-  connection: MessageConnection,
-  params: McpStartParams,
-): Promise<McpStartResult> {
-  const result = (await connection.sendRequest(
-    LSP_METHOD_MCP_START,
-    ParameterStructures.byName,
-    params,
-  )) as McpStartResult | undefined;
-  if (!result?.port || !result?.token) {
-    throw new Error(
-      `adtLs/mcp/startMCPServer returned invalid payload: ${summarizeMcpStart(result)}`,
-    );
-  }
-  return result;
-}
-
-function summarizeMcpStart(result: unknown): string {
-  if (!result || typeof result !== "object") {
-    return typeof result;
-  }
-  const obj = result as Record<string, unknown>;
-  const keys = Object.keys(obj);
-  return `{${keys.map((k) => `${k}:<${typeof obj[k]}>`).join(", ")}}`;
-}
-
-export async function stopMcpServer(
-  connection: MessageConnection,
-): Promise<void> {
-  await connection.sendRequest(LSP_METHOD_MCP_STOP);
-}
-
-export async function setMcpDestination(
-  connection: MessageConnection,
-  destinationId: string,
-): Promise<void> {
-  await connection.sendRequest(
-    LSP_METHOD_MCP_SET_DESTINATION,
-    ParameterStructures.byName,
-    { destinationId },
-  );
 }
 
 export function mcpUrl(port: number): string {

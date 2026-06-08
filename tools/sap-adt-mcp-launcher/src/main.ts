@@ -329,9 +329,7 @@ async function startMcpHttpAndApplyDestination(
     port: options.port,
     token: options.token,
   });
-  options.log?.info(
-    `LSP ← adtLs/mcp/startMCPServer port=${started.port} version=${started.version ?? "?"}`,
-  );
+  options.log?.info(`LSP ← adtLs/mcp/startMCPServer port=${started.port}`);
   try {
     const ready = await waitForMcpHttp(started.port, started.token);
     if (!ready) {

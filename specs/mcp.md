@@ -73,6 +73,8 @@ OpenADT reference: `tools/sap-adt-mcp-launcher/src/lsp-client.ts`, `logon-handle
 
 JSON-RPC segment `@JsonSegment("adtLs/mcp")` on the **same pipe LSP connection**. Params use **named objects** (`ParameterStructures.byName`), not positional arrays.
 
+> OpenADT issues these `adtLs/mcp/*` requests through **[`@marianfoo/adt-ls`](https://www.npmjs.com/package/@marianfoo/adt-ls)** — the shared SDK over headless adt-ls — re-exported from `tools/sap-adt-mcp-launcher/src/mcp.ts`. The HTTP data-plane (transparent proxy, readiness probe, endpoint store) stays OpenADT's.
+
 #### `adtLs/mcp/startMCPServer`
 
 **Request params:**
@@ -370,16 +372,17 @@ Each `serve` / `serve --stdio` writes `~/.openadt/mcp/endpoints/<port>.json` (`u
 
 ## Implementation map
 
-| Component              | Path                                                                         |
-| ---------------------- | ---------------------------------------------------------------------------- |
-| CLI entry              | `apps/openadt-cli` → `McpServeCommand` → Bun launcher                        |
-| Launcher               | `tools/sap-adt-mcp-launcher/src/main.ts`                                     |
-| Stdio bridge           | `tools/sap-adt-mcp-launcher/src/stdio-proxy.ts`                              |
-| Content-Length framing | `tools/sap-adt-mcp-launcher/src/mcp-framing.ts` (`node:stream` Transform)    |
-| Stdio agent entry      | `scripts/mcp-stdio.ts` → `tools/sap-adt-mcp-launcher/src/mcp-stdio-entry.ts` |
-| LSP + logon            | `lsp-client.ts`, `logon-handlers.ts`                                         |
-| HTTP MCP API           | `mcp.ts` (`startMcpServer`, `stopMcpServer`, `probeMcpHttp`)                 |
-| Extension locate       | `locate.ts`                                                                  |
+| Component              | Path                                                                                                     |
+| ---------------------- | -------------------------------------------------------------------------------------------------------- |
+| CLI entry              | `apps/openadt-cli` → `McpServeCommand` → Bun launcher                                                    |
+| Launcher               | `tools/sap-adt-mcp-launcher/src/main.ts`                                                                 |
+| Stdio bridge           | `tools/sap-adt-mcp-launcher/src/stdio-proxy.ts`                                                          |
+| Content-Length framing | `tools/sap-adt-mcp-launcher/src/mcp-framing.ts` (`node:stream` Transform)                                |
+| Stdio agent entry      | `scripts/mcp-stdio.ts` → `tools/sap-adt-mcp-launcher/src/mcp-stdio-entry.ts`                             |
+| LSP + logon            | `lsp-client.ts`, `logon-handlers.ts`                                                                     |
+| MCP control plane      | `@marianfoo/adt-ls` (`startMcpServer` / `stopMcpServer` / `setMcpDestination`), re-exported via `mcp.ts` |
+| MCP HTTP probe/config  | `mcp.ts` (`probeMcpHttp`, `waitForMcpHttp`, `mcpHttpClientConfig`)                                       |
+| Extension locate       | `locate.ts`                                                                                              |
 
 ---
 
@@ -439,15 +442,15 @@ Target is the contract above. Simplify implementation; remove experimental paths
 
 **Policy:** verify end-to-end behavior before removing duplicate or legacy code paths.
 
-| Priority | Gap                                                                                 | Spec ref                            |
-| -------- | ----------------------------------------------------------------------------------- | ----------------------------------- |
-| P0       | Manual smoke: `--stdio` + `tools/list`; HTTP `serve` + `status`                     | Phase 3 manual                      |
-| P0       | HTTP-only `serve`: confirm whether `sleep(750)` is enough or needs `waitForMcpHttp` | SAP-MCP-03                          |
-| P0       | Stdio HTTP timeout: client errors vs exit code 3                                    | Failure modes                       |
-| P1       | Drop unused LSP `version?` from types/logs (cosmetic)                               | Official interface § startMCPServer |
-| P1       | Align `--port` validation with SAP 1024–65535 if low ports fail in practice         | Official interface                  |
-| P1       | Verify `setDestination` tool registration live                                      | Official interface § setDestination |
-| P2       | Integration tests: `--stdio` tools/list, shutdown                                   | Phase 3                             |
-| P2       | Scoop default `serve --stdio`                                                       | Phase 4                             |
+| Priority | Gap                                                                                                         | Spec ref                            |
+| -------- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| P0       | Manual smoke: `--stdio` + `tools/list`; HTTP `serve` + `status`                                             | Phase 3 manual                      |
+| P0       | HTTP-only `serve`: confirm whether `sleep(750)` is enough or needs `waitForMcpHttp`                         | SAP-MCP-03                          |
+| P0       | Stdio HTTP timeout: client errors vs exit code 3                                                            | Failure modes                       |
+| ✅ done  | Drop unused LSP `version?` from types/logs — SDK `StartMcpServerResult` omits it (adt-lsc never returns it) | Official interface § startMCPServer |
+| P1       | Align `--port` validation with SAP 1024–65535 if low ports fail in practice                                 | Official interface                  |
+| P1       | Verify `setDestination` tool registration live                                                              | Official interface § setDestination |
+| P2       | Integration tests: `--stdio` tools/list, shutdown                                                           | Phase 3                             |
+| P2       | Scoop default `serve --stdio`                                                                               | Phase 4                             |
 
 Manual acceptance: `agent mcp list-tools sap-adt` / IDE MCP reload with `serve --stdio` (SSO on cold start).
