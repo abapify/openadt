@@ -32,6 +32,12 @@ final class McpLauncherInvoker {
      *  can take a single record instead of (Path, kind) primitives. */
     private record McpLaunchPlan(McpLaunchKind kind, Path executable) {}
 
+    /** Bundles command-line arguments for process invocation. */
+    private record CommandBuildRequest(Path executable, String subcommand, String[] extraArgs, String prefix) {}
+
+    /** Encapsulates the launch request parameters. */
+    private record McpLaunchRequest(Path executable, String subcommand, String[] extraArgs) {}
+
     private enum McpLaunchKind { NATIVE, DEV_CLONE }
 
     private McpLauncherInvoker() {}
@@ -64,14 +70,16 @@ final class McpLauncherInvoker {
     }
 
     private static int spawnDirect(Path binary, String subcommand, String[] extraArgs) {
+        McpLaunchRequest req = new McpLaunchRequest(binary, subcommand, extraArgs);
         return runAndWait(
-            new ProcessBuilder(buildArgv(binary, subcommand, extraArgs, null)),
+            new ProcessBuilder(buildArgv(new CommandBuildRequest(req.executable(), req.subcommand(), req.extraArgs(), null))),
             "openadt-mcp");
     }
 
     private static int spawnBun(Path script, String subcommand, String[] extraArgs) {
+        McpLaunchRequest req = new McpLaunchRequest(script, subcommand, extraArgs);
         ProcessBuilder pb = new ProcessBuilder(
-                buildArgv(script, subcommand, extraArgs, resolveBunExecutable()));
+                buildArgv(new CommandBuildRequest(req.executable(), req.subcommand(), req.extraArgs(), resolveBunExecutable())));
         applyRepoEnv(pb, script);
         return runAndWait(pb, "MCP launcher");
     }
@@ -90,16 +98,15 @@ final class McpLauncherInvoker {
         }
     }
 
-    private static List<String> buildArgv(
-            Path executable, String subcommand, String[] extraArgs, String prefix) {
+    private static List<String> buildArgv(CommandBuildRequest req) {
         List<String> cmd = new ArrayList<>();
-        if (prefix != null) {
-            cmd.add(prefix);
+        if (req.prefix() != null) {
+            cmd.add(req.prefix());
         }
-        cmd.add(executable.toString());
-        cmd.add(subcommand);
-        if (extraArgs != null && extraArgs.length > 0) {
-            cmd.addAll(Arrays.asList(extraArgs));
+        cmd.add(req.executable().toString());
+        cmd.add(req.subcommand());
+        if (req.extraArgs() != null && req.extraArgs().length > 0) {
+            cmd.addAll(Arrays.asList(req.extraArgs()));
         }
         return cmd;
     }

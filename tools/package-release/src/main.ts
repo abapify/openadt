@@ -50,16 +50,16 @@ const stageDir = join(distDir, `openadt-${version}`);
 const zipName = `openadt-${version}.zip`;
 const zipPath = join(distDir, zipName);
 
-function sha256File(path: string): string {
+function sha256File(opts: FileChecksum): string {
   return createHash("sha256")
-    .update(readFileSync(path))
+    .update(readFileSync(opts.filePath))
     .digest("hex")
     .toUpperCase();
 }
 
-function buildWindowsExe(target: string): void {
+function buildWindowsExe(opts: BuildTarget): void {
   const launcherDir = join(root, "packaging/windows/launcher");
-  const go = spawnSync("go", ["build", "-o", target, "."], {
+  const go = spawnSync("go", ["build", "-o", opts.target, "."], {
     cwd: launcherDir,
     stdio: "pipe",
   });
@@ -81,7 +81,7 @@ function buildWindowsExe(target: string): void {
       "-c",
       "Release",
       "-o",
-      dirname(target),
+      dirname(opts.target),
       "/p:AssemblyName=openadt",
     ],
     { stdio: "inherit" },
@@ -93,29 +93,29 @@ function buildWindowsExe(target: string): void {
   }
 }
 
-function writeLaunchers(base: string): void {
-  mkdirSync(join(base, "bin"), { recursive: true });
+function writeLaunchers(opts: LaunchersOutput): void {
+  mkdirSync(join(opts.base, "bin"), { recursive: true });
 
   cpSync(
     join(root, "packaging/windows/openadt-launcher.ps1"),
-    join(base, "bin/openadt-launcher.ps1"),
+    join(opts.base, "bin/openadt-launcher.ps1"),
   );
   cpSync(
     join(root, "packaging/windows/prepare-openadt-runtime.ps1"),
-    join(base, "bin/prepare-openadt-runtime.ps1"),
+    join(opts.base, "bin/prepare-openadt-runtime.ps1"),
   );
   cpSync(
     join(root, "packaging/scoop/post-install.ps1"),
-    join(base, "bin/scoop-post-install.ps1"),
+    join(opts.base, "bin/scoop-post-install.ps1"),
   );
 
   writeFileSync(
-    join(base, "bin/openadt.cmd"),
+    join(opts.base, "bin/openadt.cmd"),
     `@echo off\r\nsetlocal EnableDelayedExpansion\r\nset "OPENADT_HOME=%~dp0.."\r\nset "OPENADT_ARG_COUNT=0"\r\n:openadt_args\r\nif "%~1"=="" goto openadt_run\r\nset "OPENADT_ARG_!OPENADT_ARG_COUNT!=%~1"\r\nset /a OPENADT_ARG_COUNT+=1\r\nshift\r\ngoto openadt_args\r\n:openadt_run\r\npowershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0openadt-launcher.ps1"\r\nexit /b %ERRORLEVEL%\r\n`,
   );
 
   writeFileSync(
-    join(base, "bin/openadt.ps1"),
+    join(opts.base, "bin/openadt.ps1"),
     `param(
   [Parameter(ValueFromRemainingArguments = $true)]
   [string[]] $OpenAdtArgs
@@ -127,7 +127,7 @@ exit $LASTEXITCODE
   );
 
   writeFileSync(
-    join(base, "bin/openadt"),
+    join(opts.base, "bin/openadt"),
     `#!/usr/bin/env bash
 set -euo pipefail
 OPENADT_HOME="$(cd "$(dirname "$0")/.." && pwd)"
@@ -160,7 +160,8 @@ function currentMatrixPlatform(): string {
 function packageMcpBinary(version: string): void {
   const platform = currentMatrixPlatform();
   const archive = buildMcpArchive(platform, version);
-  patchMcpManifests(platform, version, archive);
+  const ctx: McpBuildContext = { platform, version, archive };
+  patchMcpManifests(ctx);
   console.log(`Packaged ${archive.path}`);
   console.log(`SHA256 ${archive.sha}`);
 }
@@ -171,6 +172,31 @@ type McpArchive = {
   sha: string;
 };
 
+type ArchivePackingOptions = {
+  stageDir: string;
+  stageDirName: string;
+  archivePath: string;
+  ext: string;
+};
+
+type McpBuildContext = {
+  platform: string;
+  version: string;
+  archive: McpArchive;
+};
+
+type FileChecksum = {
+  filePath: string;
+};
+
+type BuildTarget = {
+  target: string;
+};
+
+type LaunchersOutput = {
+  base: string;
+};
+
 function buildMcpArchive(platform: string, version: string): McpArchive {
   const ext = platform.startsWith("win-") ? "zip" : "tar.gz";
   const stageDirName = `openadt-mcp-${version}-${platform}`;
@@ -179,9 +205,9 @@ function buildMcpArchive(platform: string, version: string): McpArchive {
   const archivePath = join(distDir, archiveName);
 
   compileMcpBinary(stageDir, platform);
-  packArchive(stageDir, stageDirName, archivePath, ext);
+  packArchive({ stageDir, stageDirName, archivePath, ext });
 
-  const sha = sha256File(archivePath);
+  const sha = sha256File({ filePath: archivePath });
   writeFileSync(`${archivePath}.sha256`, `${sha}  ${archiveName}\n`);
   return { path: archivePath, name: archiveName, sha };
 }
@@ -210,39 +236,29 @@ function compileMcpBinary(stageDir: string, platform: string): void {
   }
 }
 
-function packArchive(
-  stageDir: string,
-  stageDirName: string,
-  archivePath: string,
-  ext: string,
-): void {
-  if (ext === "zip") {
+function packArchive(opts: ArchivePackingOptions): void {
+  if (opts.ext === "zip") {
     const zip = new AdmZip();
-    zip.addLocalFolder(stageDir, stageDirName);
-    zip.writeZip(archivePath);
+    zip.addLocalFolder(opts.stageDir, opts.stageDirName);
+    zip.writeZip(opts.archivePath);
     return;
   }
-  const tar = spawnSync("tar", ["czf", archivePath, stageDirName], {
+  const tar = spawnSync("tar", ["czf", opts.archivePath, opts.stageDirName], {
     cwd: distDir,
     stdio: "inherit",
   });
   if (tar.status !== 0) {
     throw new Error(
-      `tar exited with status ${tar.status ?? "unknown"} while packaging ${archivePath}`,
+      `tar exited with status ${tar.status ?? "unknown"} while packaging ${opts.archivePath}`,
     );
   }
 }
 
 const MCP_HOMEBREW_PLATFORM = "darwin-arm64";
 
-function patchMcpManifests(
-  platform: string,
-  version: string,
-  archive: McpArchive,
-): void {
-  // Homebrew: the formula is single-platform (darwin-arm64) in v1.
-  // On any other host, the local packaging does not match the formula
-  // target, so skip the patch — the CI matrix writes the right value.
+function patchMcpManifests(ctx: McpBuildContext): void {
+  const { platform, version, archive } = ctx;
+
   if (platform === MCP_HOMEBREW_PLATFORM) {
     const formulaPath = join(root, "packaging/homebrew/openadt-mcp.rb");
     let ruby = readFileSync(formulaPath, "utf8");
@@ -251,8 +267,6 @@ function patchMcpManifests(
     syncHomebrewTapFormula(formulaPath, "openadt-mcp");
   }
 
-  // Scoop: Windows-only. Other matrix entries must not overwrite
-  // the win-x64 manifest with linux/macos URLs.
   if (platform === "win-x64") {
     const manifestPath = join(root, "packaging/scoop/openadt-mcp.json");
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
@@ -307,12 +321,12 @@ cpSync(jarPath, join(stageDir, "openadt.jar"));
 writeFileSync(join(stageDir, "VERSION"), `${version}\n`);
 cpSync(join(root, "LICENSE"), join(stageDir, "LICENSE"));
 
-writeLaunchers(stageDir);
+writeLaunchers({ base: stageDir });
 if (
   process.platform === "win32" ||
   process.env.OPENADT_PACKAGE_WIN_EXE === "1"
 ) {
-  buildWindowsExe(join(stageDir, "openadt.exe"));
+  buildWindowsExe({ target: join(stageDir, "openadt.exe") });
   for (const extra of [
     "openadt.pdb",
     "openadt.deps.json",
@@ -329,7 +343,7 @@ const zip = new AdmZip();
 zip.addLocalFolder(stageDir, `openadt-${version}`);
 zip.writeZip(zipPath);
 
-const sha256 = sha256File(zipPath);
+const sha256 = sha256File({ filePath: zipPath });
 writeFileSync(`${zipPath}.sha256`, `${sha256}  ${zipName}\n`);
 updateHomebrewSha256(sha256);
 updateScoopSha256(sha256);

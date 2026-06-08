@@ -86,6 +86,30 @@ const VALUE_FLAGS = new Set([
   "format",
 ]);
 
+function isValueFlag(name: string): boolean {
+  return VALUE_FLAGS.has(name);
+}
+
+function shouldSkipFlagValue(
+  arg: string,
+  nextIndex: number,
+  argsLength: number,
+): boolean {
+  const eq = arg.indexOf("=");
+  if (eq > 0) {
+    return false;
+  }
+  const name = arg.slice(2);
+  return isValueFlag(name) && nextIndex < argsLength;
+}
+
+function shouldSkipShortFlagValue(
+  nextIndex: number,
+  argsLength: number,
+): boolean {
+  return nextIndex < argsLength;
+}
+
 function firstSubcommandIndex(args: string[]): number {
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
@@ -93,14 +117,8 @@ function firstSubcommandIndex(args: string[]): number {
       return i + 1;
     }
     if (arg.startsWith("--")) {
-      const eq = arg.indexOf("=");
-      if (eq > 0) {
-        continue;
-      }
-      const name = arg.slice(2);
       if (
-        VALUE_FLAGS.has(name) &&
-        i + 1 < args.length &&
+        shouldSkipFlagValue(arg, i + 1, args.length) &&
         !args[i + 1]!.startsWith("-")
       ) {
         i++;
@@ -108,7 +126,7 @@ function firstSubcommandIndex(args: string[]): number {
       continue;
     }
     if (arg === "-c" || arg === "-p") {
-      if (i + 1 < args.length) {
+      if (shouldSkipShortFlagValue(i + 1, args.length)) {
         i++;
       }
       continue;
