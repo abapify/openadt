@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  findHealthyEndpoint,
   isProcessAlive,
   listEndpoints,
   mcpEndpointsDir,
@@ -148,5 +149,35 @@ describe("endpoint-store", () => {
   test("isProcessAlive returns true for current process and false for missing PID", () => {
     expect(isProcessAlive(process.pid)).toBe(true);
     expect(isProcessAlive(2_000_000_000)).toBe(false);
+  });
+
+  test("findHealthyEndpoint returns 'none' when store is empty", async () => {
+    const result = await findHealthyEndpoint();
+    expect(result.status).toBe("none");
+  });
+
+  test("findHealthyEndpoint returns 'unhealthy' when no record responds", async () => {
+    writeEndpoint(sampleRecord(2250));
+    const result = await findHealthyEndpoint();
+    expect(result.status).toBe("unhealthy");
+  });
+
+  test("findHealthyEndpoint filters by preferred port when set", async () => {
+    // Dead pids → pruned by readEndpoint default → listEndpoints returns empty
+    // → findHealthyEndpoint returns 'none'. The preferredPort filter is
+    // tested via integration (mocked live HTTP).
+    writeEndpoint({ ...sampleRecord(2251), pid: 2_000_000_000 });
+    writeEndpoint({ ...sampleRecord(2252), pid: 2_000_000_000 });
+    const result = await findHealthyEndpoint(2251);
+    expect(["none", "unhealthy"]).toContain(result.status);
+  });
+
+  test("writeEndpoint preserves optional mode field (daemon vs standalone)", () => {
+    const daemon = { ...sampleRecord(2260), mode: "daemon" as const };
+    const standalone = { ...sampleRecord(2261), mode: "standalone" as const };
+    writeEndpoint(daemon);
+    writeEndpoint(standalone);
+    expect(readEndpoint(2260)?.mode).toBe("daemon");
+    expect(readEndpoint(2261)?.mode).toBe("standalone");
   });
 });

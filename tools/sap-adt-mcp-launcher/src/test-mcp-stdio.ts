@@ -1,7 +1,10 @@
 #!/usr/bin/env bun
 /**
  * Manual stdio MCP smoke test — initialize + tools/list via stream framing.
- * Usage: bun run test:mcp:stdio
+ * Usage: bun run test:mcp:stdio [--standalone]
+ *
+ * Default uses shared mode (no port arg). Pass --standalone to use monolithic
+ * mode with an explicit port (for CI/scripts that need owned lifecycle).
  */
 import { spawn } from "node:child_process";
 import { dirname, join } from "node:path";
@@ -22,7 +25,10 @@ const launcher = join(
   "src",
   "main.ts",
 );
-const port = 2238;
+
+const argv = process.argv.slice(2);
+const standalone = argv.includes("--standalone");
+const explicitPort = standalone ? 2238 : undefined;
 
 type JsonRpcMessage = {
   id?: number;
@@ -33,20 +39,20 @@ type JsonRpcMessage = {
 };
 
 console.log("=== MCP Stdio Test ===");
-console.log(
-  "Starting: bun",
-  launcher,
-  "serve",
-  "--stdio",
-  "--port",
-  String(port),
-);
+const serveArgs = ["serve", "--stdio", "--import-from=adtls"];
+if (standalone) {
+  serveArgs.push("--standalone");
+}
+if (explicitPort !== undefined) {
+  serveArgs.push("--port", String(explicitPort));
+}
+console.log("Starting: bun", launcher, ...serveArgs);
 
-const child = spawn(
-  "bun",
-  [launcher, "serve", "--stdio", "--port", String(port), "--import-from=adtls"],
-  { stdio: ["pipe", "pipe", "inherit"], cwd: repoRoot, windowsHide: true },
-);
+const child = spawn("bun", [launcher, ...serveArgs], {
+  stdio: ["pipe", "pipe", "inherit"],
+  cwd: repoRoot,
+  windowsHide: true,
+});
 
 const decoder = new McpFrameDecoder();
 pipeline(child.stdout, decoder, (err) => {

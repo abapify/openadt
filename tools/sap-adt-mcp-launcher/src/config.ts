@@ -1,6 +1,7 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 import {
+  DEFAULT_IMPORT_FROM,
   DEFAULT_MCP_PORT,
   type DestinationImportMode,
   type McpServeConfig,
@@ -17,9 +18,10 @@ export const PID_FILE = join(homedir(), ".openadt", "adt-ls-mcp.pid");
 export function parseServeArgv(argv: string[]): McpServeConfig {
   const state: ServeArgvState = {
     port: DEFAULT_MCP_PORT,
+    explicitPort: false,
     workspace: DEFAULT_WORKSPACE,
     explicitWorkspace: false,
-    importFrom: "auto",
+    importFrom: DEFAULT_IMPORT_FROM,
     destination: undefined,
     json: false,
     showToken: false,
@@ -28,6 +30,8 @@ export function parseServeArgv(argv: string[]): McpServeConfig {
     logFile: undefined,
     logonTimeoutMs: DEFAULT_LOGON_TIMEOUT_MS,
     stdio: false,
+    standalone: false,
+    restart: false,
   };
 
   const handlers = buildServeArgvHandlers();
@@ -47,6 +51,7 @@ export function parseServeArgv(argv: string[]): McpServeConfig {
 
 type ServeArgvState = {
   port: number;
+  explicitPort: boolean;
   workspace: string;
   explicitWorkspace: boolean;
   importFrom: DestinationImportMode;
@@ -58,6 +63,10 @@ type ServeArgvState = {
   logFile: string | undefined;
   logonTimeoutMs: number;
   stdio: boolean;
+  /** When true, --stdio is monolithic (own adt-lsc, kill on exit). */
+  standalone: boolean;
+  /** When true (shared stdio), stop an existing daemon first so a fresh one spawns. */
+  restart: boolean;
 };
 
 type ServeArgvHandler = {
@@ -138,6 +147,18 @@ function booleanFlagArgvHandlers(): ServeArgvHandler[] {
     ),
     boolFlag(
       (s) => {
+        s.standalone = true;
+      },
+      ["--standalone"],
+    ),
+    boolFlag(
+      (s) => {
+        s.restart = true;
+      },
+      ["--restart"],
+    ),
+    boolFlag(
+      (s) => {
         s.verbose = true;
       },
       ["--verbose", "-v"],
@@ -168,6 +189,7 @@ function valuedArgvHandlers(): ServeArgvHandler[] {
     numberValue(
       (_arg, value, s) => {
         s.port = value;
+        s.explicitPort = true;
       },
       ["--port"],
     ),
@@ -285,31 +307,38 @@ function isValidPort(value: number): boolean {
   return Number.isFinite(value) && value >= 1 && value <= 65535;
 }
 
+/** Read `--port` / `--port=N` from argv, or undefined if absent. */
+function readPortFlag(request: {
+  argv: string[];
+  i: number;
+}): { value: number; next: number } | undefined {
+  const arg = request.argv[request.i]!;
+  if (arg === "--port" && request.i + 1 < request.argv.length) {
+    return { value: Number(request.argv[request.i + 1]), next: request.i + 2 };
+  }
+  if (arg.startsWith("--port=")) {
+    return {
+      value: Number(arg.slice("--port=".length)),
+      next: request.i + 1,
+    };
+  }
+  return undefined;
+}
+
+function isJsonFlag(arg: string): boolean {
+  return arg === "--json";
+}
+
 export function parseStatusArgv(argv: string[]): {
   port?: number;
   token?: string;
   json: boolean;
 } {
-  let port: number | undefined;
   let token: string | undefined;
-  let json = false;
-
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
-    if (arg === "--json") {
-      json = true;
-      continue;
-    }
-    if (arg === "--port" && i + 1 < argv.length) {
-      port = Number(argv[++i]!);
-      continue;
-    }
-    if (arg.startsWith("--port=")) {
-      port = Number(arg.slice("--port=".length));
-      continue;
-    }
     if (arg === "--token" && i + 1 < argv.length) {
-      token = argv[++i]!;
+      token = argv[++i];
       continue;
     }
     if (arg.startsWith("--token=")) {
@@ -317,11 +346,7 @@ export function parseStatusArgv(argv: string[]): {
       continue;
     }
   }
-
-  if (port !== undefined && !isValidPort(port)) {
-    throw new Error(`Invalid --port: ${port}`);
-  }
-
+  const { port, json } = parsePortAndJson(argv);
   return { port, token, json };
 }
 
@@ -329,34 +354,54 @@ export function parsePrintConfigArgv(argv: string[]): {
   port?: number;
   json: boolean;
 } {
-  let port: number | undefined;
-  let json = false;
-
-  for (let i = 0; i < argv.length; i++) {
-    const arg = argv[i]!;
-    if (arg === "--json") {
-      json = true;
-      continue;
-    }
-    if (arg === "--port" && i + 1 < argv.length) {
-      port = Number(argv[++i]!);
-      continue;
-    }
-    if (arg.startsWith("--port=")) {
-      port = Number(arg.slice("--port=".length));
-      continue;
-    }
-  }
-
-  if (port !== undefined && !isValidPort(port)) {
-    throw new Error(`Invalid --port: ${port}`);
-  }
-
-  return { port, json };
+  return parsePortAndJson(argv);
 }
 
 export function parseListArgv(argv: string[]): { json: boolean } {
   return { json: argv.includes("--json") };
+}
+
+export function parseStopArgv(argv: string[]): {
+  port?: number;
+  json: boolean;
+} {
+  return parsePortAndJson(argv);
+}
+
+export function parseBridgeArgv(argv: string[]): {
+  port?: number;
+  stdio: boolean;
+  json: boolean;
+} {
+  let stdio = false;
+  for (const arg of argv) {
+    if (arg === "--stdio") {
+      stdio = true;
+    }
+  }
+  const { port, json } = parsePortAndJson(argv);
+  return { port, stdio, json };
+}
+
+function parsePortAndJson(argv: string[]): { port?: number; json: boolean } {
+  let port: number | undefined;
+  let json = false;
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]!;
+    if (isJsonFlag(arg)) {
+      json = true;
+      continue;
+    }
+    const portFlag = readPortFlag({ argv, i });
+    if (portFlag) {
+      port = portFlag.value;
+      i = portFlag.next - 1;
+    }
+  }
+  if (port !== undefined && !isValidPort(port)) {
+    throw new Error(`Invalid --port: ${port}`);
+  }
+  return { port, json };
 }
 
 export interface ParsedSubcommand {
@@ -368,8 +413,7 @@ export function parseSubcommandArgv(
   argv: string[],
 ): ParsedSubcommand | undefined {
   const sub = argv[0];
-  if (!sub || sub === "--help" || sub === "-h") {
-    return undefined;
-  }
+  if (!sub) return undefined;
+  if (sub === "--help" || sub === "-h") return undefined;
   return { name: sub, argv: argv.slice(1) };
 }

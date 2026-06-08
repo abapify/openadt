@@ -40,9 +40,15 @@ public class McpServeCommand implements Callable<Integer> {
 
     @Option(
         names = "--stdio",
-        description = "Stdio MCP transport (proxy stdin/stdout to local HTTP MCP; stdout is JSON-RPC only)"
+        description = "Stdio MCP transport; default is shared (ensure + attach). Add --standalone for monolithic."
     )
     private boolean stdio;
+
+    @Option(
+        names = "--standalone",
+        description = "Monolithic mode: own adt-lsc, kill on exit. Only valid with --stdio."
+    )
+    private boolean standalone;
 
     @Option(
         names = {"--verbose", "-v"},
@@ -61,6 +67,10 @@ public class McpServeCommand implements Callable<Integer> {
 
     @Override
     public Integer call() {
+        if (standalone && !stdio) {
+            System.err.println("--standalone requires --stdio");
+            return 1;
+        }
         return McpLauncherInvoker.invoke(
             "serve",
             McpCommandSupport.launcherArgs(remainder)
@@ -72,6 +82,7 @@ public class McpServeCommand implements Callable<Integer> {
                 .flag("--json", json)
                 .flag("--show-token", showToken)
                 .flag("--stdio", stdio)
+                .flag("--standalone", standalone)
                 .flag("--verbose", verbose)
                 .option("--log-file", logFile)
                 .option("--logon-timeout", logonTimeoutSeconds)

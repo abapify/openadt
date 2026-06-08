@@ -206,13 +206,16 @@ Token never leaves the parent; agent config is command-only (no URL/headers).
 
 ## Command reference
 
-| Command         | Role                                                           |
-| --------------- | -------------------------------------------------------------- |
-| `serve`         | Child `adt-lsc` + HTTP MCP; hold until Ctrl+C; **no stdio**    |
-| `serve --stdio` | Same backend **plus** stdio bridge (single process, see below) |
-| `status`        | Probe HTTP MCP (`initialize` POST)                             |
-| `list`          | List active endpoints in store                                 |
-| `print-config`  | Emit `{ url, headers }` for HTTP-native clients                |
+| Command                      | Role                                                                  |
+| ---------------------------- | --------------------------------------------------------------------- |
+| `serve`                      | Child `adt-lsc` + HTTP MCP; hold until Ctrl+C; **no stdio**           |
+| `serve --stdio`              | Shared (auto-ensure + attach stdio bridge) — **default**              |
+| `serve --stdio --standalone` | Monolithic (owns adt-lsc, kills on exit)                              |
+| `status`                     | Probe HTTP MCP (`initialize` POST)                                    |
+| `list`                       | List active endpoints in store                                        |
+| `print-config`               | Emit `{ url, headers }` for HTTP-native clients                       |
+| `stop`                       | Stop MCP backend (see [mcp-shared-backend.md](mcp-shared-backend.md)) |
+| `bridge --stdio`             | Attach-only; fail if no healthy backend                               |
 
 ```bash
 ./dev-openadt mcp serve --port 2236
@@ -226,18 +229,20 @@ Run via `./dev-openadt mcp …` (clone) or `openadt mcp …` (Scoop/Homebrew). R
 
 ### `serve` flags (HTTP backend)
 
-| Flag                       | Default                       | Meaning                                                 |
-| -------------------------- | ----------------------------- | ------------------------------------------------------- |
-| `--port`                   | `2236`                        | HTTP MCP listen port                                    |
-| `--workspace`              | `~/.openadt/adt-ls-workspace` | Eclipse `-data` for adt-lsc                             |
-| `--import-from`            | `auto`                        | Destinations: `auto`, `adtls`, `gui`, `openadt`, `none` |
-| `--destination`            | (all imported)                | Restrict MCP destination                                |
-| `--logon-timeout`          | `300`                         | Seconds for `ensureLoggedOn`                            |
-| `--verbose` / `--log-file` | off                           | Debug logging                                           |
+| Flag                           | Default                       | Meaning                                                 |
+| ------------------------------ | ----------------------------- | ------------------------------------------------------- |
+| `--port`                       | `2236`                        | HTTP MCP listen port                                    |
+| `--workspace`                  | `~/.openadt/adt-ls-workspace` | Eclipse `-data` for adt-lsc                             |
+| `--import-from`                | `adtls`                       | Destinations: `auto`, `adtls`, `gui`, `openadt`, `none` |
+| `--destination`                | (all imported)                | Restrict MCP destination                                |
+| `--logon-timeout`              | `300`                         | Seconds for `ensureLoggedOn`                            |
+| `--verbose` / `--log-file`     | off                           | Debug logging                                           |
+| `--standalone` (serve --stdio) | off (shared)                  | Own adt-lsc, kill on exit (monolithic path)             |
+| `--restart` (serve --stdio)    | off                           | Stop the existing shared daemon first, then spawn fresh |
 
 ### `serve --stdio` (additional behavior)
 
-Same flags as `serve`. Stdio-specific rules:
+Same flags as `serve`. **Shared mode (default):** finds or spawns a detached daemon, attaches stdio bridge, does NOT kill backend on exit. **Standalone mode (`--standalone`):** owns `adt-lsc`, kills on exit (legacy monolithic path).
 
 | Stream     | Content                                                                         |
 | ---------- | ------------------------------------------------------------------------------- |
@@ -245,7 +250,7 @@ Same flags as `serve`. Stdio-specific rules:
 | **stderr** | Startup, logon hints, errors (never MCP payload)                                |
 | **stdin**  | Client → server MCP messages                                                    |
 
-**Not in scope for `--stdio`:** `--attach`, fake `initialize` responses, or attaching to a foreign long-running `serve` without owning its child. One invocation = one parent that owns `adt-lsc` and HTTP MCP.
+**Not in scope for `--stdio`:** fake `initialize` responses, or attaching to a foreign long-running `serve` without owning its child. One invocation = one parent that owns `adt-lsc` and HTTP MCP; `--standalone` is the legacy monolithic path where the parent does NOT own a shared backend.
 
 ---
 
@@ -287,12 +292,17 @@ Parent exit **must** tear down HTTP MCP and `adt-lsc`; orphaned `adt-lsc` on por
 
 ### Failure modes
 
-| Condition                       | Client-visible behavior                             |
-| ------------------------------- | --------------------------------------------------- |
-| Extension missing               | JSON-RPC error on first request with `id`; exit `1` |
-| Logon timeout / no SSO          | JSON-RPC error; stderr explains Secure Login        |
-| Port in use                     | stderr message; exit `4`                            |
-| HTTP never ready within timeout | JSON-RPC error on queued requests; exit `3`         |
+| Condition                       | Client-visible behavior                             | Exit code |
+| ------------------------------- | --------------------------------------------------- | --------- |
+| Extension missing               | JSON-RPC error on first request with `id`; exit `1` | 1         |
+| Logon timeout / no SSO          | JSON-RPC error; stderr explains Secure Login        | 1         |
+| Port in use                     | stderr message; exit `4`                            | 4         |
+| HTTP never ready within timeout | JSON-RPC error on queued requests; exit `3`         | 3         |
+| Multiple active endpoints       | stderr + `mcp list` message; exit `5`               | 5         |
+| Ensure lock timeout             | stderr; exit `6`                                    | 6         |
+| Daemon spawn failed             | stderr; exit `7`                                    | 7         |
+
+Exit codes 5-7: see [mcp-shared-backend.md](mcp-shared-backend.md).
 
 First client message may wait **minutes** during SAP logon; that is expected. Do not exit before responding or erroring on buffered requests.
 
@@ -342,7 +352,7 @@ Do **not** set `"cwd": "${workspaceFolder}"` — some agent builds break MCP spa
 
 Requires [Bun](https://bun.sh) on `PATH` (repo `packageManager`). Script chain: `mcp:stdio` → `bun scripts/mcp-stdio.ts` → `mcp-stdio-entry.ts`. Manual/CI: `nx run sap-adt-mcp-launcher:serve-stdio` (`cache: false`). Avoid `npx nx …` as the MCP command on Windows agent — `npx` invokes `cmd.exe`, which is absent from agent minimal `PATH`; use `bun run mcp:stdio` instead.
 
-`mcp-stdio-entry.ts` merges `~/.openadt/local.openadt.toml` `[runtime]` paths (JCo, sapcrypto) into the child environment so agent minimal `PATH` still loads SAP natives. Windows `taskkill` uses `%SystemRoot%\\System32\\taskkill.exe` (not PATH). Entry picks an **ephemeral HTTP port** per spawn (override with `OPENADT_MCP_PORT`) and **pipes** stdin/stdout to the launcher child (stdio `inherit` breaks some MCP clients on Windows).
+`mcp-stdio-entry.ts` merges `~/.openadt/local.openadt.toml` `[runtime]` paths (JCo, sapcrypto) into the child environment so agent minimal `PATH` still loads SAP natives. Windows `taskkill` uses `%SystemRoot%\\System32\\taskkill.exe` (not PATH). Entry uses **shared mode** by default: finds or spawns a detached daemon, attaches stdio bridge, does NOT kill backend on exit. Override with `OPENADT_MCP_PORT` for explicit port. **Pipes** stdin/stdout to the launcher child (stdio `inherit` breaks some MCP clients on Windows).
 
 Run `agent` from the repository root. Stale servers are stopped at startup; kill orphans with `Get-Process adt-lsc | Stop-Process -Force` if logon hangs.
 
@@ -397,9 +407,19 @@ Target is the contract above. Simplify implementation; remove experimental paths
 ### Phase 2 — Startup reliability
 
 - [x] Stdin buffer + flush after HTTP ready.
-- [x] `waitForMcpHttp` after `startMCPServer` (treat any HTTP response as “listening”).
+- [x] `waitForMcpHttp` after `startMCPServer` (treat any HTTP response as "listening").
 - [x] Logon: block in LSP connect before `startMCPServer` (synchronous logon; no deferred background logon).
 - [x] Stale `adt-lsc` — stop prior owned instances on startup (endpoint store pids only).
+
+### Phase 2b — Shared backend (auto-ensure)
+
+- [ ] **Auto-ensure backend** — `ensureSharedBackend()` in `ensure-backend.ts` (see [mcp-shared-backend.md](mcp-shared-backend.md)).
+- [ ] **Shared mode** — `serve --stdio` (default) finds or spawns a detached daemon, attaches stdio bridge, does NOT kill backend on exit.
+- [ ] **`--standalone` flag** — explicit monolithic path for CI/scripts expecting owned lifecycle.
+- [ ] **`mcp stop`** — stop backend manually.
+- [ ] **Exit code 5** — multiple active endpoints (ambiguous attach).
+- [ ] **Exit code 6** — ensure lock timeout.
+- [ ] **Exit code 7** — daemon spawn failed.
 
 ### Phase 3 — Tests
 

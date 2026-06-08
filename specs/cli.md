@@ -292,20 +292,23 @@ Behavior:
 
 ### openadt mcp
 
-Launch the **official SAP ADT MCP** (child `adt-lsc` from SAP ADT VS Code extension + optional stdio bridge). Requires extension and **Bun**. See [mcp.md](mcp.md).
+Launch the **official SAP ADT MCP** (child `adt-lsc` from SAP ADT VS Code extension + optional stdio bridge). Requires extension and **Bun**. See [mcp.md](mcp.md), [mcp-shared-backend.md](mcp-shared-backend.md).
 
-**`serve --stdio`:** one process spawns `adt-lsc`, starts HTTP MCP on localhost, proxies agent stdin/stdout to that HTTP endpoint with Bearer token; on exit kills HTTP MCP and child.
+**`serve --stdio` (default):** finds or spawns a detached daemon, attaches stdio bridge, does NOT kill backend on exit. **`--standalone`:** owns `adt-lsc`, kills on exit (monolithic path).
 
 ```bash
 ./dev-openadt mcp serve
 ./dev-openadt mcp serve --stdio
+./dev-openadt mcp serve --stdio --standalone
 ./dev-openadt mcp serve --port 2236 --destination DEV_100_developer_en
 ./dev-openadt mcp list
 ./dev-openadt mcp print-config --port 2236
 ./dev-openadt mcp status --port 2236
+./dev-openadt mcp stop --port 2236
+./dev-openadt mcp bridge --stdio
 ```
 
-Subcommands: `serve`, `status`, `list`, `print-config`. The release ZIP includes `sap-adt-mcp-launcher/` next to `openadt.jar`.
+Subcommands: `serve`, `stop`, `bridge`, `status`, `list`, `print-config`. The release ZIP includes `sap-adt-mcp-launcher/` next to `openadt.jar`.
 
 ---
 
