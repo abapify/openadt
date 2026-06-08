@@ -159,12 +159,34 @@ function currentMatrixPlatform(): string {
 
 function packageMcpBinary(version: string): void {
   const platform = currentMatrixPlatform();
+  const archive = buildMcpArchive(platform, version);
+  patchMcpManifests(platform, version, archive);
+  console.log(`Packaged ${archive.path}`);
+  console.log(`SHA256 ${archive.sha}`);
+}
+
+type McpArchive = {
+  path: string;
+  name: string;
+  sha: string;
+};
+
+function buildMcpArchive(platform: string, version: string): McpArchive {
   const ext = platform.startsWith("win-") ? "zip" : "tar.gz";
   const stageDirName = `openadt-mcp-${version}-${platform}`;
   const stageDir = join(distDir, stageDirName);
   const archiveName = `${stageDirName}.${ext}`;
   const archivePath = join(distDir, archiveName);
 
+  compileMcpBinary(stageDir, platform);
+  packArchive(stageDir, stageDirName, archivePath, ext);
+
+  const sha = sha256File(archivePath);
+  writeFileSync(`${archivePath}.sha256`, `${sha}  ${archiveName}\n`);
+  return { path: archivePath, name: archiveName, sha };
+}
+
+function compileMcpBinary(stageDir: string, platform: string): void {
   const build = spawnSync(
     "bun",
     [
@@ -186,48 +208,65 @@ function packageMcpBinary(version: string): void {
       `mcp:build:compile for ${platform} exited with status ${build.status ?? "unknown"}`,
     );
   }
+}
 
-  if (platform.startsWith("win-")) {
+function packArchive(
+  stageDir: string,
+  stageDirName: string,
+  archivePath: string,
+  ext: string,
+): void {
+  if (ext === "zip") {
     const zip = new AdmZip();
     zip.addLocalFolder(stageDir, stageDirName);
     zip.writeZip(archivePath);
-  } else {
-    const tar = spawnSync("tar", ["czf", archivePath, stageDirName], {
-      cwd: distDir,
-      stdio: "inherit",
-    });
-    if (tar.status !== 0) {
-      throw new Error(
-        `tar exited with status ${tar.status ?? "unknown"} while packaging ${archiveName}`,
-      );
-    }
+    return;
+  }
+  const tar = spawnSync("tar", ["czf", archivePath, stageDirName], {
+    cwd: distDir,
+    stdio: "inherit",
+  });
+  if (tar.status !== 0) {
+    throw new Error(
+      `tar exited with status ${tar.status ?? "unknown"} while packaging ${archivePath}`,
+    );
+  }
+}
+
+const MCP_HOMEBREW_PLATFORM = "darwin-arm64";
+
+function patchMcpManifests(
+  platform: string,
+  version: string,
+  archive: McpArchive,
+): void {
+  // Homebrew: the formula is single-platform (darwin-arm64) in v1.
+  // On any other host, the local packaging does not match the formula
+  // target, so skip the patch — the CI matrix writes the right value.
+  if (platform === MCP_HOMEBREW_PLATFORM) {
+    const formulaPath = join(root, "packaging/homebrew/openadt-mcp.rb");
+    let ruby = readFileSync(formulaPath, "utf8");
+    ruby = ruby.replace(/sha256 "[^"]+"/, `sha256 "${archive.sha}"`);
+    writeFileSync(formulaPath, ruby);
+    syncHomebrewTapFormula(formulaPath, "openadt-mcp");
   }
 
-  const mcpSha = sha256File(archivePath);
-  writeFileSync(`${archivePath}.sha256`, `${mcpSha}  ${archiveName}\n`);
-
-  // Patch the openadt-mcp packaging files with the real sha256.
-  const formulaPath = join(root, "packaging/homebrew/openadt-mcp.rb");
-  let ruby = readFileSync(formulaPath, "utf8");
-  ruby = ruby.replace(/sha256 "[^"]+"/, `sha256 "${mcpSha.toLowerCase()}"`);
-  writeFileSync(formulaPath, ruby);
-  syncHomebrewTapFormula(formulaPath, "openadt-mcp");
-
-  const manifestPath = join(root, "packaging/scoop/openadt-mcp.json");
-  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
-    version: string;
-    extract_dir: string;
-    architecture: { "64bit": { url: string; hash: string } };
-  };
-  manifest.version = version;
-  manifest.extract_dir = stageDirName;
-  manifest.architecture["64bit"].url =
-    `https://github.com/abapify/openadt/releases/download/v${version}/${archiveName}`;
-  manifest.architecture["64bit"].hash = mcpSha.toLowerCase();
-  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 4)}\n`);
-
-  console.log(`Packaged ${archivePath}`);
-  console.log(`SHA256 ${mcpSha}`);
+  // Scoop: Windows-only. Other matrix entries must not overwrite
+  // the win-x64 manifest with linux/macos URLs.
+  if (platform === "win-x64") {
+    const manifestPath = join(root, "packaging/scoop/openadt-mcp.json");
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
+      version: string;
+      extract_dir: string;
+      architecture: { "64bit": { url: string; hash: string } };
+    };
+    manifest.version = version;
+    manifest.extract_dir = `openadt-mcp-${version}-win-x64`;
+    manifest.architecture["64bit"].url =
+      `https://github.com/abapify/openadt/releases/download/v${version}/${archive.name}`;
+    manifest.architecture["64bit"].hash = archive.sha;
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 4)}\n`);
+  }
 }
 
 function updateHomebrewSha256(sha256: string): void {
