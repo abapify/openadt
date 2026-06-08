@@ -12,7 +12,7 @@
  */
 import { findAvailablePort } from "./ensure-backend.ts";
 import { generateMcpToken } from "./mcp.ts";
-import type { ReadObjectBackend } from "./read-object.ts";
+import { ReadTimeoutError, type ReadObjectBackend } from "./read-object.ts";
 
 const READ_AUX_PORT_BASE = 39_000;
 
@@ -87,9 +87,14 @@ export async function startReadAuxServer(
         }
         return json({ error: "not found" }, 404);
       } catch (err) {
-        // Log the real error (with stack) for the operator; return a
-        // generic message to the client — never echo the stack out over HTTP.
+        // Log the full error (incl. stack) for the operator; surface a
+        // useful message to the client only for known/recoverable failures
+        // like `ReadTimeoutError` (object not found / cold backend / session
+        // expired) — never echo raw stack traces out over HTTP.
         console.error(`[openadt-mcp] read aux error: ${formatError(err)}`);
+        if (err instanceof ReadTimeoutError) {
+          return json({ error: err.message }, 504);
+        }
         return json({ error: "internal error" }, 500);
       }
     },
@@ -109,5 +114,8 @@ export async function startReadAuxServer(
 }
 
 function formatError(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
+  if (err instanceof Error) {
+    return err.stack ?? `${err.name}: ${err.message}`;
+  }
+  return String(err);
 }

@@ -532,7 +532,7 @@ function collectStandaloneServeArgs(cfg: McpServeConfig): string[] {
   if (cfg.importFrom !== DEFAULT_IMPORT_FROM) {
     args.push(`--import-from=${cfg.importFrom}`);
   }
-  if (cfg.workspace) {
+  if (cfg.explicitWorkspace) {
     args.push("--workspace", cfg.workspace);
   }
   if (cfg.logonTimeoutMs !== DEFAULT_LOGON_TIMEOUT_MS) {
