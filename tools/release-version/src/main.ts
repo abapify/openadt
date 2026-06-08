@@ -255,6 +255,36 @@ function updateScoop(version: string): void {
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 4)}\n`);
 }
 
+function updateHomebrewMcp(version: string): void {
+  const formulaPath = join(root, "packaging/homebrew/openadt-mcp.rb");
+  let formula = readFileSync(formulaPath, "utf8");
+  formula = formula.replace(/STABLE = "[^"]+"/, `STABLE = "${version}"`);
+  formula = formula.replace(
+    /sha256 "[^"]+"/,
+    'sha256 "PLACEHOLDER_RUN_PACKAGE_RELEASE"',
+  );
+  writeFileSync(formulaPath, formula);
+  // Do NOT sync Formula/openadt-mcp.rb here: same reason as updateHomebrew
+  // above — the bump commit would land a PLACEHOLDER sha256 on `main` and
+  // break `brew install openadt-mcp` until the publish step refreshes it.
+  // package-release syncs the tap formula after the real sha256 is known.
+}
+
+function updateScoopMcp(version: string): void {
+  const manifestPath = join(root, "packaging/scoop/openadt-mcp.json");
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
+    version: string;
+    extract_dir: string;
+    architecture: { "64bit": { url: string; hash: string } };
+  };
+  manifest.version = version;
+  manifest.extract_dir = `openadt-mcp-${version}`;
+  manifest.architecture["64bit"].url =
+    `https://github.com/abapify/openadt/releases/download/v${version}/openadt-mcp-${version}-win-x64.zip`;
+  manifest.architecture["64bit"].hash = "PLACEHOLDER_RUN_PACKAGE_RELEASE";
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 4)}\n`);
+}
+
 function writeGithubOutput(version: string): void {
   const output = process.env.GITHUB_OUTPUT;
   if (!output) {
@@ -300,6 +330,8 @@ repairCliDependencyPluginVersion();
 
 updateHomebrew(nextVersion);
 updateScoop(nextVersion);
+updateHomebrewMcp(nextVersion);
+updateScoopMcp(nextVersion);
 
 console.log(`Release version: ${nextVersion}`);
 console.log(`Tag: v${nextVersion}`);

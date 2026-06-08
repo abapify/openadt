@@ -67,6 +67,15 @@ Upgrade: `brew update && brew upgrade openadt`
 
 Scoop/Homebrew install the CLI and suggest a JDK. **SAP JCo, ADT plugins, Secure Login, and landscape data are not bundled.**
 
+OpenADT ships as two independent packages:
+
+| Package       | What it does                      | Use this if…                           |
+| ------------- | --------------------------------- | -------------------------------------- |
+| `openadt`     | fetch, proxy, setup (Java + JCo)  | You need ADT HTTP from the terminal    |
+| `openadt-mcp` | SAP ADT MCP server (compiled Bun) | You connect Cursor/Claude/Devin to ADT |
+
+Install both if you use MCP. They share `~/.openadt/` state but have separate binaries on PATH (`scoop install openadt openadt-mcp` or `brew install openadt openadt-mcp`).
+
 <a id="sap-prerequisites"></a>
 
 ## SAP prerequisites
@@ -280,6 +289,35 @@ This extension provides `adt-lsc` and the licensed ADT packages. OpenADT cannot 
 
 The destination is stored in `~/.adtls/destinations.json` and picked up automatically by `openadt mcp serve`.
 
+### Standalone `openadt-mcp` install (recommended)
+
+```bash
+# Windows (Scoop)
+scoop install openadt-mcp
+
+# macOS / Linux (Homebrew)
+brew install openadt-mcp
+```
+
+`openadt-mcp` is a compiled Bun binary — **Bun is bundled**, nothing extra to install. It works without the `openadt` Java package being installed; the two products are independent.
+
+Resulting `.cursor/mcp.json` (same `command` / `args` shape for Claude Desktop and Devin):
+
+```json
+{
+  "mcpServers": {
+    "sap-adt": {
+      "command": "openadt-mcp",
+      "args": ["serve", "--stdio"]
+    }
+  }
+}
+```
+
+**Version matrix:** each release publishes a separate `openadt-mcp-X.Y.Z-{platform}.{zip|tar.gz}` artifact (matrix: `win-x64`, `linux-x64`, `darwin-arm64`, `darwin-x64`). Scoop and Homebrew always pin the matching version of `openadt-mcp` to the corresponding `openadt` release.
+
+The `openadt mcp serve --stdio` path below remains as an alternative for users who already have the `openadt` Java package installed. Deep contract: [specs/mcp.md](../specs/mcp.md).
+
 ### Starting the MCP server
 
 ```bash
@@ -322,6 +360,8 @@ When `--stdio` is set without `--standalone`, OpenADT auto-ensures a shared back
 For CI or scripts that need owned lifecycle, use `openadt mcp serve --stdio --standalone`.
 
 ### Configuring your agent (`mcp.json`)
+
+> Prefer `openadt-mcp` (see [Standalone `openadt-mcp` install](#standalone-openadt-mcp-install-recommended) above). The `openadt` command variants below are an alternative for users who only have the `openadt` Java package installed.
 
 #### Cursor
 

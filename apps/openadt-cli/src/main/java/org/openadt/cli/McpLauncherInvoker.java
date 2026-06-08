@@ -2,6 +2,7 @@ package org.openadt.cli;
 
 import org.openadt.config.CliLog;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -10,7 +11,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
-/** Delegates {@code openadt mcp *} to the Bun SAP ADT MCP launcher. */
+/** Delegates {@code openadt mcp *} to the standalone {@code openadt-mcp} binary
+ *  (fast path) or, in a dev clone, to the Bun SAP ADT MCP launcher (fallback). */
 final class McpLauncherInvoker {
     private static final String[] LAUNCHER_REL_PATHS = {
         "sap-adt-mcp-launcher/dist/main.mjs",
@@ -25,27 +27,44 @@ final class McpLauncherInvoker {
     private McpLauncherInvoker() {}
 
     static int invoke(String subcommand, String[] extraArgs) {
+        Path binary = resolveOpenAdtMcpBinary();
+        if (binary != null) {
+            return spawnDirect(binary, subcommand, extraArgs);
+        }
         Path script = resolveLauncherMain();
-        if (script == null) {
-            CliLog.error("""
-                    SAP ADT MCP launcher not found under OPENADT_HOME or OPENADT_REPO.
-                    Reinstall OpenADT or set OPENADT_REPO to your git clone.
-                    Requires Bun on PATH: https://bun.sh""");
+        if (script != null) {
+            return spawnBun(script, subcommand, extraArgs);
+        }
+        CliLog.error("""
+                openadt-mcp is not installed and no dev clone was found.
+                Install: scoop install openadt-mcp
+                       brew install openadt-mcp
+                Or set OPENADT_REPO to your git clone (and have Bun on PATH).""");
+        return 1;
+    }
+
+    private static int spawnDirect(Path binary, String subcommand, String[] extraArgs) {
+        ProcessBuilder pb = new ProcessBuilder(buildArgv(binary, subcommand, extraArgs, null));
+        pb.inheritIO();
+        try {
+            return pb.start().waitFor();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            CliLog.error("Failed to run openadt-mcp: " + e.getMessage());
+            return 1;
+        } catch (IOException e) {
+            CliLog.error("Failed to run openadt-mcp: " + e.getMessage());
             return 1;
         }
-        List<String> cmd = new ArrayList<>();
-        cmd.add(resolveBunExecutable());
-        cmd.add(script.toString());
-        cmd.add(subcommand);
-        if (extraArgs != null && extraArgs.length > 0) {
-            cmd.addAll(Arrays.asList(extraArgs));
-        }
-        ProcessBuilder pb = new ProcessBuilder(cmd);
+    }
+
+    private static int spawnBun(Path script, String subcommand, String[] extraArgs) {
+        ProcessBuilder pb = new ProcessBuilder(
+                buildArgv(script, subcommand, extraArgs, resolveBunExecutable()));
         pb.inheritIO();
         applyRepoEnv(pb, script);
         try {
-            Process process = pb.start();
-            return process.waitFor();
+            return pb.start().waitFor();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             CliLog.error("Failed to run MCP launcher: " + e.getMessage());
@@ -54,6 +73,46 @@ final class McpLauncherInvoker {
             CliLog.error("Failed to run MCP launcher: " + e.getMessage());
             return 1;
         }
+    }
+
+    private static List<String> buildArgv(
+            Path executable, String subcommand, String[] extraArgs, String prefix) {
+        List<String> cmd = new ArrayList<>();
+        if (prefix != null) {
+            cmd.add(prefix);
+        }
+        cmd.add(executable.toString());
+        cmd.add(subcommand);
+        if (extraArgs != null && extraArgs.length > 0) {
+            cmd.addAll(Arrays.asList(extraArgs));
+        }
+        return cmd;
+    }
+
+    static Path resolveOpenAdtMcpBinary() {
+        String override = System.getenv("OPENADT_MCP");
+        if (override != null && !override.isBlank()) {
+            Path envHit = Path.of(override.trim());
+            if (Files.isRegularFile(envHit)) {
+                return envHit.toAbsolutePath().normalize();
+            }
+            return null;
+        }
+        String pathEnv = System.getenv("PATH");
+        if (pathEnv == null) {
+            return null;
+        }
+        String exeName = isWindows() ? "openadt-mcp.exe" : "openadt-mcp";
+        for (String dir : pathEnv.split(File.pathSeparator)) {
+            if (dir.isBlank()) {
+                continue;
+            }
+            Path candidate = Path.of(dir).resolve(exeName);
+            if (Files.isRegularFile(candidate)) {
+                return candidate.toAbsolutePath().normalize();
+            }
+        }
+        return null;
     }
 
     static Path resolveLauncherMain() {

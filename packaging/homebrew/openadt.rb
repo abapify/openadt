@@ -29,12 +29,6 @@ class Openadt < Formula
       jar = candidates.find { |path| File.file?(path) }
       odie "Could not find openadt.jar in release zip (tried: #{candidates.join(', ')})" if jar.nil?
       libexec.install jar => "openadt.jar"
-
-      mcp_launcher_candidates = ["openadt-#{version}/sap-adt-mcp-launcher", "sap-adt-mcp-launcher"]
-      mcp_launcher = mcp_launcher_candidates.find { |path| Dir.exist?(path) }
-      if mcp_launcher
-        libexec.install mcp_launcher => "sap-adt-mcp-launcher"
-      end
     else
       # HEAD build is a multi-module Maven reactor; build from the repo root
       # so sibling modules (openadt-config, openadt-sap-adt, openadt-bootstrap)
@@ -48,11 +42,6 @@ class Openadt < Formula
         .find { |path| !path.end_with?("-sources.jar", "-javadoc.jar") }
       odie "Could not find built OpenADT jar in apps/openadt-cli/target/" if built_jar.nil?
       libexec.install built_jar => "openadt.jar"
-
-      mcp_launcher = "tools/sap-adt-mcp-launcher"
-      if Dir.exist?(mcp_launcher)
-        libexec.install mcp_launcher => "sap-adt-mcp-launcher"
-      end
     end
 
     (bin/"openadt").write <<~SH

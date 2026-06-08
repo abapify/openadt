@@ -137,16 +137,109 @@ exec java -jar "$OPENADT_HOME/openadt.jar" "$@"
   );
 }
 
+const HOST_PLATFORM_MAP: Record<string, Record<string, string>> = {
+  win32: { x64: "win-x64" },
+  linux: { x64: "linux-x64" },
+  darwin: { arm64: "darwin-arm64", x64: "darwin-x64" },
+};
+
+function currentMatrixPlatform(): string {
+  if (process.env.OPENADT_MATRIX_PLATFORM) {
+    return process.env.OPENADT_MATRIX_PLATFORM;
+  }
+  const platform = HOST_PLATFORM_MAP[process.platform];
+  const match = platform?.[process.arch];
+  if (match) {
+    return match;
+  }
+  throw new Error(
+    `Unsupported host platform ${process.platform}/${process.arch} for openadt-mcp packaging`,
+  );
+}
+
+function packageMcpBinary(version: string): void {
+  const platform = currentMatrixPlatform();
+  const ext = platform.startsWith("win-") ? "zip" : "tar.gz";
+  const stageDirName = `openadt-mcp-${version}-${platform}`;
+  const stageDir = join(distDir, stageDirName);
+  const archiveName = `${stageDirName}.${ext}`;
+  const archivePath = join(distDir, archiveName);
+
+  const build = spawnSync(
+    "bun",
+    [
+      "run",
+      "mcp:build:compile",
+      "--",
+      `--platform=${platform}`,
+      `--out=${stageDir}`,
+    ],
+    { stdio: "inherit" },
+  );
+  if (build.error) {
+    throw new Error(
+      `Failed to spawn mcp:build:compile: ${build.error.message}`,
+    );
+  }
+  if (build.status !== 0) {
+    throw new Error(
+      `mcp:build:compile for ${platform} exited with status ${build.status ?? "unknown"}`,
+    );
+  }
+
+  if (platform.startsWith("win-")) {
+    const zip = new AdmZip();
+    zip.addLocalFolder(stageDir, stageDirName);
+    zip.writeZip(archivePath);
+  } else {
+    const tar = spawnSync("tar", ["czf", archivePath, stageDirName], {
+      cwd: distDir,
+      stdio: "inherit",
+    });
+    if (tar.status !== 0) {
+      throw new Error(
+        `tar exited with status ${tar.status ?? "unknown"} while packaging ${archiveName}`,
+      );
+    }
+  }
+
+  const mcpSha = sha256File(archivePath);
+  writeFileSync(`${archivePath}.sha256`, `${mcpSha}  ${archiveName}\n`);
+
+  // Patch the openadt-mcp packaging files with the real sha256.
+  const formulaPath = join(root, "packaging/homebrew/openadt-mcp.rb");
+  let ruby = readFileSync(formulaPath, "utf8");
+  ruby = ruby.replace(/sha256 "[^"]+"/, `sha256 "${mcpSha.toLowerCase()}"`);
+  writeFileSync(formulaPath, ruby);
+  syncHomebrewTapFormula(formulaPath, "openadt-mcp");
+
+  const manifestPath = join(root, "packaging/scoop/openadt-mcp.json");
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
+    version: string;
+    extract_dir: string;
+    architecture: { "64bit": { url: string; hash: string } };
+  };
+  manifest.version = version;
+  manifest.extract_dir = stageDirName;
+  manifest.architecture["64bit"].url =
+    `https://github.com/abapify/openadt/releases/download/v${version}/${archiveName}`;
+  manifest.architecture["64bit"].hash = mcpSha.toLowerCase();
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 4)}\n`);
+
+  console.log(`Packaged ${archivePath}`);
+  console.log(`SHA256 ${mcpSha}`);
+}
+
 function updateHomebrewSha256(sha256: string): void {
   const formulaPath = join(root, "packaging/homebrew/openadt.rb");
   let ruby = readFileSync(formulaPath, "utf8");
   ruby = ruby.replace(/sha256 "[^"]+"/, `sha256 "${sha256.toLowerCase()}"`);
   writeFileSync(formulaPath, ruby);
-  syncHomebrewTapFormula(formulaPath);
+  syncHomebrewTapFormula(formulaPath, "openadt");
 }
 
-function syncHomebrewTapFormula(formulaPath: string): void {
-  const tapPath = join(root, "Formula/openadt.rb");
+function syncHomebrewTapFormula(formulaPath: string, product: string): void {
+  const tapPath = join(root, `Formula/${product}.rb`);
   mkdirSync(dirname(tapPath), { recursive: true });
   cpSync(formulaPath, tapPath);
 }
@@ -175,32 +268,6 @@ cpSync(jarPath, join(stageDir, "openadt.jar"));
 writeFileSync(join(stageDir, "VERSION"), `${version}\n`);
 cpSync(join(root, "LICENSE"), join(stageDir, "LICENSE"));
 
-const mcpLauncherSrc = join(root, "tools/sap-adt-mcp-launcher");
-const mcpLauncherDest = join(stageDir, "sap-adt-mcp-launcher");
-
-const buildMcp = spawnSync("bun", ["run", "build"], {
-  cwd: mcpLauncherSrc,
-  stdio: "pipe",
-});
-if (buildMcp.status !== 0 || buildMcp.error) {
-  const stderr = buildMcp.stderr?.toString().trim();
-  const stdout = buildMcp.stdout?.toString().trim();
-  const cause = buildMcp.error ? ` (${buildMcp.error.message})` : "";
-  const output = [stderr, stdout].filter(Boolean).join("\n");
-  throw new Error(
-    `Failed to build MCP launcher with tsdown${cause}${output ? `: ${output}` : ""}`,
-  );
-}
-
-mkdirSync(mcpLauncherDest, { recursive: true });
-cpSync(join(mcpLauncherSrc, "dist"), join(mcpLauncherDest, "dist"), {
-  recursive: true,
-});
-cpSync(
-  join(mcpLauncherSrc, "package.json"),
-  join(mcpLauncherDest, "package.json"),
-);
-cpSync(join(mcpLauncherSrc, "README.md"), join(mcpLauncherDest, "README.md"));
 writeLaunchers(stageDir);
 if (
   process.platform === "win32" ||
@@ -230,3 +297,5 @@ updateScoopSha256(sha256);
 
 console.log(`Packaged ${zipPath}`);
 console.log(`SHA256 ${sha256}`);
+
+packageMcpBinary(version);

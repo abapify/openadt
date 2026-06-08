@@ -239,7 +239,8 @@ function flagValue(
   forms: readonly string[],
 ): ServeArgvHandler {
   return {
-    matches: (arg) => forms.some((form) => arg.startsWith(`${form}=`)),
+    matches: (arg) =>
+      forms.some((form) => arg === form || arg.startsWith(`${form}=`)),
     apply: (arg, _argv, i, state) => {
       apply(state);
       return i + 1;

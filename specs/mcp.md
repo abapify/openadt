@@ -13,6 +13,24 @@ SAP exposes MCP **only over HTTP**. Stdio mode is an **OpenADT adapter**, not a 
 
 ---
 
+## Product: `openadt-mcp`
+
+`openadt-mcp` is a **standalone installable** compiled Bun binary. It is the same launcher described in this spec, packaged and versioned independently from the `openadt` Java product.
+
+| Aspect             | Contract                                                                                                                                                                                                        |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CLI surface        | `openadt-mcp <subcommand> [args]` — same subcommands as `openadt mcp` (`serve`, `serve --stdio`, `list`, `status`, `stop`, `bridge`, `print-config`). No `openadt` prefix; the binary name is the product name. |
+| Runtime dependency | **None beyond SAP ADT VS Code extension.** Bun is **not** required at install time; the binary embeds the runtime.                                                                                              |
+| Install            | `scoop install openadt-mcp` (Windows) or `brew install openadt-mcp` (Linux, macOS). Independent of `scoop install openadt` / `brew install openadt`.                                                            |
+| Endpoint store     | `~/.openadt/mcp/endpoints/<port>.json` (unchanged).                                                                                                                                                             |
+| In-repo dev paths  | Unchanged: `bun run mcp:stdio`, `./dev-openadt mcp`, `openadt-mcp-dev` shim. Dev path still uses Bun + source from `tools/sap-adt-mcp-launcher/`.                                                               |
+| Java wrapper       | `openadt mcp …` stays and **wraps** `openadt-mcp`. The wrapper resolves and spawns the binary; see [cli.md](cli.md#openadt-mcp).                                                                                |
+| Release artifact   | `openadt-mcp-X.Y.Z-{platform}.{zip\|tar.gz}` per release — see [packaging.md](packaging.md).                                                                                                                    |
+
+`openadt-mcp serve --stdio` is equivalent to the current `openadt mcp serve --stdio`; the Java wrapper exists for users who only have the `openadt` package and for `.cursor/mcp.json` configs that prefer the single `openadt` binary on PATH.
+
+---
+
 ## Official SAP ADT MCP server interface
 
 Authoritative contract for the **SAP-owned** MCP (inside `adt-lsc` from `sapse.adt-vscode`). OpenADT does not reimplement this layer; the launcher orchestrates it.
@@ -429,7 +447,8 @@ Target is the contract above. Simplify implementation; remove experimental paths
 
 ### Phase 4 — Packaging & docs
 
-- [ ] Release launcher in ZIP; Scoop invokes `openadt mcp serve --stdio`.
+- [ ] Remove `sap-adt-mcp-launcher/` from `openadt.zip`; ship `openadt-mcp-X.Y.Z-{platform}.{zip|tar.gz}` per release (see [packaging.md](packaging.md)).
+- [ ] `scoop install openadt-mcp` and `brew install openadt-mcp` are independent of `openadt` install.
 - [x] `specs/cli.md` sync; remove `--attach` references from help text.
 - [x] Optional: `scripts/mcp-stdio.cmd` — user-local Windows workaround only; not used in committed `.cursor/mcp.json`.
 

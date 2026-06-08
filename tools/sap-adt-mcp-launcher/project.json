@@ -32,6 +32,13 @@
         "cwd": "{workspaceRoot}",
         "forwardAllArgs": true
       }
+    },
+    "build:compile": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun scripts/build-openadt-mcp-release.ts",
+        "forwardAllArgs": true
+      }
     }
   }
 }

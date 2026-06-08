@@ -1,16 +1,67 @@
 # Packaging
 
-OpenADT ships as a portable ZIP (`openadt.jar` + launchers + `sap-adt-mcp-launcher/`). SAP binaries are never bundled.
+OpenADT ships as **two independent installable products** per release `vX.Y.Z`. SAP binaries are never bundled.
 
-`openadt mcp` delegates to the Bun launcher in `OPENADT_HOME/sap-adt-mcp-launcher/` — install [Bun](https://bun.sh) for MCP.
+| Product       | Artifact(s)                                                        | Installs via                                             | Runtime                                                                           |
+| ------------- | ------------------------------------------------------------------ | -------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `openadt`     | `openadt-X.Y.Z.zip` (Windows + Linux + macOS, single portable zip) | `scoop install openadt` / `brew install openadt`         | JDK 21 + SAP ADT VS Code extension                                                |
+| `openadt-mcp` | `openadt-mcp-X.Y.Z-{platform}.{zip\|tar.gz}` (4 platform archives) | `scoop install openadt-mcp` / `brew install openadt-mcp` | SAP ADT VS Code extension (JDK 21 for `adt-lsc`); no Bun, no Java at install time |
 
-Scoop: `post_install` runs `bin/scoop-post-install.ps1` (Java/Bun checks, MCP launcher presence). Optional deps in manifest `suggest`: `java/openjdk21`, `main/bun`.
+The two products share the `~/.openadt/` config and the `~/.openadt/mcp/endpoints/` store. They are installed, upgraded, and uninstalled independently. The Java `openadt mcp` subcommand wraps `openadt-mcp` (see [cli.md](cli.md#openadt-mcp), [mcp.md](mcp.md#product-openadt-mcp)).
+
+## `openadt` ZIP
+
+`openadt-X.Y.Z.zip` contents:
+
+- `openadt.jar` — distribution jar
+- `openadt.exe` — Windows launcher
+- `bin/` — PowerShell + bash launchers
+- `LICENSE`, `VERSION`
+
+**Not** in the zip: `sap-adt-mcp-launcher/`. The `openadt mcp` Java subcommand resolves and spawns `openadt-mcp` on PATH at runtime (see [cli.md](cli.md#openadt-mcp)).
+
+## `openadt-mcp` archives
+
+`openadt-mcp-X.Y.Z-{platform}.{zip|tar.gz}` per release, one archive per matrix entry:
+
+| Platform       | Archive                                 |
+| -------------- | --------------------------------------- |
+| `win-x64`      | `openadt-mcp-X.Y.Z-win-x64.zip`         |
+| `linux-x64`    | `openadt-mcp-X.Y.Z-linux-x64.tar.gz`    |
+| `darwin-arm64` | `openadt-mcp-X.Y.Z-darwin-arm64.tar.gz` |
+| `darwin-x64`   | `openadt-mcp-X.Y.Z-darwin-x64.tar.gz`   |
+
+Each archive contains the compiled Bun binary (`openadt-mcp.exe` on Windows, `openadt-mcp` elsewhere), `LICENSE`, `README.md`, `VERSION`. Bun is **not** required at install or runtime — the binary embeds the runtime.
 
 ## Windows
 
 - **Scoop** (recommended): `scoop bucket add openadt https://github.com/abapify/scoop-bucket` then `scoop install openadt` (updated every Release via [`abapify/scoop-bucket`](https://github.com/abapify/scoop-bucket); CI uses org app **abapify-bro** — [packaging/abapify-bro-app.md](../packaging/abapify-bro-app.md)). Legacy monorepo branch: `git clone -b scoop-bucket --depth 1 https://github.com/abapify/openadt openadt-bucket` then `scoop bucket add openadt .\openadt-bucket\packaging\scoop`
 - One-shot install: `scoop install https://raw.githubusercontent.com/abapify/openadt/main/packaging/scoop/openadt.json`
+- **Standalone MCP install:** `scoop install openadt-mcp` (separate Scoop manifest `packaging/scoop/openadt-mcp.json`; post-install: `packaging/scoop/openadt-mcp-post-install.ps1`).
 - Maintainer: `bun run package:release -- --version=<semver>`
+
+### `openadt` Scoop manifest cleanup
+
+The `openadt` manifest no longer carries MCP-specific entries:
+
+- Drop `Bun (for openadt mcp)` from `suggest` (`java/openjdk21` remains for `fetch`/`proxy`).
+- Remove MCP from `notes` (the "Next steps" footer may mention `scoop install openadt-mcp` as an alternative for users who want only the launcher).
+- Remove the MCP post-install launcher check from `packaging/scoop/post-install.ps1` (the `bun` check and the `sap-adt-mcp-launcher\src\main.ts` existence test go away).
+
+### `openadt-mcp` Scoop manifest
+
+`packaging/scoop/openadt-mcp.json`:
+
+- `bin`: `openadt-mcp.exe`
+- `extract_dir`: `openadt-mcp-X.Y.Z`
+- `suggest`: `JDK 21` (for `adt-lsc` only)
+- No `Bun` suggest, no `Java/openjdk21` runtime dependency
+
+`packaging/scoop/openadt-mcp-post-install.ps1`:
+
+- Check SAP ADT VS Code extension presence (the `adt-lsc` binary).
+- Check JDK 21 (for `adt-lsc`; no Bun check).
+- Print next steps: install `sapse.adt-vscode` if missing, configure `.cursor/mcp.json` with `"command": "openadt-mcp"`.
 
 ## Linux / macOS
 
@@ -24,6 +75,19 @@ Scoop: `post_install` runs `bin/scoop-post-install.ps1` (Java/Bun checks, MCP la
 - Legacy monorepo tap: `brew tap abapify/openadt https://github.com/abapify/openadt.git` (same `Formula/` on `main`)
 - `package:release` updates formula `STABLE` and `sha256`
 - Stable formulae must pin version + URL + checksum (Homebrew requirement for verified, reproducible installs). Values are release-automated; `abapify/homebrew-openadt` is a mirror of `Formula/openadt.rb`, not a second source of truth.
+
+### `openadt` Homebrew formula cleanup
+
+- Drop the `libexec.install mcp_launcher` block from `packaging/homebrew/openadt.rb` (and its mirror `Formula/openadt.rb`).
+
+### `openadt-mcp` Homebrew formula
+
+`packaging/homebrew/openadt-mcp.rb` (mirror `Formula/openadt-mcp.rb`):
+
+- `depends_on "openjdk@21"` (for `adt-lsc`; no `depends_on "bun"`)
+- `on_macos` / `on_linux` blocks select the right archive URL by platform
+- `bin.install "openadt-mcp"`
+- Stable formulae must pin version + URL + checksum per platform (Homebrew requirement); values are release-automated
 
 ## CI action pins
 
@@ -43,12 +107,12 @@ Manual **Release** workflow (Actions → Release → Run workflow):
 
 Four jobs run in sequence:
 
-| Job          | Runner  | Does                                                                                                                                                                                       |
-| ------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **`bump`**   | ubuntu  | Reads latest `v*` tag (or `pom.xml` baseline), bumps `pom.xml` + Scoop/Homebrew stubs, commits, pushes, creates tag                                                                        |
-| **`build`**  | windows | Checks out tag, builds distribution jar (`-Pdistribution`), runs `package:release` (zip + Windows `.exe` + sha256), uploads artifacts                                                      |
-| **`create`** | ubuntu  | Downloads artifacts, creates GitHub Release titled `Release vX.Y.Z` with assets attached at creation time (required for immutable releases)                                                |
-| **`sync`**   | ubuntu  | Downloads `.zip.sha256` from release, patches scoop manifest + formula, syncs `abapify/scoop-bucket` and `abapify/homebrew-openadt`, dispatches mirror events — skipped for draft releases |
+| Job          | Runner(s)                                                                                                                                             | Does                                                                                                                                                                                                                                                                                                                                  |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`bump`**   | ubuntu                                                                                                                                                | Reads latest `v*` tag (or `pom.xml` baseline), bumps `pom.xml` + both Scoop manifests + both Homebrew formula stubs, commits, pushes, creates tag                                                                                                                                                                                     |
+| **`build`**  | **Matrix of 4 runners** — `windows-latest` (`win-x64`), `ubuntu-latest` (`linux-x64`), `macos-latest` (`darwin-arm64`), `macos-latest` (`darwin-x64`) | Each matrix entry runs `bun run mcp:build:compile -- --platform=<matrix.platform> --out=…` and produces `openadt-mcp-X.Y.Z-<platform>.{zip\|tar.gz}`. The `windows-latest` entry **additionally** builds the `openadt.jar` (`-Pdistribution`) and runs `package:release` to produce `openadt-X.Y.Z.zip` + `openadt-X.Y.Z.zip.sha256`. |
+| **`create`** | ubuntu                                                                                                                                                | Downloads all artifacts (one `openadt.zip` from the `windows-latest` runner, four `openadt-mcp-<platform>` archives), creates GitHub Release titled `Release vX.Y.Z` with all assets attached at creation time (required for immutable releases)                                                                                      |
+| **`sync`**   | ubuntu                                                                                                                                                | Downloads `.zip.sha256` and each `openadt-mcp-<platform>.{zip\|tar.gz}.sha256`, patches `openadt.json` + `openadt-mcp.json` (Scoop) and `Formula/openadt.rb` + `Formula/openadt-mcp.rb` (Homebrew), syncs `abapify/scoop-bucket` and `abapify/homebrew-openadt`, dispatches mirror events — skipped for draft releases                |
 
 Notes:
 

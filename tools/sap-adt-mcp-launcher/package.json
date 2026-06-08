@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "bin": {
-    "openadt-mcp": "./src/mcp-dev-stdio-bin.ts"
+    "openadt-mcp": "./src/openadt-mcp-bin.ts"
   },
   "scripts": {
     "build": "tsdown",

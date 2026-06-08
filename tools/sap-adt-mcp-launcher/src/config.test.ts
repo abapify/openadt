@@ -73,3 +73,20 @@ describe("config", () => {
     });
   });
 });
+
+describe("parseServeArgv flagValue forms (P0 bugfix)", () => {
+  test("--import-from=adtls sets importFrom=adtls", () => {
+    const cfg = parseServeArgv(["--import-from=adtls"]);
+    expect(cfg.importFrom).toBe("adtls");
+  });
+
+  test("--import-from=openadt sets importFrom=openadt", () => {
+    const cfg = parseServeArgv(["--import-from=openadt"]);
+    expect(cfg.importFrom).toBe("openadt");
+  });
+
+  test("--import-from=auto sets importFrom=auto", () => {
+    const cfg = parseServeArgv(["--import-from=auto"]);
+    expect(cfg.importFrom).toBe("auto");
+  });
+});
