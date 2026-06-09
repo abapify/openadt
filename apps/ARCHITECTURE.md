@@ -18,6 +18,7 @@ Dependency flow: `config` ← `sap-adt` ← `bootstrap` ← `cli`.
 | `org.openadt.cli`                     | [specs/cli.md](../specs/cli.md)                                                            |
 | `org.openadt.sap.adt.sdk`             | [specs/cli.md](../specs/cli.md), [specs/proxy.md](../specs/proxy.md)                       |
 | `org.openadt.sap.adt.services`        | [specs/sdk-capabilities.md](../specs/sdk-capabilities.md), [specs/cli.md](../specs/cli.md) |
+| `org.openadt.sap.adt.agent.*`         | [specs/adt-agent.md](../specs/adt-agent.md)                                                |
 | `org.openadt.sap.adt.destination`     | [specs/config.md](../specs/config.md)                                                      |
 | `org.openadt.sap.adt.bootstrap`       | [specs/setup.md](../specs/setup.md)                                                        |
 | `org.openadt.sap.adt.fallback.http`   | [specs/cli.md](../specs/cli.md) (`transport=http`)                                         |

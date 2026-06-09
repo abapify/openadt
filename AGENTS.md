@@ -17,16 +17,17 @@ Product: `openadt fetch`, `openadt proxy` ([specs/vision.md](specs/vision.md)). 
 
 **Stop** if the change is not yet described in `specs/`: update the spec, then implement. Do not ship from chat summaries, agent notes, or gitignored `tmp/` (including decompiled SAP research) unless the contract is written in `specs/` first.
 
-| Area                                              | Spec                                                                                                   |
-| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| CLI commands, flags, exit codes                   | [specs/cli.md](specs/cli.md)                                                                           |
-| Config / profiles                                 | [specs/config.md](specs/config.md)                                                                     |
-| Proxy                                             | [specs/proxy.md](specs/proxy.md)                                                                       |
-| Setup / detectors                                 | [specs/setup.md](specs/setup.md)                                                                       |
-| SDK usage                                         | [specs/sdk-capabilities.md](specs/sdk-capabilities.md), [specs/sdk-services.md](specs/sdk-services.md) |
-| **MCP / `adt-lsc` / stdio bridge / SAP HTTP MCP** | [specs/mcp.md](specs/mcp.md), [specs/mcp-shared-backend.md](specs/mcp-shared-backend.md)               |
-| Packaging / releases                              | [specs/packaging.md](specs/packaging.md)                                                               |
-| Product scope                                     | [specs/vision.md](specs/vision.md)                                                                     |
+| Area                                                         | Spec                                                                                                   |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| CLI commands, flags, exit codes                              | [specs/cli.md](specs/cli.md)                                                                           |
+| Config / profiles                                            | [specs/config.md](specs/config.md)                                                                     |
+| Proxy                                                        | [specs/proxy.md](specs/proxy.md)                                                                       |
+| Setup / detectors                                            | [specs/setup.md](specs/setup.md)                                                                       |
+| SDK usage                                                    | [specs/sdk-capabilities.md](specs/sdk-capabilities.md), [specs/sdk-services.md](specs/sdk-services.md) |
+| **MCP / `adt-lsc` / stdio bridge / SAP HTTP MCP**            | [specs/mcp.md](specs/mcp.md), [specs/mcp-shared-backend.md](specs/mcp-shared-backend.md)               |
+| **`openadt adt …` / `openadt-mcp-agent`** (agent foundation) | [specs/adt-agent.md](specs/adt-agent.md)                                                               |
+| Packaging / releases                                         | [specs/packaging.md](specs/packaging.md)                                                               |
+| Product scope                                                | [specs/vision.md](specs/vision.md)                                                                     |
 
 Workflow detail: [openadt-sdd skill](.agents/skills/openadt-sdd/SKILL.md).
 

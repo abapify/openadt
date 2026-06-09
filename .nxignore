@@ -1,0 +1,4 @@
+# Nx project graph exclusions — untracked scratch worktrees from prior /act runs.
+# See AGENTS.md: "Scratch in /tmp/agent_*/ — never in the worktree root."
+# Do not commit tool/config sources that live under these paths.
+.claude/worktrees/

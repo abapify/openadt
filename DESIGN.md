@@ -28,6 +28,7 @@ flowchart TB
     SDK["org.openadt.sap.adt.sdk"]
     DEST["org.openadt.sap.adt.destination"]
     FETCH["org.openadt.product.fetch"]
+    agent["org.openadt.sap.adt.agent"]
     FB["org.openadt.sap.adt.fallback.*"]
   end
   subgraph other["other modules"]
@@ -36,8 +37,10 @@ flowchart TB
   end
   PIC --> FETCH
   PIC --> PROXY
+  PIC --> agent
   FETCH --> SDK
   PROXY --> SDK
+  agent --> SDK
   SDK --> DEST
   SDK --> FB
   BOOT --> CFG
@@ -47,18 +50,19 @@ Module and package map: [apps/ARCHITECTURE.md](apps/ARCHITECTURE.md).
 
 ## Spec index
 
-| Spec                                                 | Use when changing                                |
-| ---------------------------------------------------- | ------------------------------------------------ |
-| [vision.md](specs/vision.md)                         | Product scope, positioning                       |
-| [cli.md](specs/cli.md)                               | Commands, flags, exit codes                      |
-| [config.md](specs/config.md)                         | TOML schema, profiles, merge                     |
-| [proxy.md](specs/proxy.md)                           | Local HTTP proxy, header redaction               |
-| [setup.md](specs/setup.md)                           | Detectors, bootstrap output                      |
-| [sdk-capabilities.md](specs/sdk-capabilities.md)     | SAP SDK APIs in use                              |
-| [sdk-services.md](specs/sdk-services.md)             | Registered SDK services                          |
-| [mcp.md](specs/mcp.md)                               | SAP ADT MCP launcher + official server interface |
-| [mcp-shared-backend.md](specs/mcp-shared-backend.md) | MCP shared backend (auto-ensure + attach)        |
-| [packaging.md](specs/packaging.md)                   | Releases, Scoop, Homebrew                        |
+| Spec                                                 | Use when changing                                          |
+| ---------------------------------------------------- | ---------------------------------------------------------- |
+| [vision.md](specs/vision.md)                         | Product scope, positioning                                 |
+| [cli.md](specs/cli.md)                               | Commands, flags, exit codes                                |
+| [config.md](specs/config.md)                         | TOML schema, profiles, merge                               |
+| [proxy.md](specs/proxy.md)                           | Local HTTP proxy, header redaction                         |
+| [setup.md](specs/setup.md)                           | Detectors, bootstrap output                                |
+| [sdk-capabilities.md](specs/sdk-capabilities.md)     | SAP SDK APIs in use                                        |
+| [sdk-services.md](specs/sdk-services.md)             | Registered SDK services                                    |
+| [mcp.md](specs/mcp.md)                               | SAP ADT MCP launcher + official server interface           |
+| [mcp-shared-backend.md](specs/mcp-shared-backend.md) | MCP shared backend (auto-ensure + attach)                  |
+| [adt-agent.md](specs/adt-agent.md)                   | CLI subcommands + `openadt-mcp-agent` MCP for LSP coverage |
+| [packaging.md](specs/packaging.md)                   | Releases, Scoop, Homebrew                                  |
 
 Full index and verify commands: [specs/README.md](specs/README.md).
 

@@ -221,6 +221,10 @@ flowchart LR
 
 Token never leaves the parent; agent config is command-only (no URL/headers).
 
+### `openadt-mcp-agent` (optional second server)
+
+A second Bun/HTTP MCP server that exposes only the OpenADT-owned tools defined in [`specs/adt-agent.md`](adt-agent.md). It runs on a different port (default `2237`, distinct from the SAP server's `2236`) and uses a separate endpoint store (`~/.openadt/mcp-agent/endpoints/`). It does not spawn `adt-lsc`; it talks to the local Java product via a local socket bridge. The existing `openadt-mcp` launcher is unchanged.
+
 ---
 
 ## Command reference
@@ -490,7 +494,7 @@ Target is the contract above. Simplify implementation; remove experimental paths
 
 ### Out of scope (explicit)
 
-- OpenADT-owned MCP tools (all tools come from SAP).
+- ~~OpenADT-owned MCP tools (all tools come from SAP).~~ **OpenADT-owned MCP tools that duplicate existing SAP MCP tools.** Tools not in the SAP MCP are authorized by [`specs/adt-agent.md`](adt-agent.md) and live on a separate HTTP MCP server (`openadt-mcp-agent`); the SAP MCP server is unchanged.
 - Replacing SAP HTTP with native stdio in `adt-lsc`.
 - Two-process “backend + attach” as the primary workflow.
 - Cursor-specific sync scripts.
