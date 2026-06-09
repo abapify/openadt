@@ -107,24 +107,26 @@ function writeLedger(debtDir: string, overlays: object[]): void {
   );
 }
 
-function checkAllDone(harvests: string): {
+const HARVEST_FILE = "2026-01-01T000000Z-pr-1-run-test.jsonl";
+
+function checkAllDone(debtDir: string): {
   archiveExists: boolean;
   origStillThere: boolean;
   markerExists: boolean;
 } {
-  const file = "2026-01-01T000000Z-pr-1-run-test.jsonl";
   return {
-    archiveExists: existsSync(join(harvests, "archive", file)),
-    origStillThere: existsSync(join(harvests, file)),
-    markerExists: existsSync(join(harvests, "archive", file.replace(/\.jsonl$/, ".archived.json"))),
+    archiveExists: existsSync(join(debtDir, "archive", "harvests", HARVEST_FILE)),
+    origStillThere: existsSync(join(debtDir, "harvests", HARVEST_FILE)),
+    markerExists: existsSync(
+      join(debtDir, "archive", "harvests", HARVEST_FILE.replace(/\.jsonl$/, ".archived.json")),
+    ),
   };
 }
 
-function checkMixed(harvests: string): { stillThere: boolean; archivedAway: boolean } {
-  const file = join(harvests, "2026-01-01T000000Z-pr-1-run-test.jsonl");
+function checkMixed(debtDir: string): { stillThere: boolean; archivedAway: boolean } {
   return {
-    stillThere: existsSync(file),
-    archivedAway: existsSync(join(harvests, "archive", "2026-01-01T000000Z-pr-1-run-test.jsonl")),
+    stillThere: existsSync(join(debtDir, "harvests", HARVEST_FILE)),
+    archivedAway: existsSync(join(debtDir, "archive", "harvests", HARVEST_FILE)),
   };
 }
 
@@ -137,8 +139,7 @@ describe("archive-harvest", () => {
     ]);
 
     const { stderr } = invoke([]);
-    const harvests = join(env.debtDir, "harvests");
-    const checks = checkAllDone(harvests);
+    const checks = checkAllDone(env.debtDir);
     cleanupAll();
     expect(stderr).toMatch(/1 file\(s\) archived/);
     expect(checks.archiveExists).toBe(true);
@@ -157,7 +158,7 @@ describe("archive-harvest", () => {
     ]);
 
     const { stderr } = invoke([]);
-    const checks = checkMixed(join(env.debtDir, "harvests"));
+    const checks = checkMixed(env.debtDir);
     cleanupAll();
     expect(stderr).toMatch(/0 file\(s\) archived/);
     expect(checks.stillThere).toBe(true);
@@ -166,15 +167,14 @@ describe("archive-harvest", () => {
 
   test("--dry-run does not move files", () => {
     const env = setupArchiveEnv("dry-run");
-    writeHarvest(env.debtDir, [makeRecord({ thread_id: "PRRT_done" })]);
+    const file = writeHarvest(env.debtDir, [makeRecord({ thread_id: "PRRT_done" })]);
     writeLedger(env.debtDir, [
       { thread_id: "PRRT_done", status: "wontfix", fix_pr: null, fixed_at: null, notes: "out of scope" },
     ]);
 
     const { stderr } = invoke(["--dry-run"]);
-    const file = join(env.debtDir, "harvests", "2026-01-01T000000Z-pr-1-run-test.jsonl");
     const stillThere = existsSync(file);
-    const archiveDirExists = existsSync(join(env.debtDir, "harvests", "archive"));
+    const archiveDirExists = existsSync(join(env.debtDir, "archive", "harvests"));
     cleanupAll();
     expect(stillThere).toBe(true);
     expect(archiveDirExists).toBe(false);
@@ -194,7 +194,7 @@ describe("archive-harvest", () => {
 
     invoke([]);
     const marker = readFileSync(
-      join(env.debtDir, "harvests", "archive", "2026-01-01T000000Z-pr-1-run-test.archived.json"),
+      join(env.debtDir, "archive", "harvests", HARVEST_FILE.replace(/\.jsonl$/, ".archived.json")),
       "utf8",
     );
     cleanupAll();

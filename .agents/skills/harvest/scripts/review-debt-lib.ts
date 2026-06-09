@@ -10,8 +10,8 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 
-/** Repo-relative when skill lives under `.agents/skills/act/`; override via env in tests. */
-function debtDir(): string {
+/** Repo-relative when skill lives under `.agents/skills/harvest/`; override via env in tests. */
+export function debtDir(): string {
   return (
     process.env.OPENADT_DEBT_DIR ?? join(import.meta.dir, "../../../review-debt")
   );

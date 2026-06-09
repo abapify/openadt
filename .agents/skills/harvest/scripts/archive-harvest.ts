@@ -21,8 +21,9 @@ import {
   renameSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join } from "node:path";
+import { basename, join } from "node:path";
 import {
+  debtDir,
   listHarvestPaths,
   readDebtRecords,
   readLedgerOverlays,
@@ -31,10 +32,8 @@ import {
   type LedgerOverlay,
 } from "./review-debt-lib.ts";
 
-const ARCHIVE_DIR_NAME = "archive";
-
 function archiveDir(): string {
-  return join(dirname(listHarvestPaths()[0] ?? ""), ARCHIVE_DIR_NAME);
+  return join(debtDir(), "archive", "harvests");
 }
 
 interface LiveThreadIds {
@@ -119,7 +118,7 @@ function archiveFile(opts: {
   if (opts.dryRun) {
     return { path: opts.path, archivedAt, removedRows: lines.length, liveRows: 0 };
   }
-  const dest = join(archiveDir(), opts.path.split("/").pop()!);
+  const dest = join(archiveDir(), basename(opts.path));
   renameSync(opts.path, dest);
   return { path: dest, archivedAt, removedRows: lines.length, liveRows: 0 };
 }
