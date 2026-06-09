@@ -1,5 +1,6 @@
 package org.openadt.cli;
 
+import org.openadt.cli.adt.AdtCommand;
 import org.openadt.config.CliLog;
 
 import picocli.CommandLine;
@@ -18,6 +19,7 @@ import picocli.CommandLine.Command;
         DiscoveryCommand.class,
         TransportsCommand.class,
         McpCommand.class,
+        AdtCommand.class,
         CommandLine.HelpCommand.class
     }
 )
