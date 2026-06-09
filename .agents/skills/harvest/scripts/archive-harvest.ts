@@ -26,6 +26,9 @@ import {
   listHarvestPaths,
   readDebtRecords,
   readLedgerOverlays,
+  type DebtRecord,
+  type DebtStatus,
+  type LedgerOverlay,
 } from "./review-debt-lib.ts";
 
 const ARCHIVE_DIR_NAME = "archive";
@@ -39,14 +42,23 @@ interface LiveThreadIds {
   totals: { harvested: number; open: number; archived: number };
 }
 
+const TERMINAL_STATUSES = new Set<DebtStatus>(["done", "wontfix", "duplicate"]);
+
+function isTerminal(status: DebtStatus): boolean {
+  return TERMINAL_STATUSES.has(status);
+}
+
+function isOpen(overlays: Map<string, LedgerOverlay>, row: DebtRecord): boolean {
+  return (overlays.get(row.thread_id)?.status ?? row.status) === "open";
+}
+
 function computeLiveThreadIds(): LiveThreadIds {
   const all = readDebtRecords();
   const overlays = readLedgerOverlays();
   const live = new Set<string>();
   for (const row of all) {
-    const overlay = overlays.get(row.thread_id);
-    const status = overlay?.status ?? row.status;
-    if (status === "done" || status === "wontfix" || status === "duplicate") {
+    const status = overlays.get(row.thread_id)?.status ?? row.status;
+    if (isTerminal(status)) {
       continue;
     }
     live.add(row.thread_id);
@@ -55,9 +67,7 @@ function computeLiveThreadIds(): LiveThreadIds {
     live,
     totals: {
       harvested: all.length,
-      open: all.filter(
-        (r) => (overlays.get(r.thread_id)?.status ?? r.status) === "open",
-      ).length,
+      open: all.filter((r) => isOpen(overlays, r)).length,
       archived: 0,
     },
   };
