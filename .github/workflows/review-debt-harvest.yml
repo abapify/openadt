@@ -103,14 +103,38 @@ jobs:
             --run-id "$RUN_ID"
 
       - name: Commit ledger
-        if: github.event.inputs.list_only != true
+        if: github.event_name == 'pull_request' || github.event.inputs.list_only != true
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Harvest may run on a merge/ref checkout; ledger commits must land on latest main.
+          git stash push --include-untracked -m "review-debt-ledger" -- .agents/review-debt/ || true
+          git fetch origin main
+          git checkout main
+          git pull --rebase origin main
+          git stash pop
+
           git add .agents/review-debt/
           if git diff --staged --quiet; then
             echo "No new review debt to commit"
             exit 0
           fi
-          git commit -m "chore(review-debt): harvest batch from workflow_dispatch"
-          git push
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            MSG="chore(review-debt): harvest PR #${{ github.event.pull_request.number }}"
+          else
+            MSG="chore(review-debt): harvest batch from workflow_dispatch"
+          fi
+          git commit -m "$MSG"
+
+          for attempt in 1 2 3; do
+            if git pull --rebase origin main && git push origin main; then
+              exit 0
+            fi
+            echo "push attempt $attempt failed; retrying after rebase…"
+            sleep 2
+          done
+          echo "error: could not push ledger to main after 3 attempts" >&2
+          exit 1

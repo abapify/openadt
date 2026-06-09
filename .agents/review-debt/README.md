@@ -17,7 +17,9 @@ Queryable queue of **unresolved PR review threads** harvested **after merge** (o
 | Trigger | Scope |
 | ------- | ----- |
 | `pull_request` **closed** + merged | That PR only |
-| `workflow_dispatch` | One PR (`pr_number` input) |
+| `workflow_dispatch` | Filtered batch (`pr_numbers`, dates, …) |
+
+Ledger commits **rebase onto latest `main`** before push (avoids non-fast-forward when `main` moves during the job).
 
 Harvest does **not** run on every `/act`, every CI run, or every push to `main`.
 
