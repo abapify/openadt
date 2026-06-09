@@ -18,6 +18,7 @@ class LocalProxyRegistryTest {
 
     @Test
     void registerReadAndUnregisterRoundTrip() throws IOException {
+        String previousHome = System.getProperty("user.home");
         System.setProperty("user.home", tempHome.toString());
         try {
             LocalProxyRegistry.ProxyEndpoint endpoint = new LocalProxyRegistry.ProxyEndpoint(
@@ -33,7 +34,11 @@ class LocalProxyRegistryTest {
             LocalProxyRegistry.unregister("DEV");
             assertFalse(LocalProxyRegistry.read("DEV").isPresent());
         } finally {
-            System.clearProperty("user.home");
+            if (previousHome == null) {
+                System.clearProperty("user.home");
+            } else {
+                System.setProperty("user.home", previousHome);
+            }
         }
     }
 
