@@ -20,6 +20,7 @@
  *                                                                            unit tests
  */
 import { spawnSync } from "node:child_process";
+import { resolveGhRepo } from "./review-debt-gh.ts";
 
 const SCRIPT_DIR = import.meta.dir;
 
@@ -31,92 +32,24 @@ const SUBCOMMANDS = {
 } as const;
 
 type Subcommand = keyof typeof SUBCOMMANDS;
+type RepoScoped = "pr" | "batch";
 
-const GH_REPO_FIELDS = "owner.login,nameWithOwner";
+const REPO_SCOPED = new Set<RepoScoped>(["pr", "batch"]);
 
-interface GhRepo {
-  owner: string;
-  repo: string;
+function needsOwnerRepoPrefix(rest: string[]): boolean {
+  const first = rest[0];
+  if (!first || first.startsWith("--")) {
+    return true;
+  }
+  const second = rest[1];
+  if (!second || second.startsWith("--")) {
+    return true;
+  }
+  return false;
 }
 
-function parseOwnerLogin(parsed: {
-  [k: string]: unknown;
-  owner?: { login?: string };
-}): string | null {
-  return typeof parsed.owner?.login === "string" ? parsed.owner.login : null;
-}
-
-function parseNameWithOwner(parsed: {
-  [k: string]: unknown;
-  nameWithOwner?: string;
-}): string | null {
-  return typeof parsed.nameWithOwner === "string" ? parsed.nameWithOwner : null;
-}
-
-function splitOwnerRepo(nameWithOwner: string): GhRepo | null {
-  const slash = nameWithOwner.indexOf("/");
-  if (slash < 0) {
-    return null;
-  }
-  const owner = nameWithOwner.slice(0, slash);
-  const repo = nameWithOwner.slice(slash + 1);
-  if (!owner || !repo) {
-    return null;
-  }
-  return { owner, repo };
-}
-
-function parseGhRepoView(stdout: string): GhRepo | null {
-  let parsed:
-    | {
-        [k: string]: unknown;
-        owner?: { login?: string };
-        nameWithOwner?: string;
-      }
-    | null = null;
-  try {
-    parsed = JSON.parse(stdout);
-  } catch {
-    return null;
-  }
-  if (!parsed) {
-    return null;
-  }
-  const owner = parseOwnerLogin(parsed);
-  const nameWithOwner = parseNameWithOwner(parsed);
-  if (owner && nameWithOwner) {
-    return { owner, repo: nameWithOwner };
-  }
-  if (nameWithOwner) {
-    return splitOwnerRepo(nameWithOwner);
-  }
-  return null;
-}
-
-function resolveGhRepo(): GhRepo | null {
-  const envRepo = process.env.GITHUB_REPOSITORY;
-  if (envRepo && envRepo.includes("/")) {
-    const [owner, repo] = envRepo.split("/", 2);
-    if (owner && repo) {
-      return { owner, repo };
-    }
-  }
-  const result = spawnSync(
-    "gh",
-    ["repo", "view", "--json", GH_REPO_FIELDS],
-    { encoding: "utf8" },
-  );
-  if (result.status !== 0 || !result.stdout) {
-    return null;
-  }
-  return parseGhRepoView(result.stdout);
-}
-
-function withOwnerRepo(cmd: Subcommand, rest: string[]): string[] {
-  if (cmd !== "pr" && cmd !== "batch") {
-    return rest;
-  }
-  if (rest[0] && !rest[0].startsWith("--")) {
+function withOwnerRepo(cmd: RepoScoped, rest: string[]): string[] {
+  if (!needsOwnerRepoPrefix(rest)) {
     return rest;
   }
   const repo = resolveGhRepo();
@@ -191,7 +124,10 @@ function runCommand(cmd: string, rest: string[]): number {
     return runTests();
   }
   const subcommand = cmd as Subcommand;
-  return runBun(subcommandScript(subcommand), withOwnerRepo(subcommand, rest));
+  const args = REPO_SCOPED.has(subcommand as RepoScoped)
+    ? withOwnerRepo(subcommand as RepoScoped, rest)
+    : rest;
+  return runBun(subcommandScript(subcommand), args);
 }
 
 function main(): void {

@@ -26,6 +26,40 @@ export function ensureGhAuth(): void {
   }
 }
 
+export interface GhRepoTarget {
+  owner: string;
+  repo: string;
+}
+
+export function resolveGhRepo(): GhRepoTarget {
+  const slug = process.env.GITHUB_REPOSITORY;
+  if (slug) {
+    const [owner, repo] = slug.split("/");
+    if (owner && repo) {
+      return { owner, repo };
+    }
+  }
+  const proc = Bun.spawnSync(
+    "gh",
+    ["repo", "view", "--json", "owner,name", "-q", '.owner.login + " " + .name'],
+    { stdout: "pipe", stderr: "pipe" },
+  );
+  if (proc.exitCode !== 0) {
+    const err = new TextDecoder().decode(proc.stderr).trim();
+    throw new Error(
+      `Could not resolve GitHub owner/repo: ${err || "gh repo view failed"}. ` +
+        "Run from a gh-authenticated clone, set GITHUB_REPOSITORY, or pass OWNER REPO explicitly.",
+    );
+  }
+  const [owner, repo] = new TextDecoder().decode(proc.stdout).trim().split(/\s+/);
+  if (!owner || !repo) {
+    throw new Error(
+      "Could not resolve GitHub owner/repo. Run from a gh-authenticated clone, set GITHUB_REPOSITORY, or pass OWNER REPO explicitly.",
+    );
+  }
+  return { owner, repo };
+}
+
 export interface GhPrTarget {
   owner: string;
   repo: string;
