@@ -120,6 +120,9 @@ jobs:
           distribution: temurin
           java-version: "21"
 
+      - name: Build workspace packages
+        run: bun run mcp:build
+
       - name: Build distribution jar
         if: matrix.os == 'windows-latest'
         shell: bash
