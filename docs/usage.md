@@ -316,7 +316,7 @@ Resulting `.cursor/mcp.json` (same `command` / `args` shape for Claude Desktop a
 
 **Version matrix:** each release publishes a separate `openadt-mcp-X.Y.Z-{platform}.{zip|tar.gz}` artifact (matrix: `win-x64`, `linux-x64`, `darwin-arm64`, `darwin-x64`). Scoop and Homebrew always pin the matching version of `openadt-mcp` to the corresponding `openadt` release.
 
-The `openadt mcp serve --stdio` path below remains as an alternative for users who already have the `openadt` Java package installed. Deep contract: [specs/mcp.md](../specs/mcp.md).
+The `openadt mcp serve --stdio` path below remains as an alternative for users who already have the `openadt` Java package installed. Deep contract: [specs/mcp.md](../specs/mcp.md). Full `openadt-mcp` reference (CLI, MCP tools, agent configs, troubleshooting): [docs/openadt-mcp.md](openadt-mcp.md).
 
 ### Starting the MCP server
 
