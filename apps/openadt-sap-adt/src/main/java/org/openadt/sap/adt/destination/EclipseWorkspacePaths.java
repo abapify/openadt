@@ -9,6 +9,8 @@ import java.util.Locale;
 import java.util.Set;
 
 public final class EclipseWorkspacePaths {
+    private static final String DEFAULT_WORKSPACE_DIR = "workspace";
+
     private EclipseWorkspacePaths() {
     }
 
@@ -16,7 +18,7 @@ public final class EclipseWorkspacePaths {
         List<Path> roots = new ArrayList<>(eclipseWorkspacePaths());
         String home = System.getProperty("user.home", "");
         if (!home.isBlank()) {
-            Path workspace = Path.of(home, "workspace");
+            Path workspace = Path.of(home, DEFAULT_WORKSPACE_DIR);
             if (Files.isDirectory(workspace) && roots.stream().noneMatch(workspace::equals)) {
                 roots.add(0, workspace);
             }
@@ -28,14 +30,14 @@ public final class EclipseWorkspacePaths {
         LinkedHashSet<Path> paths = new LinkedHashSet<>();
         String home = System.getProperty("user.home", "");
         if (!home.isBlank()) {
-            paths.add(Path.of(home, "workspace"));
+            paths.add(Path.of(home, DEFAULT_WORKSPACE_DIR));
             paths.add(Path.of(home, "eclipse-workspace"));
             // Eclipse Installer (Oomph) default, e.g. ~/eclipse/java-latest-released alongside ~/eclipse/workspace
-            paths.add(Path.of(home, "eclipse", "workspace"));
+            paths.add(Path.of(home, "eclipse", DEFAULT_WORKSPACE_DIR));
         }
         for (Path windowsHome : windowsUserHomes()) {
             paths.add(windowsHome.resolve("eclipse-workspace"));
-            paths.add(windowsHome.resolve("Documents/workspace"));
+            paths.add(windowsHome.resolve("Documents").resolve(DEFAULT_WORKSPACE_DIR));
             paths.add(windowsHome.resolve("Documents/eclipse-workspace"));
         }
         return new ArrayList<>(paths);
