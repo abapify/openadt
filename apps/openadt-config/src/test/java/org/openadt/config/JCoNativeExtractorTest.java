@@ -7,6 +7,7 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -15,6 +16,7 @@ import java.util.zip.ZipOutputStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JCoNativeExtractorTest {
@@ -58,7 +60,9 @@ class JCoNativeExtractorTest {
         Optional<Path> extracted = JCoNativeExtractor.extractFrom(List.of(pluginsDir), cacheDir);
 
         assertTrue(extracted.isPresent());
-        assertEquals(cacheDir.resolve(nativeName), extracted.get());
+        // Cached per bundle identity, so the parent directory carries the bundle name and version.
+        String bundleKey = platformBundleName("3.1.12").replace(".jar", "");
+        assertEquals(cacheDir.resolve(bundleKey).resolve(nativeName), extracted.get());
         assertEquals("native-bytes", Files.readString(extracted.get()));
     }
 
@@ -112,6 +116,49 @@ class JCoNativeExtractorTest {
 
         assertEquals(first, second);
         assertEquals("cached-marker", Files.readString(second));
+    }
+
+    @Test
+    void doesNotServeAnotherBundlesNativeWhenTimestampsAreNotMonotonic() throws Exception {
+        if (!platformSupported()) {
+            return;
+        }
+        Path cacheDir = tempDir.resolve("cache");
+        String nativeName = JCoNativeExtractor.nativeLibraryName();
+
+        Path newerPool = tempDir.resolve("pool-newer");
+        writeBundle(newerPool, "3.1.13", "lib/" + nativeName, "from-3.1.13");
+        Path fromNewer = JCoNativeExtractor.extractFrom(List.of(newerPool), cacheDir).orElseThrow();
+        assertEquals("from-3.1.13", Files.readString(fromNewer));
+
+        // A different bundle, backdated so an mtime comparison would consider the cache fresh.
+        Path olderPool = tempDir.resolve("pool-older");
+        Path olderBundle = writeBundle(olderPool, "3.1.12", "lib/" + nativeName, "from-3.1.12");
+        Files.setLastModifiedTime(olderBundle, FileTime.fromMillis(0L));
+
+        Path fromOlder = JCoNativeExtractor.extractFrom(List.of(olderPool), cacheDir).orElseThrow();
+
+        // Each bundle gets its own cache entry, so neither can serve the other's native.
+        assertNotEquals(fromNewer, fromOlder);
+        assertEquals("from-3.1.12", Files.readString(fromOlder));
+        assertEquals("from-3.1.13", Files.readString(fromNewer));
+    }
+
+    @Test
+    void leavesNoPartialFilesBehind() throws Exception {
+        if (!platformSupported()) {
+            return;
+        }
+        Path pluginsDir = tempDir.resolve("plugins");
+        Path cacheDir = tempDir.resolve("cache");
+        String nativeName = JCoNativeExtractor.nativeLibraryName();
+        writeBundle(pluginsDir, "3.1.12", "lib/" + nativeName, "bytes");
+
+        Path extracted = JCoNativeExtractor.extractFrom(List.of(pluginsDir), cacheDir).orElseThrow();
+
+        try (var entries = Files.list(extracted.getParent())) {
+            assertEquals(List.of(nativeName), entries.map(p -> p.getFileName().toString()).toList());
+        }
     }
 
     @Test

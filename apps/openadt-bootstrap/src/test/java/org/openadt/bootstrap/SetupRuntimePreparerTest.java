@@ -17,6 +17,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -259,5 +260,70 @@ class SetupRuntimePreparerTest {
         assertTrue(SetupRuntimePreparer.shouldPrepare("/some/path"));
         assertTrue(!SetupRuntimePreparer.shouldPrepare(null));
         assertTrue(!SetupRuntimePreparer.shouldPrepare("  "));
+    }
+
+    // --- runtime readiness -------------------------------------------------
+
+    /** Lays down a runtime directory containing exactly the named artifacts. */
+    private Path runtimeWith(String version, boolean jar, boolean sapLib, boolean marker) throws IOException {
+        Path home = Files.createDirectories(tempDir.resolve("home-" + version + jar + sapLib + marker));
+        Path runtime = Files.createDirectories(home.resolve(".openadt/runtime"));
+        if (jar) {
+            Files.createFile(runtime.resolve("openadt-full.jar"));
+        }
+        if (sapLib) {
+            Files.createDirectories(runtime.resolve("sap-lib"));
+        }
+        if (marker) {
+            Files.writeString(runtime.resolve("version.txt"), version, StandardCharsets.UTF_8);
+        }
+        return home;
+    }
+
+    private boolean readyIn(Path home, String version) {
+        boolean[] result = new boolean[1];
+        withPlatform(System.getProperty("os.name", "Mac OS X"), home,
+            () -> result[0] = SetupRuntimePreparer.runtimeJarReady(version));
+        return result[0];
+    }
+
+    @Test
+    void runtimeIsReadyOnlyWithJarSapLibAndMatchingMarker() throws Exception {
+        assertTrue(readyIn(runtimeWith("2.1.2", true, true, true), "2.1.2"));
+    }
+
+    @Test
+    void runtimeIsNotReadyWhenSapLibIsMissing() throws Exception {
+        // The jar's manifest Class-Path resolves against sap-lib/, so the marker alone means nothing.
+        assertFalse(readyIn(runtimeWith("2.1.2", true, false, true), "2.1.2"));
+    }
+
+    @Test
+    void runtimeIsNotReadyWhenMarkerIsAbsent() throws Exception {
+        // The state a crashed publish leaves behind: artifacts present, marker deliberately removed.
+        assertFalse(readyIn(runtimeWith("2.1.2", true, true, false), "2.1.2"));
+    }
+
+    @Test
+    void runtimeIsNotReadyForADifferentVersion() throws Exception {
+        assertFalse(readyIn(runtimeWith("2.1.1", true, true, true), "2.1.2"));
+    }
+
+    @Test
+    void prepareLockIsExclusiveWithinTheSameRuntimeDirectory() throws Exception {
+        Path runtime = Files.createDirectories(tempDir.resolve("lock-runtime"));
+
+        try (SetupRuntimePreparer.PrepareLock held = SetupRuntimePreparer.PrepareLock.acquire(runtime)) {
+            held.checkStillHeld();
+            // A second acquire from this JVM would block on the same lock, so assert on the file instead:
+            // the lock must be a real on-disk artifact other processes can contend for.
+            assertTrue(Files.isRegularFile(runtime.resolve(".prepare.lock")));
+        }
+
+        // Releasable and re-acquirable, so a finished build does not wedge later ones.
+        try (SetupRuntimePreparer.PrepareLock reacquired =
+                 SetupRuntimePreparer.PrepareLock.acquire(runtime)) {
+            reacquired.checkStillHeld();
+        }
     }
 }

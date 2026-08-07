@@ -2,6 +2,8 @@ package org.openadt.config;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -64,22 +66,56 @@ public final class JCoNativeExtractor {
         }
     }
 
+    /**
+     * Extracts the native into a directory named after the bundle it came from.
+     *
+     * <p>Keying the cache by bundle identity rather than a shared file name matters because bundle
+     * timestamps are not monotonic: switching to a different — or reinstating an older — JCo bundle can
+     * leave the previous native in place with a newer mtime, and JCo would then load a library that does
+     * not match its jar. A per-bundle directory makes each one its own cache entry.
+     *
+     * <p>The file is written to a temporary name and moved into place, so a concurrent reader sees
+     * either no native or a complete one, never a half-written one.
+     */
     private static Path extractNative(Path bundle, String nativeName, Path cacheDir) throws IOException {
-        Path target = cacheDir.resolve(nativeName);
-        if (!needsExtract(bundle, target)) {
+        Path bundleCache = cacheDir.resolve(cacheKeyFor(bundle));
+        Path target = bundleCache.resolve(nativeName);
+        if (Files.isRegularFile(target)) {
             return target;
         }
-        Files.createDirectories(cacheDir);
+        Files.createDirectories(bundleCache);
         try (ZipFile zip = new ZipFile(bundle.toFile())) {
             ZipEntry entry = findNativeEntry(zip, nativeName);
             if (entry == null) {
                 throw new IOException("Bundle " + bundle.getFileName() + " does not contain " + nativeName);
             }
-            try (InputStream input = zip.getInputStream(entry)) {
-                Files.copy(input, target, StandardCopyOption.REPLACE_EXISTING);
+            Path staged = Files.createTempFile(bundleCache, nativeName, ".part");
+            try {
+                try (InputStream input = zip.getInputStream(entry)) {
+                    Files.copy(input, staged, StandardCopyOption.REPLACE_EXISTING);
+                }
+                publish(staged, target);
+            } finally {
+                Files.deleteIfExists(staged);
             }
         }
         return target;
+    }
+
+    /** Bundle file name without {@code .jar}; carries the symbolic name and version. */
+    private static String cacheKeyFor(Path bundle) {
+        String name = bundle.getFileName().toString();
+        return name.endsWith(JAR_SUFFIX) ? name.substring(0, name.length() - JAR_SUFFIX.length()) : name;
+    }
+
+    private static void publish(Path staged, Path target) throws IOException {
+        try {
+            Files.move(staged, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException unsupported) {
+            Files.move(staged, target, StandardCopyOption.REPLACE_EXISTING);
+        } catch (FileAlreadyExistsException raced) {
+            // Another process published the same native first; its copy is equivalent.
+        }
     }
 
     /**
@@ -97,13 +133,6 @@ public final class JCoNativeExtractor {
             })
             .findFirst()
             .orElse(null);
-    }
-
-    private static boolean needsExtract(Path bundle, Path target) throws IOException {
-        if (!Files.isRegularFile(target)) {
-            return true;
-        }
-        return Files.getLastModifiedTime(bundle).compareTo(Files.getLastModifiedTime(target)) > 0;
     }
 
     /** Newest platform bundle across all roots, matched by prefix so any JCo version works. */

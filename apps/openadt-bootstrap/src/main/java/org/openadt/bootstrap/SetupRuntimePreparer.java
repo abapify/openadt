@@ -8,10 +8,14 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFilePermission;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -33,6 +37,7 @@ public final class SetupRuntimePreparer {
     private static final String SOURCE_ARCHIVE_TEMPLATE =
         "https://github.com/abapify/openadt/archive/refs/tags/v%s.zip";
     private static final int PREPARE_TIMEOUT_MINUTES = 30;
+    private static final int DOWNLOAD_TIMEOUT_MINUTES = 10;
     /** Written last, so its presence means every other runtime artifact is already in place. */
     private static final String VERSION_MARKER = "version.txt";
     private static final String RUNTIME_JAR = "openadt-full.jar";
@@ -53,12 +58,31 @@ public final class SetupRuntimePreparer {
             return 1;
         }
         Path runtimeDir = runtimeDir();
-        Path outJar = runtimeDir.resolve("openadt-full.jar");
+        Path outJar = runtimeDir.resolve(RUNTIME_JAR);
         if (!force && runtimeJarReady(version)) {
             CliLog.info("Runtime jar already prepared: " + outJar);
             return 0;
         }
 
+        Files.createDirectories(runtimeDir);
+        try (PrepareLock lock = PrepareLock.acquire(runtimeDir)) {
+            // Another process may have finished while this one waited for the lock.
+            if (!force && runtimeJarReady(version)) {
+                CliLog.info("Runtime jar already prepared: " + outJar);
+                return 0;
+            }
+            return buildAndPublish(adtPluginsDir, pluginsDir, runtimeDir, outJar, version, lock);
+        }
+    }
+
+    private static int buildAndPublish(
+        String adtPluginsDir,
+        Path pluginsDir,
+        Path runtimeDir,
+        Path outJar,
+        String version,
+        PrepareLock lock
+    ) throws IOException, InterruptedException {
         AdtBundleResolver.Resolution resolution = AdtBundleResolver.resolve(pluginsDir);
         if (!resolution.isComplete()) {
             CliLog.error("Missing SAP ADT / Eclipse bundles in " + adtPluginsDir + ":");
@@ -74,14 +98,13 @@ public final class SetupRuntimePreparer {
             reportUnresolvableDrift(version, resolution);
             return 1;
         }
-        Files.createDirectories(runtimeDir);
 
         CliLog.info("Building full OpenADT runtime jar (first run may take a few minutes)...");
         int exitCode = runMavenBuild(sourceDir, pluginsDir, resolution.properties());
         if (exitCode != 0) {
             return exitCode;
         }
-        return copyBuildOutputs(sourceDir, runtimeDir, outJar, version);
+        return publishBuildOutputs(sourceDir, runtimeDir, outJar, version, lock);
     }
 
     /**
@@ -186,7 +209,12 @@ public final class SetupRuntimePreparer {
             .followRedirects(HttpClient.Redirect.NORMAL)
             .connectTimeout(Duration.ofSeconds(30))
             .build()) {
-            HttpRequest request = HttpRequest.newBuilder(URI.create(url)).GET().build();
+            // connectTimeout only bounds establishing the connection. Without a request timeout a
+            // server that accepts the socket and then stalls would hang `config build` indefinitely.
+            HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+                .timeout(Duration.ofMinutes(DOWNLOAD_TIMEOUT_MINUTES))
+                .GET()
+                .build();
             HttpResponse<Path> response = client.send(
                 request,
                 HttpResponse.BodyHandlers.ofFile(zipPath)
@@ -335,27 +363,71 @@ public final class SetupRuntimePreparer {
 
     // --- outputs ----------------------------------------------------------
 
-    private static int copyBuildOutputs(Path sourceDir, Path runtimeDir, Path outJar, String version)
-        throws IOException {
+    /**
+     * Publishes the built runtime so a reader never sees a half-updated one.
+     *
+     * <p>{@code version.txt} is the readiness marker, so it is removed before anything is replaced and
+     * written only once every artifact is in place. A crash, a failed copy, or a kill in between
+     * therefore leaves the runtime unmarked and the next run rebuilds it, rather than leaving a jar from
+     * one build beside libraries from another and a marker claiming both are fine.
+     *
+     * <p>The jar and {@code sap-lib} are staged next to their destination and moved into place, so the
+     * window in which either is missing does not also contain a partially written file.
+     */
+    private static int publishBuildOutputs(
+        Path sourceDir,
+        Path runtimeDir,
+        Path outJar,
+        String version,
+        PrepareLock lock
+    ) throws IOException {
         Path targetDir = sourceDir.resolve("apps/openadt-cli/target");
         Optional<Path> built = findBuiltJar(targetDir);
         if (built.isEmpty()) {
             CliLog.error("Maven build did not produce openadt-*.jar in " + targetDir);
             return 1;
         }
-        Files.copy(built.get(), outJar, StandardCopyOption.REPLACE_EXISTING);
-
-        Path sapLib = targetDir.resolve("sap-lib");
-        if (Files.isDirectory(sapLib)) {
-            Path runtimeSapLib = runtimeDir.resolve("sap-lib");
-            deleteRecursively(runtimeSapLib);
-            copySapLib(sapLib, runtimeSapLib);
-            CliLog.info("Prepared runtime sap-lib: " + runtimeSapLib);
+        Path sapLib = targetDir.resolve(SAP_LIB);
+        if (!Files.isDirectory(sapLib)) {
+            // The jar's manifest Class-Path points into sap-lib/, so it cannot load SAP classes without
+            // it. Publishing the jar alone would produce a runtime that looks ready and fails on use.
+            CliLog.error("Maven build did not produce " + SAP_LIB + " in " + targetDir);
+            return 1;
         }
 
-        Files.writeString(runtimeDir.resolve("version.txt"), version, StandardCharsets.UTF_8);
+        Path stagedJar = runtimeDir.resolve(RUNTIME_JAR + ".new");
+        Path stagedSapLib = runtimeDir.resolve(SAP_LIB + ".new");
+        Path runtimeSapLib = runtimeDir.resolve(SAP_LIB);
+        try {
+            Files.copy(built.get(), stagedJar, StandardCopyOption.REPLACE_EXISTING);
+            deleteRecursively(stagedSapLib);
+            copySapLib(sapLib, stagedSapLib);
+
+            // Past this point the runtime is transiently inconsistent, which is exactly why the marker
+            // goes first and comes back last.
+            lock.checkStillHeld();
+            Files.deleteIfExists(runtimeDir.resolve(VERSION_MARKER));
+            move(stagedJar, outJar);
+            deleteRecursively(runtimeSapLib);
+            move(stagedSapLib, runtimeSapLib);
+            Files.writeString(runtimeDir.resolve(VERSION_MARKER), version, StandardCharsets.UTF_8);
+        } finally {
+            Files.deleteIfExists(stagedJar);
+            deleteRecursively(stagedSapLib);
+        }
+
+        CliLog.info("Prepared runtime sap-lib: " + runtimeSapLib);
         CliLog.info("Prepared runtime jar: " + outJar);
         return 0;
+    }
+
+    /** Same-directory move, so it is atomic where the platform supports it. */
+    private static void move(Path source, Path target) throws IOException {
+        try {
+            Files.move(source, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException unsupported) {
+            Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+        }
     }
 
     static Optional<Path> findBuiltJar(Path targetDir) throws IOException {
@@ -464,12 +536,18 @@ public final class SetupRuntimePreparer {
         return trimmed;
     }
 
+    /**
+     * A runtime counts as ready only with all three artifacts present: the jar, the {@code sap-lib} its
+     * manifest {@code Class-Path} resolves against, and a marker matching this version. Checking the
+     * marker alone would accept a runtime whose libraries were removed or never published.
+     */
     public static boolean runtimeJarReady(String version) {
         Path runtimeDir = runtimeDir();
-        if (!Files.isRegularFile(runtimeDir.resolve("openadt-full.jar"))) {
+        if (!Files.isRegularFile(runtimeDir.resolve(RUNTIME_JAR))
+            || !Files.isDirectory(runtimeDir.resolve(SAP_LIB))) {
             return false;
         }
-        Path marker = runtimeDir.resolve("version.txt");
+        Path marker = runtimeDir.resolve(VERSION_MARKER);
         if (!Files.isRegularFile(marker)) {
             return false;
         }
@@ -477,6 +555,60 @@ public final class SetupRuntimePreparer {
             return Files.readString(marker, StandardCharsets.UTF_8).trim().equals(version);
         } catch (IOException e) {
             return false;
+        }
+    }
+
+    /**
+     * Interprocess mutex over the runtime directory, so two {@code config build} runs (or a build and a
+     * launcher auto-prepare) cannot interleave their publishes.
+     *
+     * <p>Held for the whole build, not just the copy: the loser should reuse the winner's result rather
+     * than repeat a multi-minute Maven run.
+     */
+    static final class PrepareLock implements AutoCloseable {
+        private static final String LOCK_FILE = ".prepare.lock";
+        private final FileChannel channel;
+        private final FileLock lock;
+
+        private PrepareLock(FileChannel channel, FileLock lock) {
+            this.channel = channel;
+            this.lock = lock;
+        }
+
+        static PrepareLock acquire(Path runtimeDir) throws IOException {
+            Path lockFile = runtimeDir.resolve(LOCK_FILE);
+            FileChannel channel = FileChannel.open(
+                lockFile,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.WRITE
+            );
+            try {
+                FileLock acquired = channel.tryLock();
+                if (acquired == null) {
+                    CliLog.info("Another openadt runtime build is in progress; waiting for it to finish...");
+                    acquired = channel.lock();
+                }
+                return new PrepareLock(channel, acquired);
+            } catch (IOException | RuntimeException failure) {
+                channel.close();
+                throw failure;
+            }
+        }
+
+        /** Guards the publish step against a lock that was released or invalidated underneath us. */
+        void checkStillHeld() throws IOException {
+            if (!lock.isValid()) {
+                throw new IOException("Lost the runtime prepare lock; refusing to publish a partial runtime");
+            }
+        }
+
+        @Override
+        public void close() throws IOException {
+            try (channel) {
+                if (lock.isValid()) {
+                    lock.release();
+                }
+            }
         }
     }
 
