@@ -12,9 +12,7 @@ public final class ConfigRuntimeBuilder {
 
     public static int build(Path configPath, boolean force) throws IOException, InterruptedException {
         ConfigLoader loader = new ConfigLoader();
-        Path effectivePath = configPath != null ? configPath : loader.getDefaultSetupConfigPath();
-        OpenAdtConfig config = loader.load(effectivePath);
-        String adtPluginsDir = config.getRuntime() != null ? config.getRuntime().getAdtPluginsDir() : null;
+        String adtPluginsDir = resolveAdtPluginsDir(loader, configPath);
         if (!SetupRuntimePreparer.shouldPrepare(adtPluginsDir)) {
             CliLog.error("adt_plugins_dir is not configured. Run 'openadt config bootstrap' or 'openadt setup' first.");
             return 1;
@@ -27,5 +25,29 @@ public final class ConfigRuntimeBuilder {
         }
         CliLog.info("Building full SAP SDK runtime for fetch/proxy...");
         return SetupRuntimePreparer.prepare(adtPluginsDir, version, force);
+    }
+
+    /**
+     * Reads {@code adt_plugins_dir} using the same resolution as {@code openadt config}, so a
+     * directory-local {@code .openadt/config.toml} is honoured instead of only the global file.
+     *
+     * <p>When no explicit path is given and the directory-local config carries no
+     * {@code adt_plugins_dir}, the global setup config is tried as well: {@code openadt setup} writes
+     * detected runtime paths there, and it must not be shadowed by an unrelated project config.
+     */
+    private static String resolveAdtPluginsDir(ConfigLoader loader, Path configPath) throws IOException {
+        if (configPath != null) {
+            return adtPluginsDirOf(loader, configPath);
+        }
+        String fromDefault = adtPluginsDirOf(loader, loader.getDefaultConfigPath());
+        if (fromDefault != null && !fromDefault.isBlank()) {
+            return fromDefault;
+        }
+        return adtPluginsDirOf(loader, loader.getDefaultSetupConfigPath());
+    }
+
+    private static String adtPluginsDirOf(ConfigLoader loader, Path path) throws IOException {
+        OpenAdtConfig config = loader.load(path);
+        return config.getRuntime() != null ? config.getRuntime().getAdtPluginsDir() : null;
     }
 }

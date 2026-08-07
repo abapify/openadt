@@ -8,11 +8,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-final class EclipseWorkspacePaths {
+public final class EclipseWorkspacePaths {
     private EclipseWorkspacePaths() {
     }
 
-    static List<Path> discoverWorkspaceRoots() {
+    public static List<Path> discoverWorkspaceRoots() {
         List<Path> roots = new ArrayList<>(eclipseWorkspacePaths());
         String home = System.getProperty("user.home", "");
         if (!home.isBlank()) {
@@ -30,6 +30,8 @@ final class EclipseWorkspacePaths {
         if (!home.isBlank()) {
             paths.add(Path.of(home, "workspace"));
             paths.add(Path.of(home, "eclipse-workspace"));
+            // Eclipse Installer (Oomph) default, e.g. ~/eclipse/java-latest-released alongside ~/eclipse/workspace
+            paths.add(Path.of(home, "eclipse", "workspace"));
         }
         for (Path windowsHome : windowsUserHomes()) {
             paths.add(windowsHome.resolve("eclipse-workspace"));

@@ -45,7 +45,7 @@ Detectors and outputs: same as legacy setup (see below).
 
 ### openadt config build
 
-Build the full SAP SDK runtime jar into `~/.openadt/runtime/` for `fetch`/`proxy` (Windows; uses `adt_plugins_dir` from config).
+Build the full SAP SDK runtime jar into `~/.openadt/runtime/` for `fetch`/`proxy`, using `adt_plugins_dir` from config. Supported on **Windows, macOS, and Linux**.
 
 ```bash
 openadt config build
@@ -57,6 +57,19 @@ Options:
 
 - `--force` — Rebuild even when the runtime jar already matches the installed OpenADT version
 - `--config, -c <path>` — Config file path
+
+Config resolution matches `openadt config`: a `.openadt/config.toml` in the current directory is used when `--config` is not given.
+
+Behavior:
+
+- Implemented in Java on all platforms; no PowerShell or shell script is invoked
+- Builds from the current git checkout when one is detected (root `pom.xml` + Maven wrapper); otherwise downloads the source archive for the installed version tag
+- Build cache root: `%LOCALAPPDATA%\openadt\build` (Windows), `~/Library/Caches/openadt/build` (macOS), `$XDG_CACHE_HOME/openadt/build` or `~/.cache/openadt/build` (Linux)
+- Runs the Maven wrapper (`mvnw.cmd` on Windows, `./mvnw` elsewhere) for `apps/openadt-cli`
+- Outputs `~/.openadt/runtime/openadt-full.jar`, `~/.openadt/runtime/sap-lib/`, and `~/.openadt/runtime/version.txt`
+- Skips work when `version.txt` already matches the installed version, unless `--force`
+
+SAP ADT and Eclipse bundles are resolved from `adt_plugins_dir` by bundle prefix, taking the newest version present rather than a fixed filename, so a pool that does not match the baseline version still builds. Bundles whose resolved version differs from the tested baseline are reported as warnings; a bundle with no match at all fails the build with the missing prefixes named.
 
 ---
 

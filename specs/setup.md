@@ -93,16 +93,61 @@ Lookup paths:
 
 This detector is installation-only and does not add placeholder system profiles.
 
+### EclipseAdtDetector
+
+Reads SAP ADT destinations persisted by Eclipse in the workspace semantic cache. Each ADT project directory holds a `.destination.properties` file written by ADT on logon.
+
+Lookup paths (`<workspace>/.metadata/.plugins/org.eclipse.core.resources.semantic/.cache/<id>/.destination.properties`):
+
+- **All platforms**: `~/workspace`, `~/eclipse-workspace`
+- **All platforms**: `~/eclipse/workspace` (Eclipse Installer / Oomph default)
+- **Windows**: `%USERPROFILE%\eclipse-workspace`, `%USERPROFILE%\Documents\workspace`, `%USERPROFILE%\Documents\eclipse-workspace`
+- **WSL**: the same paths under `/mnt/c/Users/<user>/`
+
+Extracts:
+
+- `id` → alias
+- `systemId` → system_id and `jco.r3name`
+- `client` → client
+- `user` → user
+- `language` → language
+- `messageServer` → `jco.mshost`
+- `messageServerService` → `jco.msserv`
+- `group` → `jco.group`
+- `partnerName` → `jco.snc_partnername`
+- `SNCType` → `jco.snc_qop`
+- `SSOEnabled` → `jco.snc_sso` (`0` stays `0`, anything else is `1`)
+
+Sets `jco.snc_mode = "1"` and `source = "eclipse-adt"`.
+
+Destination parsing is shared with `fetch`/`proxy` via `EclipseDestinationLocator` so setup and runtime resolve the same destinations.
+
 ### RuntimeDetector
 
 Detects optional runtime prerequisites for ADT SDK and RFC calls. Missing JCo or `sapcrypto` does not fail setup; destinations can still be written for manual or HTTP-based auth.
 
 Lookup paths:
 
-- JCo jars from user Eclipse / p2 plugin pools
-- JCo native libraries: `sapjco3.dll`, `libsapjco3.so`, or `libsapjco3.dylib`
+- JCo jars from user Eclipse / p2 plugin pools — `~/.p2/pool/plugins` on **all platforms** (Windows, macOS, Linux, and WSL Windows homes)
+- JCo native libraries: `sapjco3.dll`, `libsapjco3.so`, or `libsapjco3.dylib`, searched under `~/.p2` and the platform Eclipse install roots
 - CryptoLib: `sapcrypto.dll`, `libsapcrypto.so`, `libsapcrypto.dylib`, or SAP Secure Login install paths
+- **macOS** Secure Login Client: `/Applications/Secure Login Client.app/Contents/MacOS/lib/libsapcrypto.dylib` and the same path under `~/Applications`
 - staged devcontainer runtime under `./.devcontainer/dist/` as fallback (platform-specific: Linux `.so` there will not load under Windows host Java)
+
+#### JCo native extraction
+
+On macOS and Linux the JCo native library is not present as a loose file — Eclipse ships it inside a platform p2 bundle (for example `com.sap.conn.jco.macosx.aarch64_<version>.jar` containing `lib/libsapjco3.dylib`). A filesystem search alone therefore cannot find it.
+
+When no loose native is found, the detector selects the p2 bundle matching the running `os.name` / `os.arch`, extracts the native into `~/.openadt/runtime/jco-native/`, and points `runtime.jco_native_dir` at that directory. Bundle prefixes:
+
+| Platform | Bundle prefix |
+| -------- | ------------- |
+| macOS arm64 | `com.sap.conn.jco.macosx.aarch64_` |
+| macOS x86_64 | `com.sap.conn.jco.macosx.x86_64_` |
+| Linux x86_64 | `com.sap.conn.jco.linux.x86_64_` |
+| Windows x86_64 | `com.sap.conn.jco.win32.x86_64_` |
+
+A loose native found on disk always wins over extraction. Extraction is idempotent and re-runs only when the bundle is newer than the extracted copy.
 
 After devcontainer bootstrap, run `openadt setup` again on the host OS before `fetch`/`proxy` if `runtime.jco_native_dir` still points at `.devcontainer/dist/jco` without the matching native for that host (`sapjco3.dll` vs `libsapjco3.so`).
 
