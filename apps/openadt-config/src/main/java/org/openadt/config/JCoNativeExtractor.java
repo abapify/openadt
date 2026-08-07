@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -26,6 +27,8 @@ public final class JCoNativeExtractor {
     private static final String BUNDLE_PREFIX_MAC_X86_64 = "com.sap.conn.jco.macosx.x86_64_";
     private static final String BUNDLE_PREFIX_LINUX_X86_64 = "com.sap.conn.jco.linux.x86_64_";
     private static final String BUNDLE_PREFIX_WIN_X86_64 = "com.sap.conn.jco.win32.x86_64_";
+
+    private static final String JAR_SUFFIX = ".jar";
 
     private static final String NATIVE_MAC = "libsapjco3.dylib";
     private static final String NATIVE_LINUX = "libsapjco3.so";
@@ -109,38 +112,33 @@ public final class JCoNativeExtractor {
         if (prefix == null) {
             return Optional.empty();
         }
-        Path newest = null;
-        for (Path root : pluginRoots) {
-            if (!Files.isDirectory(root)) {
-                continue;
-            }
-            try (Stream<Path> stream = Files.list(root)) {
-                for (Path candidate : stream.filter(Files::isRegularFile).toList()) {
-                    String name = candidate.getFileName().toString();
-                    if (!name.startsWith(prefix) || !name.endsWith(".jar")) {
-                        continue;
-                    }
-                    if (newest == null || compareBundleVersions(candidate, newest, prefix) > 0) {
-                        newest = candidate;
-                    }
-                }
-            } catch (IOException ignored) {
-                // Best-effort discovery only.
-            }
+        return pluginRoots.stream()
+            .filter(Files::isDirectory)
+            .flatMap(root -> candidatesIn(root, prefix))
+            .max(Comparator.comparing(candidate -> bundleVersion(candidate, prefix), OsgiVersions::compare));
+    }
+
+    /** Bundles under one root whose name matches {@code <prefix><version>.jar}. */
+    private static Stream<Path> candidatesIn(Path root, String prefix) {
+        try (Stream<Path> stream = Files.list(root)) {
+            return stream
+                .filter(Files::isRegularFile)
+                .filter(candidate -> !bundleVersion(candidate, prefix).isEmpty())
+                .toList()
+                .stream();
+        } catch (IOException unreadable) {
+            // Best-effort discovery only.
+            return Stream.empty();
         }
-        return Optional.ofNullable(newest);
     }
 
-    private static int compareBundleVersions(Path left, Path right, String prefix) {
-        return OsgiVersions.compare(
-            bundleVersion(left, prefix),
-            bundleVersion(right, prefix)
-        );
-    }
-
+    /** Version between {@code <prefix>} and {@code .jar}, or empty when the name does not match. */
     private static String bundleVersion(Path path, String prefix) {
         String name = path.getFileName().toString();
-        return name.substring(prefix.length(), name.length() - ".jar".length());
+        if (!name.startsWith(prefix) || !name.endsWith(JAR_SUFFIX)) {
+            return "";
+        }
+        return name.substring(prefix.length(), name.length() - JAR_SUFFIX.length());
     }
 
     static String bundlePrefix() {

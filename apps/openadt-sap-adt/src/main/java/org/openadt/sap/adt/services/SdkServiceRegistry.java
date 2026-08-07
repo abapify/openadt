@@ -1,9 +1,12 @@
 package org.openadt.sap.adt.services;
 
 import java.lang.reflect.Method;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeSet;
 
 import org.openadt.config.CliLog;
@@ -63,10 +66,16 @@ public final class SdkServiceRegistry {
         }
     }
 
+    /**
+     * Walks to the innermost cause, tracking visited throwables by identity so a cyclic chain
+     * terminates. A self-reference check alone would still spin on an {@code A -> B -> A} cycle.
+     */
     private static Throwable rootCause(Throwable error) {
+        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
         Throwable current = error;
-        while (current.getCause() != null && current.getCause() != current) {
-            current = current.getCause();
+        seen.add(current);
+        for (Throwable cause = current.getCause(); cause != null && seen.add(cause); cause = current.getCause()) {
+            current = cause;
         }
         return current;
     }

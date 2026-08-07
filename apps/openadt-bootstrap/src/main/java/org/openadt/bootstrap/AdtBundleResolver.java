@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,10 +27,14 @@ import java.util.stream.Stream;
  * silently accepted.
  */
 public final class AdtBundleResolver {
+    private static final String JAR_SUFFIX = ".jar";
+    /** ADT ships its bundles as one versioned set, so they share a baseline. */
+    private static final String ADT_BASELINE = "3.58.0";
+
     /** One {@code sap-sdk} system-scope dependency. */
     record Bundle(String propertyName, String bundlePrefix, String baselineVersion) {
         String fileNameFor(String version) {
-            return bundlePrefix + "_" + version + ".jar";
+            return bundlePrefix + "_" + version + JAR_SUFFIX;
         }
     }
 
@@ -38,13 +43,13 @@ public final class AdtBundleResolver {
      * {@code apps/openadt-sap-adt/pom.xml}; {@code AdtBundlePomSyncTest} enforces that.
      */
     static final List<Bundle> BUNDLES = List.of(
-        new Bundle("adt.jar.communication", "com.sap.adt.communication", "3.58.0"),
-        new Bundle("adt.jar.compatibility", "com.sap.adt.compatibility", "3.58.0"),
-        new Bundle("adt.jar.destinations", "com.sap.adt.destinations", "3.58.0"),
-        new Bundle("adt.jar.destinations.model", "com.sap.adt.destinations.model", "3.58.0"),
-        new Bundle("adt.jar.logging", "com.sap.adt.logging", "3.58.0"),
-        new Bundle("adt.jar.util", "com.sap.adt.util", "3.58.0"),
-        new Bundle("adt.jar.transport", "com.sap.adt.transport", "3.58.0"),
+        new Bundle("adt.jar.communication", "com.sap.adt.communication", ADT_BASELINE),
+        new Bundle("adt.jar.compatibility", "com.sap.adt.compatibility", ADT_BASELINE),
+        new Bundle("adt.jar.destinations", "com.sap.adt.destinations", ADT_BASELINE),
+        new Bundle("adt.jar.destinations.model", "com.sap.adt.destinations.model", ADT_BASELINE),
+        new Bundle("adt.jar.logging", "com.sap.adt.logging", ADT_BASELINE),
+        new Bundle("adt.jar.util", "com.sap.adt.util", ADT_BASELINE),
+        new Bundle("adt.jar.transport", "com.sap.adt.transport", ADT_BASELINE),
         new Bundle("adt.jar.jco", "com.sap.conn.jco", "3.1.13"),
         new Bundle("adt.jar.jco.eclipse", "com.sap.conn.jco.eclipse", "1.32.0"),
         new Bundle("adt.jar.core.runtime", "org.eclipse.core.runtime", "3.34.200.v20251220-0953"),
@@ -118,31 +123,29 @@ public final class AdtBundleResolver {
             return Optional.empty();
         }
         String prefix = bundlePrefix + "_";
-        Path newest = null;
-        String newestVersion = null;
         try (Stream<Path> stream = Files.list(pluginsDir)) {
-            for (Path candidate : stream.filter(Files::isRegularFile).toList()) {
-                String name = candidate.getFileName().toString();
-                if (!name.startsWith(prefix) || !name.endsWith(".jar")) {
-                    continue;
-                }
-                String version = name.substring(prefix.length(), name.length() - ".jar".length());
-                if (version.isEmpty()) {
-                    continue;
-                }
-                if (newestVersion == null || OsgiVersions.compare(version, newestVersion) > 0) {
-                    newest = candidate;
-                    newestVersion = version;
-                }
-            }
+            return stream
+                .filter(Files::isRegularFile)
+                .filter(candidate -> !versionIn(candidate, prefix).isEmpty())
+                .max(Comparator.comparing(
+                    candidate -> versionIn(candidate, prefix),
+                    OsgiVersions::compare
+                ));
         } catch (IOException unreadable) {
             return Optional.empty();
         }
-        return Optional.ofNullable(newest);
+    }
+
+    /** Version between {@code <prefix>} and {@code .jar}, or empty when the name does not match. */
+    private static String versionIn(Path jar, String prefix) {
+        String name = jar.getFileName().toString();
+        if (!name.startsWith(prefix) || !name.endsWith(JAR_SUFFIX)) {
+            return "";
+        }
+        return name.substring(prefix.length(), name.length() - JAR_SUFFIX.length());
     }
 
     private static String versionOf(Path jar, String bundlePrefix) {
-        String name = jar.getFileName().toString();
-        return name.substring(bundlePrefix.length() + 1, name.length() - ".jar".length());
+        return versionIn(jar, bundlePrefix + "_");
     }
 }

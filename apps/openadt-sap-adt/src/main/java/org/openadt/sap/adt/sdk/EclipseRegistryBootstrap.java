@@ -131,7 +131,7 @@ public final class EclipseRegistryBootstrap {
             CliLog.sdk("skipped unparseable plugin.xml of " + symbolicName + ": " + unparseable.getMessage());
             return false;
         }
-        if (pointsOnly == null) {
+        if (pointsOnly.length == 0) {
             return false;
         }
         IContributor contributor = ContributorFactorySimple.createContributor(symbolicName);

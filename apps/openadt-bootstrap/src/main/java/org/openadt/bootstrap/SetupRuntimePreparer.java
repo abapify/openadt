@@ -33,6 +33,10 @@ public final class SetupRuntimePreparer {
     private static final String SOURCE_ARCHIVE_TEMPLATE =
         "https://github.com/abapify/openadt/archive/refs/tags/v%s.zip";
     private static final int PREPARE_TIMEOUT_MINUTES = 30;
+    /** Written last, so its presence means every other runtime artifact is already in place. */
+    private static final String VERSION_MARKER = "version.txt";
+    private static final String RUNTIME_JAR = "openadt-full.jar";
+    private static final String SAP_LIB = "sap-lib";
 
     private SetupRuntimePreparer() {
     }
@@ -250,12 +254,14 @@ public final class SetupRuntimePreparer {
         }
     }
 
+    /**
+     * Grants only {@code OWNER_EXECUTE}: the wrapper is run by this process as the current user, so
+     * group and world execute bits would widen access past what is needed.
+     */
     private static void makeExecutable(Path file) throws IOException {
         try {
             Set<PosixFilePermission> permissions = new HashSet<>(Files.getPosixFilePermissions(file));
             permissions.add(PosixFilePermission.OWNER_EXECUTE);
-            permissions.add(PosixFilePermission.GROUP_EXECUTE);
-            permissions.add(PosixFilePermission.OTHERS_EXECUTE);
             Files.setPosixFilePermissions(file, permissions);
         } catch (UnsupportedOperationException notPosix) {
             // Non-POSIX filesystem; nothing to do.
@@ -442,7 +448,7 @@ public final class SetupRuntimePreparer {
         if (fromJar != null && !fromJar.isBlank()) {
             return normalizeReleaseVersion(fromJar);
         }
-        Path marker = runtimeDir().resolve("version.txt");
+        Path marker = runtimeDir().resolve(VERSION_MARKER);
         if (Files.isRegularFile(marker)) {
             return Files.readString(marker, StandardCharsets.UTF_8).trim();
         }
