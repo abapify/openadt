@@ -13,8 +13,10 @@ in those skills.
 | Aspect        | Value                                                                                       |
 | ------------- | ------------------------------------------------------------------------------------------- |
 | Scan target   | `.agents/skills/` (and any first-party skill at the repo root that follows the `SKILL.md` + assets layout) |
-| Tool          | `skillspector` CLI, pinned to a release tag (see [SkillSpector pin](packaging.md#skillspector-pin)) |
+| Tool          | `skillspector` CLI, pinned to a release tag (`v2.8.1`, see [SkillSpector pin](packaging.md#skillspector-pin)) |
 | Analysis mode | `--no-llm` (static only; no API keys, deterministic, fast)                                 |
+| Baseline      | `.skillspector-baseline.yaml` — accepted false positives with rationale                    |
+| SARIF filter  | `scripts/strip-skillspector-suppressions.py` — removes suppressed results before upload    |
 | Output        | SARIF, uploaded to GitHub Code Scanning under category `skillspector`                       |
 | Failure mode  | **Advisory** — exit code 1 (findings) does not fail the workflow. Exit code ≥ 2 (tool error) does. Same convention as the OpenGrep job in [ci.yml](../.github/workflows/ci.yml). |
 | Triggers      | `push` to `main`, every `pull_request`                                                      |
@@ -51,32 +53,49 @@ from advisory to blocking is a separate, explicit decision:
 
 1. Land the advisory gate (this spec + workflow).
 2. Triage the baseline findings — each becomes either a fix or a documented
-   suppression, captured in a follow-up spec amendment.
-3. Flip the failure policy to `exit 1 = fail` in a second PR, with the
-   suppression list checked in alongside it.
+   suppression in `.skillspector-baseline.yaml` with a rationale in this spec.
+3. Flip the failure policy to `exit 1 = fail` in a second PR.
 
-## Baseline findings (advisory, 2026-06-15)
+### Why suppressed results are stripped before upload
 
-First-run SARIF from commit `7f53600`. Triage outcomes (action or
-suppress-with-rationale). The SARIF category stays `skillspector`; this
-table is the **audit log** for any future move to blocking.
+SkillSpector's `--baseline` flag emits SARIF `suppressions` entries so the
+audit trail is preserved. GitHub Code Scanning does **not** honor SARIF
+`suppressions` natively, so the CI workflow runs
+`scripts/strip-skillspector-suppressions.py` to remove baseline-suppressed
+results before `github/codeql-action/upload-sarif`. This makes the Security
+tab reflect only active findings.
+
+## Baseline findings (advisory, 2026-08-07)
+
+Live SARIF from SkillSpector `v2.8.1`. Triage outcomes are enforced by
+`.skillspector-baseline.yaml` and listed here as the audit log.
 
 | # | Rule | Severity | File:line | Triage | Rationale |
 |---|------|----------|-----------|--------|-----------|
-| 8  | SC1 | note     | `.agents/skills/e2e/package.json:27`  | **Fixed** | Replaced `^4.1.0` with exact `4.2.0` (CVE-2025-64718, CVE-2026-53550 both patched). |
-| 9  | SC1 | note     | `.agents/skills/e2e/package.json:30`  | **Fixed** | `@types/js-yaml` caret → exact `4.0.9`. |
-| 10 | SC1 | note     | `.agents/skills/e2e/package.json:31`  | **Fixed** | `@types/node` caret → exact `22.15.21` (avoid floating into v25). |
-| 11 | SC1 | note     | `.agents/skills/e2e/package.json:32`  | **Fixed** | `typescript` caret → exact `6.0.3`. |
-| 12 | SC4 | note     | `.agents/skills/e2e/package.json:27`  | **Fixed** | `js-yaml` 4.1.0 → 4.2.0 (covers both CVEs). |
-| 13 | TM3 | warning  | `.agents/skills/harvest/SKILL.md:22`  | **Suppress** | False positive. Documents the `ignore_authors` / `nit_authors` config keys — feature is the *purpose* of the harvest config. |
-| 14 | TM3 | warning  | `.agents/skills/harvest/SKILL.md:113` | **Suppress** | False positive. JSON example illustrating the on-disk config shape. |
-| 15 | TM3 | warning  | `review-debt-lib.ts:72`                | **Suppress** | False positive. `DebtConfig.ignore_authors: string[]` is the typed deny-list field — required for the feature. |
-| 16 | TM3 | warning  | `review-debt-lib.ts:104`               | **Suppress** | False positive. Empty-array fallback when `config.json` is missing. Hardening this to refuse-to-run would break `/harvest` on first use. |
-| 17 | TM3 | warning  | `review-debt-lib.ts:111`               | **Suppress** | False positive. `parsed.ignore_authors ?? []` is the missing-field default — same as #16. |
-| 18 | TM3 | warning  | `review-debt-lib.ts:111`               | **Suppress** | Same line as #17, second instance of the same deny-list field. |
-| 19 | TM3 | warning  | `review-debt-lib.ts:337`               | **Suppress** | False positive. The `ignore_authors.some(a => a.toLowerCase() === login)` predicate is the **allow-or-deny** check itself. Removing it inverts the feature. |
-| 7  | RA2 | warning  | `.agents/skills/memory-bank/SKILL.md:39` | **Suppress** | False positive. `.agents/memory/<type>/YYYY-MM-DD-<slug>.md` is the spec'd storage path for `memory-bank` — see [DESIGN.md §Documentation map](../DESIGN.md) and the skill's own `SPEC`. |
-| 6  | PE3 | error    | `.agents/skills/codescene/SKILL.md:17`  | **Suppress** | False positive. The skill *mentions* the name `CS_ACCESS_TOKEN` to document rotation/troubleshooting; the actual secret lives in the `abapify` org's GitHub Actions secrets and is never written to disk by OpenADT. Any future PE3 finding on a file that **reads** a token value would be triaged separately. |
+| 1  | AS3 | warning  | `.agents/skills/act/scripts/review-debt-cli.ts:5` | **Suppress** | Cross-reference to first-party `harvest/SKILL.md` is an intentional documentation link. |
+| 2  | AS3 | warning  | `.agents/skills/backlog/SKILL.md:59` | **Suppress** | Cross-reference to first-party `harvest/SKILL.md` is an intentional documentation link. |
+| 3  | AS3 | warning  | `.agents/skills/codacy/SKILL.md:203` | **Suppress** | Cross-reference to first-party `act/SKILL.md` is an intentional documentation link. |
+| 4  | AS3 | warning  | `.agents/skills/e2e/scripts/framework/dispatch.ts:205` | **Suppress** | Cross-reference to first-party `e2e/SKILL.md` is an intentional documentation link. |
+| 5  | RP1 | warning  | `.agents/skills/codacy/SKILL.md:66` | **Suppress** | False positive. `docker run` references a locally-built `codacy-java` image for local PMD reproduction, not an unpinned MCP server install. |
+| 6  | E1  | warning  | `.agents/skills/codacy/SKILL.md:67` | **Suppress** | False positive. The documentation example uses `curl` to download a pinned PMD release archive into a local tmp directory; it does not transmit data to an external endpoint. |
+| 7  | PE3 | error    | `.agents/skills/codescene/SKILL.md:17` | **Suppress** | False positive. The skill *mentions* the name `CS_ACCESS_TOKEN` to document rotation/troubleshooting; the actual secret lives in the `abapify` org's GitHub Actions secrets and is never written to disk by OpenADT. Any future PE3 finding on a file that **reads** a token value would be triaged separately. |
+| 8  | TM3 | warning  | `.agents/skills/harvest/SKILL.md:22`  | **Suppress** | False positive. Documents the `ignore_authors` / `nit_authors` config keys — feature is the *purpose* of the harvest config. |
+| 9  | TM3 | warning  | `.agents/skills/harvest/scripts/review-debt-lib.ts:72` | **Suppress** | False positive. `DebtConfig.ignore_authors: string[]` is the typed deny-list field — required for the feature. |
+| 10 | TM3 | warning  | `.agents/skills/harvest/scripts/review-debt-lib.ts:104` | **Suppress** | False positive. Empty-array fallback when `config.json` is missing. Hardening this to refuse-to-run would break `/harvest` on first use. |
+| 11 | TM3 | warning  | `.agents/skills/harvest/scripts/review-debt-lib.ts:111` | **Suppress** | False positive. `parsed.ignore_authors ?? []` is the missing-field default — same as #10. |
+| 12 | TM3 | warning  | `.agents/skills/harvest/scripts/review-debt-lib.ts:111` | **Suppress** | Same line as #11, second instance of the same deny-list field. |
+| 13 | TM3 | warning  | `.agents/skills/harvest/scripts/review-debt-lib.ts:337` | **Suppress** | False positive. The `ignore_authors.some(a => a.toLowerCase() === login)` predicate is the **allow-or-deny** check itself. Removing it inverts the feature. |
+
+v2.8.1's context filtering removed the following earlier false positives without
+needing a baseline entry:
+
+- **TM1** (`codacy/SKILL.md:66`) — `docker run --rm` is now downweighted below
+the `--no-llm` confidence threshold because it is recognized as a safe container
+command.
+- **RA2** (`memory-bank/SKILL.md:39`) — the documented memory path is now
+recognized as a code example in a non-executable markdown file and filtered.
+- **TM3** (`harvest/SKILL.md:113`) — the JSON config example is now recognized
+as a code example and filtered.
 
 ### Why not rename `ignore_authors` to silence TM3?
 
@@ -88,14 +107,15 @@ that exists by design, not on a defect.
 
 ### How to verify suppression holds
 
-When the gate is promoted to blocking, suppressions are enforced by:
-
-1. Re-running the scan on this commit (`7f53600` + the fixes in this PR) and
-   confirming that all `warning`-and-above findings match a row in the
-   baseline table above.
-2. Any new `error` or `warning` finding introduced after `2026-06-15` must
-   either be fixed in the same PR that introduces the finding, or added to
-   this table with a rationale — never silently bypassed.
+1. Run SkillSpector locally with the baseline:
+   ```bash
+   skillspector scan .agents/skills/ --no-llm --baseline .skillspector-baseline.yaml --format sarif --output skillspector-raw.sarif
+   python scripts/strip-skillspector-suppressions.py skillspector-raw.sarif skillspector.sarif
+   ```
+   The stripped `skillspector.sarif` must contain zero `results`.
+2. Any new `error` or `warning` finding not covered by `.skillspector-baseline.yaml`
+   must be fixed in the same PR or added to this table (and the YAML) with a
+   rationale — never silently bypassed.
 
 ## Maintenance
 

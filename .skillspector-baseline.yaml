@@ -1,0 +1,43 @@
+# SkillSpector baseline for OpenADT .agents/skills/
+#
+# These findings are accepted false positives in first-party skill assets.
+# The CI workflow passes this file to SkillSpector with --baseline, then runs
+# scripts/strip-skillspector-suppressions.py before uploading SARIF to GitHub
+# Code Scanning (GitHub does not honor the SARIF suppressions property).
+version: 2
+scanner_version: "2.8.1"
+rules:
+  # Cross-references between first-party OpenADT skills are intentional and
+  # documented in DESIGN.md / AGENTS.md.
+  - id: "AS3"
+    path: "*"
+    message: "Skill Enumeration*"
+    reason: "False positive. References to other first-party OpenADT skills are intentional documentation links, not unauthorized skill enumeration."
+
+  # The codacy skill documents a locally-built Docker image for running PMD
+  # locally; it is not an unpinned MCP server install.
+  - id: "RP1"
+    path: "codacy/SKILL.md"
+    message: "Docker image referenced without tag or digest: 'docker run*"
+    reason: "False positive. The docker command references a locally-built codacy-java image used for local PMD reproduction, not an MCP server rug-pull risk."
+
+  # The codacy skill example downloads a pinned PMD release archive to a local
+  # tmp path; there is no data exfiltration.
+  - id: "E1"
+    path: "codacy/SKILL.md"
+    message: "*github.com/pmd/pmd/releases/download*pmd-dist*"
+    reason: "False positive. The documentation example uses curl to download a pinned PMD distribution archive into a local tmp directory; it does not transmit data to an external endpoint."
+
+  # The codescene skill documents the name of the org-level CodeScene PAT secret;
+  # the value is never written to disk by OpenADT.
+  - id: "PE3"
+    path: "codescene/SKILL.md"
+    message: "*Access Token*"
+    reason: "False positive. The skill documents the org-level CS_ACCESS_TOKEN secret name for rotation/troubleshooting; the secret value lives in GitHub Actions secrets and is never written to disk."
+
+  # The harvest skill uses an ignore_authors deny-list to classify bot review
+  # comments. The static TM3 pattern matches the substring "ignore_auth".
+  - id: "TM3"
+    path: "harvest/*"
+    message: "*ignore_auth*"
+    reason: "False positive. ignore_authors is the harvest config deny-list field for bot classification; the rule matches the substring 'ignore_auth' inside a legitimate field name."
