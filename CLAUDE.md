@@ -16,7 +16,7 @@ Before pushing, run the same verify block as documented in [AGENTS.md](./AGENTS.
 bunx eslint scripts/ .agents/skills/ --max-warnings 0 --no-error-on-unmatched-pattern
 bun scripts/verify-spec-sync.ts
 bun scripts/verify-package-docs.ts
-./mvnw -q verify -Pdistribution
+./mvnw -q verify -Pdistribution -Dopenadt.distribution=true
 bun run openadt:test
 ```
 

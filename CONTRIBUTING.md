@@ -22,7 +22,7 @@ See [docs/contributing.md#build-from-source](docs/contributing.md#build-from-sou
 
 ```bash
 bun install --frozen-lockfile
-./mvnw -q verify -f pom.xml -Pdistribution
+./mvnw -q verify -f pom.xml -Pdistribution -Dopenadt.distribution=true
 bun run openadt:test
 ```
 
@@ -35,7 +35,7 @@ bun run openadt:test
 ```bash
 bun scripts/verify-spec-sync.ts
 bun scripts/verify-package-docs.ts
-./mvnw -q verify -f pom.xml -Pdistribution
+./mvnw -q verify -f pom.xml -Pdistribution -Dopenadt.distribution=true
 bun run openadt:test
 ```
 

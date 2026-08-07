@@ -88,7 +88,7 @@
       "description": "Multi-step workhorse. Use for any task that needs writes + shell. Bounded steps for cost control.",
       "mode": "subagent",
       "steps": 80,
-      "prompt": "General-purpose coding subagent. Always run the verify block (`bun scripts/verify-spec-sync.ts && bun scripts/verify-package-docs.ts && ./mvnw -q verify -Pdistribution && bun run openadt:test`) before declaring a task complete. Prefer small, focused commits. When the task involves a PR, push to `origin/<headRefName>` and verify `gh pr view N --json headRefOid` matches `git rev-parse HEAD`."
+      "prompt": "General-purpose coding subagent. Always run the verify block (`bun scripts/verify-spec-sync.ts && bun scripts/verify-package-docs.ts && ./mvnw -q verify -Pdistribution -Dopenadt.distribution=true && bun run openadt:test`) before declaring a task complete. Prefer small, focused commits. When the task involves a PR, push to `origin/<headRefName>` and verify `gh pr view N --json headRefOid` matches `git rev-parse HEAD`."
     },
     "compaction": {
       "description": "Internal — invoked by the host when context is large. Compresses session memory into a rolling summary.",

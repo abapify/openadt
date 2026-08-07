@@ -28,7 +28,7 @@ If the local branch is `pr-NN`, treat it as a throwaway scratch branch; the real
 ```bash
 bun scripts/verify-spec-sync.ts
 bun scripts/verify-package-docs.ts
-./mvnw -q verify -Pdistribution
+./mvnw -q verify -Pdistribution -Dopenadt.distribution=true
 bun run openadt:test
 # CodeScene delta — must match what CI does:
 bash scripts/ci-codescene-delta.sh <baseRef> HEAD

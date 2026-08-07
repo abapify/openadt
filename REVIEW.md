@@ -35,7 +35,7 @@ Before claiming “N issues fixed”: name the **source**, query it on **current
 
 - Do not edit PR title/body unless asked.
 - Per-thread reply + product fix before `resolve-open-threads.sh`.
-- Verify: `bun scripts/verify-spec-sync.ts`, `bun scripts/verify-package-docs.ts`, `./mvnw -q verify -Pdistribution`, `bun run openadt:test`.
+- Verify: `bun scripts/verify-spec-sync.ts`, `bun scripts/verify-package-docs.ts`, `./mvnw -q verify -Pdistribution -Dopenadt.distribution=true`, `bun run openadt:test`.
 
 ## Review debt (post-merge batch)
 

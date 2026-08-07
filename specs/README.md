@@ -25,7 +25,7 @@ Behavior contracts for OpenADT. **SDD enforcement:** [DESIGN.md](../DESIGN.md). 
 1. Read relevant spec(s) and [vision.md](vision.md).
 2. Add or update tests (TDD for behavior changes).
 3. Implement in the package from [apps/ARCHITECTURE.md](../apps/ARCHITECTURE.md).
-4. Run `bun scripts/verify-spec-sync.ts`, `bun scripts/verify-package-docs.ts`, `mvnw -q verify -Pdistribution`, `bun run openadt:test`.
+4. Run `bun scripts/verify-spec-sync.ts`, `bun scripts/verify-package-docs.ts`, `mvnw -q verify -Pdistribution -Dopenadt.distribution=true`, `bun run openadt:test`.
 
 ## CI
 
