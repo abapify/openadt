@@ -6,6 +6,7 @@ import java.util.Map;
 
 import org.openadt.config.OpenAdtException;
 import org.openadt.config.SystemProfile;
+import org.openadt.sap.adt.sdk.AdtCsrf;
 import org.openadt.sap.adt.sdk.ProxyRequest;
 import org.openadt.sap.adt.sdk.ProxyResponse;
 import org.openadt.sap.adt.bootstrap.JCoDestinationFactory;
@@ -84,6 +85,12 @@ public class AdtRestRfcClient implements AdtTransportClient {
             Method setValueOnRowMethod = headersTable.getClass().getMethod(METHOD_SET_VALUE, String.class, Object.class);
 
             for (Map.Entry<String, String> entry : request.headers().entrySet()) {
+                // The RFC endpoint does not participate in the HTTP CSRF handshake; sending
+                // X-CSRF-Token: fetch would be meaningless and may confuse the SAP side.
+                if (AdtCsrf.CSRF_HEADER.equalsIgnoreCase(entry.getKey())
+                    && AdtCsrf.CSRF_FETCH.equalsIgnoreCase(entry.getValue())) {
+                    continue;
+                }
                 appendRowMethod.invoke(headersTable);
                 setValueOnRowMethod.invoke(headersTable, "NAME", entry.getKey());
                 setValueOnRowMethod.invoke(headersTable, "VALUE", entry.getValue());
@@ -142,6 +149,11 @@ public class AdtRestRfcClient implements AdtTransportClient {
         } catch (Exception e) {
             throw new OpenAdtException("Failed to execute RFC call: " + e.getMessage(), e);
         }
+    }
+
+    @Override
+    public boolean canSynthesizeCsrfToken() {
+        return false;
     }
 
     Method resolveExecuteMethod(Object function, Object destination) throws Exception {

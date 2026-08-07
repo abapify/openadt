@@ -4,6 +4,7 @@ import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpContext;
 import com.sun.net.httpserver.HttpExchange;
 import org.junit.jupiter.api.Test;
+import org.openadt.sap.adt.sdk.AdtTransportClient;
 import org.openadt.sap.adt.sdk.ProxyRequest;
 import org.openadt.sap.adt.sdk.ProxyResponse;
 import org.openadt.config.SystemProfile;
@@ -206,6 +207,61 @@ class AdtProxyHandlerTest {
         TestExchange exchange = new TestExchange("GET", "/sap/bc/adt/discovery", new byte[0]);
 
         newHandler().handle(exchange);
+
+        assertNull(exchange.getResponseHeaders().getFirst("X-CSRF-Token"));
+    }
+
+    @Test
+    void nonGetCsrfFetchGetsNoSyntheticToken() throws IOException {
+        TestExchange exchange = new TestExchange(
+            "PUT", "/sap/bc/adt/programs/programs/P", new byte[0]
+        );
+        exchange.requestHeaders.add("X-CSRF-Token", "fetch");
+
+        AdtProxyHandler handler = new AdtProxyHandler(
+            new SystemProfile(),
+            (system, request) -> new ProxyResponse("HTTP/1.1", 200, "OK", Map.of(), new byte[0])
+        );
+        handler.handle(exchange);
+
+        assertNull(exchange.getResponseHeaders().getFirst("X-CSRF-Token"));
+    }
+
+    @Test
+    void getCsrfFetchReplacesRequiredToken() throws IOException {
+        TestExchange exchange = new TestExchange("GET", "/sap/bc/adt/core/discovery", new byte[0]);
+        exchange.requestHeaders.add("X-CSRF-Token", "fetch");
+
+        AdtProxyHandler handler = new AdtProxyHandler(
+            new SystemProfile(),
+            (system, request) -> new ProxyResponse(
+                "HTTP/1.1", 200, "OK", Map.of("X-CSRF-Token", "Required"), new byte[0]
+            )
+        );
+        handler.handle(exchange);
+
+        String token = exchange.getResponseHeaders().getFirst("X-CSRF-Token");
+        assertNotNull(token);
+        assertNotEquals("Required", token);
+    }
+
+    @Test
+    void nonSynthesizingTransportDoesNotInjectToken() throws IOException {
+        TestExchange exchange = new TestExchange("GET", "/sap/bc/adt/core/discovery", new byte[0]);
+        exchange.requestHeaders.add("X-CSRF-Token", "fetch");
+
+        AdtTransportClient noSynthClient = new AdtTransportClient() {
+            @Override
+            public ProxyResponse execute(SystemProfile system, ProxyRequest request) {
+                return new ProxyResponse("HTTP/1.1", 200, "OK", Map.of(), new byte[0]);
+            }
+
+            @Override
+            public boolean canSynthesizeCsrfToken() {
+                return false;
+            }
+        };
+        new AdtProxyHandler(new SystemProfile(), noSynthClient).handle(exchange);
 
         assertNull(exchange.getResponseHeaders().getFirst("X-CSRF-Token"));
     }

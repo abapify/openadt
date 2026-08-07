@@ -119,6 +119,11 @@ public class HttpAdtTransportClient implements AdtTransportClient {
         }
     }
 
+    @Override
+    public boolean canSynthesizeCsrfToken() {
+        return false;
+    }
+
     private ProxyResponse sendOnce(SystemProfile system, ProxyRequest request, SendContext context)
         throws IOException, InterruptedException {
         URI targetUri = buildTargetUri(system, request.uri());

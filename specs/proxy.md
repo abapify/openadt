@@ -52,12 +52,14 @@ These ADT-specific headers are passed through:
 
 SAP clients obtain a CSRF token by sending `GET` or `HEAD` with `X-CSRF-Token: fetch` and reading the `x-csrf-token` response header, then attaching it to writes. A client treats an absent, empty, or literal `Required` value as "no token issued" and aborts before it ever issues its write.
 
-The proxy answers the handshake itself:
+The proxy answers the handshake itself when the transport is the ADT SDK (the default when `runtime.adt_plugins_dir` is configured). HTTP and `rest-rfc` transports must use a real SAP token and do not receive a synthetic one; for `rest-rfc` the `X-CSRF-Token: fetch` request is stripped before the RFC call because the RFC endpoint does not participate in the HTTP CSRF handshake.
 
 | Request | Behavior |
 | ------- | -------- |
 | `HEAD` with `X-CSRF-Token: fetch` | answered locally: `200` plus an `x-csrf-token` header, no upstream call |
 | `GET` with `X-CSRF-Token: fetch` | forwarded normally; `x-csrf-token` is added only when the response has none, so the body is preserved |
+| `GET` with `X-CSRF-Token: fetch` (non-SDK transport) | forwarded normally; no synthetic `x-csrf-token` is added |
+| `POST` / `PUT` / `DELETE` with `X-CSRF-Token: fetch` | untouched — no synthetic token is added |
 | anything else | untouched — no synthetic token is added |
 
 Two reasons the token is minted locally rather than relayed:

@@ -2,6 +2,7 @@ package org.openadt.product.proxy;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
+import org.openadt.sap.adt.sdk.AdtCsrf;
 import org.openadt.sap.adt.sdk.AdtTransportClient;
 import org.openadt.sap.adt.sdk.ProxyRequest;
 import org.openadt.sap.adt.sdk.ProxyResponse;
@@ -21,8 +22,8 @@ public class AdtProxyHandler implements HttpHandler {
     );
     private static final Set<String> STRIPPED_RESPONSE_HEADERS = Set.of("set-cookie", "set-cookie2");
 
-    static final String CSRF_HEADER = "X-CSRF-Token";
-    static final String CSRF_FETCH = "fetch";
+    static final String CSRF_HEADER = AdtCsrf.CSRF_HEADER;
+    static final String CSRF_FETCH = AdtCsrf.CSRF_FETCH;
     /**
      * Token handed back for a local CSRF handshake. Must be non-empty and must not be the literal
      * {@code Required}, which clients read as "no token issued".
@@ -94,7 +95,11 @@ public class AdtProxyHandler implements HttpHandler {
             });
 
             // A CSRF fetch by GET keeps its body; only make sure it comes back with a token.
-            if (csrfFetch && response.getHeader(CSRF_HEADER) == null) {
+            // The token is synthesized only for transports that ignore it (the ADT SDK). HTTP and
+            // REST-RFC transports must use a real SAP token, so the proxy does not inject one.
+            if (csrfFetch && isGet(exchange)
+                && transportClient.canSynthesizeCsrfToken()
+                && isMissingOrRequiredToken(response.getHeader(CSRF_HEADER))) {
                 exchange.getResponseHeaders().set(CSRF_HEADER, LOCAL_CSRF_TOKEN);
             }
 
@@ -106,6 +111,10 @@ public class AdtProxyHandler implements HttpHandler {
         }
     }
 
+    static boolean isGet(HttpExchange exchange) {
+        return "GET".equalsIgnoreCase(exchange.getRequestMethod());
+    }
+
     static boolean isHead(HttpExchange exchange) {
         return "HEAD".equalsIgnoreCase(exchange.getRequestMethod());
     }
@@ -114,6 +123,11 @@ public class AdtProxyHandler implements HttpHandler {
     static boolean isCsrfFetch(HttpExchange exchange) {
         String value = exchange.getRequestHeaders().getFirst(CSRF_HEADER);
         return value != null && CSRF_FETCH.equalsIgnoreCase(value.trim());
+    }
+
+    /** Clients treat an absent, empty, or literal {@code Required} value as "no token issued". */
+    static boolean isMissingOrRequiredToken(String token) {
+        return token == null || token.isBlank() || "required".equalsIgnoreCase(token.trim());
     }
 
     /**
