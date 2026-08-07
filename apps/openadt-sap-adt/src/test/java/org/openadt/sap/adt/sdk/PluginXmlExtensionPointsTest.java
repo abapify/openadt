@@ -8,7 +8,6 @@ import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -17,7 +16,7 @@ class PluginXmlExtensionPointsTest {
         byte[] result = PluginXmlExtensionPoints.rewrite(
             new ByteArrayInputStream(pluginXml.getBytes(StandardCharsets.UTF_8))
         );
-        return result == null ? null : new String(result, StandardCharsets.UTF_8);
+        return new String(result, StandardCharsets.UTF_8);
     }
 
     @Test
@@ -43,8 +42,8 @@ class PluginXmlExtensionPointsTest {
     }
 
     @Test
-    void returnsNullWhenNoExtensionPointsDeclared() throws Exception {
-        assertNull(rewrite("""
+    void returnsEmptyWhenNoExtensionPointsDeclared() throws Exception {
+        assertEquals("", rewrite("""
             <?xml version="1.0" encoding="UTF-8"?>
             <plugin>
                <extension point="some.other.point"><thing/></extension>
@@ -53,8 +52,8 @@ class PluginXmlExtensionPointsTest {
     }
 
     @Test
-    void returnsNullForEmptyPlugin() throws Exception {
-        assertNull(rewrite("<plugin/>"));
+    void returnsEmptyForEmptyPlugin() throws Exception {
+        assertEquals("", rewrite("<plugin/>"));
     }
 
     @Test

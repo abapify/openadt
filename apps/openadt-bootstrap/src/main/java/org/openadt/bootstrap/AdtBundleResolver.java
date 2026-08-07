@@ -133,16 +133,12 @@ public final class AdtBundleResolver {
         try (Stream<Path> stream = Files.list(pluginsDir)) {
             for (Path candidate : stream.filter(Files::isRegularFile).toList()) {
                 String name = candidate.getFileName().toString();
-                if (!name.startsWith(prefix) || !name.endsWith(".jar")) {
-                    continue;
-                }
-                String version = name.substring(prefix.length(), name.length() - ".jar".length());
-                if (version.isEmpty()) {
-                    continue;
-                }
-                if (newestVersion == null || OsgiVersions.compare(version, newestVersion) > 0) {
-                    newest = candidate;
-                    newestVersion = version;
+                if (name.startsWith(prefix) && name.endsWith(".jar")) {
+                    String version = name.substring(prefix.length(), name.length() - ".jar".length());
+                    if (!version.isEmpty() && (newestVersion == null || OsgiVersions.compare(version, newestVersion) > 0)) {
+                        newest = candidate;
+                        newestVersion = version;
+                    }
                 }
             }
         } catch (IOException unreadable) {

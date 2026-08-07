@@ -111,22 +111,29 @@ public final class JCoNativeExtractor {
         }
         Path newest = null;
         for (Path root : pluginRoots) {
-            if (!Files.isDirectory(root)) {
-                continue;
+            Optional<Path> best = bestInRoot(root, prefix);
+            if (best.isPresent() && (newest == null || compareBundleVersions(best.get(), newest, prefix) > 0)) {
+                newest = best.get();
             }
-            try (Stream<Path> stream = Files.list(root)) {
-                for (Path candidate : stream.filter(Files::isRegularFile).toList()) {
-                    String name = candidate.getFileName().toString();
-                    if (!name.startsWith(prefix) || !name.endsWith(".jar")) {
-                        continue;
-                    }
-                    if (newest == null || compareBundleVersions(candidate, newest, prefix) > 0) {
-                        newest = candidate;
-                    }
+        }
+        return Optional.ofNullable(newest);
+    }
+
+    private static Optional<Path> bestInRoot(Path root, String prefix) {
+        if (!Files.isDirectory(root)) {
+            return Optional.empty();
+        }
+        Path newest = null;
+        try (Stream<Path> stream = Files.list(root)) {
+            for (Path candidate : stream.filter(Files::isRegularFile).toList()) {
+                String name = candidate.getFileName().toString();
+                if (name.startsWith(prefix) && name.endsWith(".jar")
+                    && (newest == null || compareBundleVersions(candidate, newest, prefix) > 0)) {
+                    newest = candidate;
                 }
-            } catch (IOException ignored) {
-                // Best-effort discovery only.
             }
+        } catch (IOException ignored) {
+            // Best-effort discovery only.
         }
         return Optional.ofNullable(newest);
     }

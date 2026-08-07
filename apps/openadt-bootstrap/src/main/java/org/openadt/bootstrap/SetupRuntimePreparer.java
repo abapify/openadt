@@ -187,6 +187,7 @@ public final class SetupRuntimePreparer {
             .followRedirects(HttpClient.Redirect.NORMAL)
             .connectTimeout(Duration.ofSeconds(30))
             .build();
+        boolean downloaded = false;
         for (int attempt = 0; attempt <= DOWNLOAD_RETRIES; attempt++) {
             HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                 .GET()
@@ -198,6 +199,7 @@ public final class SetupRuntimePreparer {
                     HttpResponse.BodyHandlers.ofFile(zipPath)
                 );
                 if (response.statusCode() == 200) {
+                    downloaded = true;
                     break;
                 }
                 if (response.statusCode() == 429 || response.statusCode() >= 500) {
@@ -206,9 +208,9 @@ public final class SetupRuntimePreparer {
                     }
                     CliLog.info("Download attempt " + (attempt + 1) + " returned HTTP " + response.statusCode() + ", retrying...");
                     Thread.sleep(RETRY_BACKOFF_MS * (attempt + 1L));
-                    continue;
+                } else {
+                    throw new IOException("Download failed (HTTP " + response.statusCode() + "): " + url);
                 }
-                throw new IOException("Download failed (HTTP " + response.statusCode() + "): " + url);
             } catch (IOException e) {
                 if (attempt == DOWNLOAD_RETRIES) {
                     throw new IOException("Download failed after " + (DOWNLOAD_RETRIES + 1) + " attempts: " + url, e);
@@ -216,6 +218,9 @@ public final class SetupRuntimePreparer {
                 CliLog.info("Download attempt " + (attempt + 1) + " failed (" + e.getMessage() + "), retrying...");
                 Thread.sleep(RETRY_BACKOFF_MS * (attempt + 1L));
             }
+        }
+        if (!downloaded) {
+            throw new IOException("Download failed: " + url);
         }
 
         Path extractRoot = buildRoot.resolve("src-" + version);
@@ -280,8 +285,6 @@ public final class SetupRuntimePreparer {
         try {
             Set<PosixFilePermission> permissions = new HashSet<>(Files.getPosixFilePermissions(file));
             permissions.add(PosixFilePermission.OWNER_EXECUTE);
-            permissions.add(PosixFilePermission.GROUP_EXECUTE);
-            permissions.add(PosixFilePermission.OTHERS_EXECUTE);
             Files.setPosixFilePermissions(file, permissions);
         } catch (UnsupportedOperationException notPosix) {
             // Non-POSIX filesystem; nothing to do.

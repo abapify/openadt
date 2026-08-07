@@ -29,15 +29,15 @@ final class PluginXmlExtensionPoints {
     }
 
     /**
-     * @return a minimal {@code plugin.xml} declaring only the extension points, or {@code null} when the
-     *     document declares none
+     * @return a minimal {@code plugin.xml} declaring only the extension points, or an empty array when
+     *     the document declares none
      * @throws IOException if the document cannot be parsed
      */
     static byte[] rewrite(InputStream pluginXml) throws IOException {
         Document document = parse(pluginXml);
         Element root = document.getDocumentElement();
         if (root == null) {
-            return null;
+            return new byte[0];
         }
         NodeList points = root.getElementsByTagName(EXTENSION_POINT);
 
@@ -58,7 +58,7 @@ final class PluginXmlExtensionPoints {
             declared++;
         }
         if (declared == 0) {
-            return null;
+            return new byte[0];
         }
         xml.append("</plugin>\n");
         return xml.toString().getBytes(StandardCharsets.UTF_8);
