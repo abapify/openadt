@@ -4,6 +4,7 @@ import java.lang.reflect.Method;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeSet;
 
 import org.openadt.config.CliLog;
@@ -65,7 +66,7 @@ public final class SdkServiceRegistry {
 
     private static Throwable rootCause(Throwable error) {
         Throwable current = error;
-        while (current.getCause() != null && current.getCause() != current) {
+        while (current.getCause() != null && !Objects.equals(current.getCause(), current)) {
             current = current.getCause();
         }
         return current;
