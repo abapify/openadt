@@ -39,30 +39,67 @@
                     <name>!openadt.distribution</name>
                 </property>
             </activation>
+            <!--
+              Each systemPath is a property so `openadt config build` can override it with the bundle
+              actually present in the local p2 pool (AdtBundleResolver resolves newest-by-prefix and
+              passes -Dadt.jar.*). The defaults below are the tested baseline; keep them in step with
+              AdtBundleResolver.BUNDLES - AdtBundlePomSyncTest enforces that.
+            -->
+            <properties>
+                <adt.jar.communication>${adt.plugins.dir}/com.sap.adt.communication_3.58.0.jar</adt.jar.communication>
+                <adt.jar.compatibility>${adt.plugins.dir}/com.sap.adt.compatibility_3.58.0.jar</adt.jar.compatibility>
+                <adt.jar.destinations>${adt.plugins.dir}/com.sap.adt.destinations_3.58.0.jar</adt.jar.destinations>
+                <adt.jar.destinations.model>${adt.plugins.dir}/com.sap.adt.destinations.model_3.58.0.jar</adt.jar.destinations.model>
+                <adt.jar.logging>${adt.plugins.dir}/com.sap.adt.logging_3.58.0.jar</adt.jar.logging>
+                <adt.jar.util>${adt.plugins.dir}/com.sap.adt.util_3.58.0.jar</adt.jar.util>
+                <adt.jar.transport>${adt.plugins.dir}/com.sap.adt.transport_3.58.0.jar</adt.jar.transport>
+                <adt.jar.jco>${adt.plugins.dir}/com.sap.conn.jco_3.1.13.jar</adt.jar.jco>
+                <adt.jar.jco.eclipse>${adt.plugins.dir}/com.sap.conn.jco.eclipse_1.32.0.jar</adt.jar.jco.eclipse>
+                <adt.jar.core.runtime>${adt.plugins.dir}/org.eclipse.core.runtime_3.34.200.v20251220-0953.jar</adt.jar.core.runtime>
+                <adt.jar.core.resources>${adt.plugins.dir}/org.eclipse.core.resources_3.23.200.v20251217-0810.jar</adt.jar.core.resources>
+                <adt.jar.core.commands>${adt.plugins.dir}/org.eclipse.core.commands_3.12.500.v20251103-0733.jar</adt.jar.core.commands>
+                <adt.jar.core.databinding>${adt.plugins.dir}/org.eclipse.core.databinding_1.13.700.v20251023-1511.jar</adt.jar.core.databinding>
+                <adt.jar.core.databinding.beans>${adt.plugins.dir}/org.eclipse.core.databinding.beans_1.10.500.v20250916-0941.jar</adt.jar.core.databinding.beans>
+                <adt.jar.core.databinding.observable>${adt.plugins.dir}/org.eclipse.core.databinding.observable_1.13.500.v20251103-0735.jar</adt.jar.core.databinding.observable>
+                <adt.jar.core.databinding.property>${adt.plugins.dir}/org.eclipse.core.databinding.property_1.10.500.v20250916-0931.jar</adt.jar.core.databinding.property>
+                <adt.jar.core.jobs>${adt.plugins.dir}/org.eclipse.core.jobs_3.15.700.v20250725-1147.jar</adt.jar.core.jobs>
+                <adt.jar.core.net>${adt.plugins.dir}/org.eclipse.core.net_1.5.800.v20250613-1119.jar</adt.jar.core.net>
+                <adt.jar.equinox.common>${adt.plugins.dir}/org.eclipse.equinox.common_3.20.300.v20251111-0312.jar</adt.jar.equinox.common>
+                <adt.jar.equinox.registry>${adt.plugins.dir}/org.eclipse.equinox.registry_3.12.600.v20250906-0651.jar</adt.jar.equinox.registry>
+                <adt.jar.emf.common>${adt.plugins.dir}/org.eclipse.emf.common_2.45.0.v20260311-1301.jar</adt.jar.emf.common>
+                <adt.jar.emf.ecore>${adt.plugins.dir}/org.eclipse.emf.ecore_2.42.0.v20251210-1145.jar</adt.jar.emf.ecore>
+                <adt.jar.emf.ecore.xmi>${adt.plugins.dir}/org.eclipse.emf.ecore.xmi_2.40.0.v20251210-1145.jar</adt.jar.emf.ecore.xmi>
+                <adt.jar.osgi>${adt.plugins.dir}/org.eclipse.osgi_3.24.100.v20251215-1416.jar</adt.jar.osgi>
+                <adt.jar.osgi.util>${adt.plugins.dir}/org.eclipse.osgi.util_3.7.400.v20250516-0916.jar</adt.jar.osgi.util>
+                <adt.jar.service.prefs>${adt.plugins.dir}/org.osgi.service.prefs_1.1.2.202109301733.jar</adt.jar.service.prefs>
+            </properties>
             <dependencies>
-                <dependency><groupId>com.sap.adt</groupId><artifactId>communication</artifactId><version>3.58.0</version><scope>system</scope><systemPath>${adt.plugins.dir}/com.sap.adt.communication_3.58.0.jar</systemPath></dependency>
-                <dependency><groupId>com.sap.adt</groupId><artifactId>compatibility</artifactId><version>3.58.0</version><scope>system</scope><systemPath>${adt.plugins.dir}/com.sap.adt.compatibility_3.58.0.jar</systemPath></dependency>
-                <dependency><groupId>com.sap.adt</groupId><artifactId>destinations</artifactId><version>3.58.0</version><scope>system</scope><systemPath>${adt.plugins.dir}/com.sap.adt.destinations_3.58.0.jar</systemPath></dependency>
-                <dependency><groupId>com.sap.adt</groupId><artifactId>destinations-model</artifactId><version>3.58.0</version><scope>system</scope><systemPath>${adt.plugins.dir}/com.sap.adt.destinations.model_3.58.0.jar</systemPath></dependency>
-                <dependency><groupId>com.sap.adt</groupId><artifactId>logging</artifactId><version>3.58.0</version><scope>system</scope><systemPath>${adt.plugins.dir}/com.sap.adt.logging_3.58.0.jar</systemPath></dependency>
-                <dependency><groupId>com.sap.adt</groupId><artifactId>util</artifactId><version>3.58.0</version><scope>system</scope><systemPath>${adt.plugins.dir}/com.sap.adt.util_3.58.0.jar</systemPath></dependency>
-                <dependency><groupId>com.sap.adt</groupId><artifactId>transport</artifactId><version>3.58.0</version><scope>system</scope><systemPath>${adt.plugins.dir}/com.sap.adt.transport_3.58.0.jar</systemPath></dependency>
-                <dependency><groupId>com.sap.conn</groupId><artifactId>jco</artifactId><version>3.1.13</version><scope>system</scope><systemPath>${adt.plugins.dir}/com.sap.conn.jco_3.1.13.jar</systemPath></dependency>
-                <dependency><groupId>com.sap.conn</groupId><artifactId>jco-eclipse</artifactId><version>1.32.0</version><scope>system</scope><systemPath>${adt.plugins.dir}/com.sap.conn.jco.eclipse_1.32.0.jar</systemPath></dependency>
-                <dependency><groupId>org.eclipse.platform</groupId><artifactId>core-runtime</artifactId><version>3.34.200</version><scope>system</scope><systemPath>${adt.plugins.dir}/org.eclipse.core.runtime_3.34.200.v20251220-0953.jar</systemPath></dependency>
-                <dependency><groupId>org.eclipse.platform</groupId><artifactId>core-resources</artifactId><version>3.23.200</version><scope>system</scope><systemPath>${adt.plugins.dir}/org.eclipse.core.resources_3.23.200.v20251217-0810.jar</systemPath></dependency>
-                <dependency><groupId>org.eclipse.platform</groupId><artifactId>core-commands</artifactId><version>3.12.500</version><scope>system</scope><systemPath>${adt.plugins.dir}/org.eclipse.core.commands_3.12.500.v20251103-0733.jar</systemPath></dependency>
-                <dependency><groupId>org.eclipse.platform</groupId><artifactId>core-databinding</artifactId><version>1.13.700</version><scope>system</scope><systemPath>${adt.plugins.dir}/org.eclipse.core.databinding_1.13.700.v20251023-1511.jar</systemPath></dependency>
-                <dependency><groupId>org.eclipse.platform</groupId><artifactId>core-databinding-beans</artifactId><version>1.10.500</version><scope>system</scope><systemPath>${adt.plugins.dir}/org.eclipse.core.databinding.beans_1.10.500.v20250916-0941.jar</systemPath></dependency>
-                <dependency><groupId>org.eclipse.platform</groupId><artifactId>core-databinding-observable</artifactId><version>1.13.500</version><scope>system</scope><systemPath>${adt.plugins.dir}/org.eclipse.core.databinding.observable_1.13.500.v20251103-0735.jar</systemPath></dependency>
-                <dependency><groupId>org.eclipse.platform</groupId><artifactId>core-databinding-property</artifactId><version>1.10.500</version><scope>system</scope><systemPath>${adt.plugins.dir}/org.eclipse.core.databinding.property_1.10.500.v20250916-0931.jar</systemPath></dependency>
-                <dependency><groupId>org.eclipse.platform</groupId><artifactId>core-jobs</artifactId><version>3.15.700</version><scope>system</scope><systemPath>${adt.plugins.dir}/org.eclipse.core.jobs_3.15.700.v20250725-1147.jar</systemPath></dependency>
-                <dependency><groupId>org.eclipse.platform</groupId><artifactId>core-net</artifactId><version>1.5.800</version><scope>system</scope><systemPath>${adt.plugins.dir}/org.eclipse.core.net_1.5.800.v20250613-1119.jar</systemPath></dependency>
-                <dependency><groupId>org.eclipse.platform</groupId><artifactId>equinox-common</artifactId><version>3.20.300</version><scope>system</scope><systemPath>${adt.plugins.dir}/org.eclipse.equinox.common_3.20.300.v20251111-0312.jar</systemPath></dependency>
-                <dependency><groupId>org.eclipse.platform</groupId><artifactId>equinox-registry</artifactId><version>3.12.600</version><scope>system</scope><systemPath>${adt.plugins.dir}/org.eclipse.equinox.registry_3.12.600.v20250906-0651.jar</systemPath></dependency>
-                <dependency><groupId>org.eclipse.platform</groupId><artifactId>osgi</artifactId><version>3.24.100</version><scope>system</scope><systemPath>${adt.plugins.dir}/org.eclipse.osgi_3.24.100.v20251215-1416.jar</systemPath></dependency>
-                <dependency><groupId>org.eclipse.platform</groupId><artifactId>osgi-util</artifactId><version>3.7.400</version><scope>system</scope><systemPath>${adt.plugins.dir}/org.eclipse.osgi.util_3.7.400.v20250516-0916.jar</systemPath></dependency>
-                <dependency><groupId>org.osgi</groupId><artifactId>service.prefs</artifactId><version>1.1.2</version><scope>system</scope><systemPath>${adt.plugins.dir}/org.osgi.service.prefs_1.1.2.202109301733.jar</systemPath></dependency>
+                <dependency><groupId>com.sap.adt</groupId><artifactId>communication</artifactId><version>3.58.0</version><scope>system</scope><systemPath>${adt.jar.communication}</systemPath></dependency>
+                <dependency><groupId>com.sap.adt</groupId><artifactId>compatibility</artifactId><version>3.58.0</version><scope>system</scope><systemPath>${adt.jar.compatibility}</systemPath></dependency>
+                <dependency><groupId>com.sap.adt</groupId><artifactId>destinations</artifactId><version>3.58.0</version><scope>system</scope><systemPath>${adt.jar.destinations}</systemPath></dependency>
+                <dependency><groupId>com.sap.adt</groupId><artifactId>destinations-model</artifactId><version>3.58.0</version><scope>system</scope><systemPath>${adt.jar.destinations.model}</systemPath></dependency>
+                <dependency><groupId>com.sap.adt</groupId><artifactId>logging</artifactId><version>3.58.0</version><scope>system</scope><systemPath>${adt.jar.logging}</systemPath></dependency>
+                <dependency><groupId>com.sap.adt</groupId><artifactId>util</artifactId><version>3.58.0</version><scope>system</scope><systemPath>${adt.jar.util}</systemPath></dependency>
+                <dependency><groupId>com.sap.adt</groupId><artifactId>transport</artifactId><version>3.58.0</version><scope>system</scope><systemPath>${adt.jar.transport}</systemPath></dependency>
+                <dependency><groupId>com.sap.conn</groupId><artifactId>jco</artifactId><version>3.1.13</version><scope>system</scope><systemPath>${adt.jar.jco}</systemPath></dependency>
+                <dependency><groupId>com.sap.conn</groupId><artifactId>jco-eclipse</artifactId><version>1.32.0</version><scope>system</scope><systemPath>${adt.jar.jco.eclipse}</systemPath></dependency>
+                <dependency><groupId>org.eclipse.platform</groupId><artifactId>core-runtime</artifactId><version>3.34.200</version><scope>system</scope><systemPath>${adt.jar.core.runtime}</systemPath></dependency>
+                <dependency><groupId>org.eclipse.platform</groupId><artifactId>core-resources</artifactId><version>3.23.200</version><scope>system</scope><systemPath>${adt.jar.core.resources}</systemPath></dependency>
+                <dependency><groupId>org.eclipse.platform</groupId><artifactId>core-commands</artifactId><version>3.12.500</version><scope>system</scope><systemPath>${adt.jar.core.commands}</systemPath></dependency>
+                <dependency><groupId>org.eclipse.platform</groupId><artifactId>core-databinding</artifactId><version>1.13.700</version><scope>system</scope><systemPath>${adt.jar.core.databinding}</systemPath></dependency>
+                <dependency><groupId>org.eclipse.platform</groupId><artifactId>core-databinding-beans</artifactId><version>1.10.500</version><scope>system</scope><systemPath>${adt.jar.core.databinding.beans}</systemPath></dependency>
+                <dependency><groupId>org.eclipse.platform</groupId><artifactId>core-databinding-observable</artifactId><version>1.13.500</version><scope>system</scope><systemPath>${adt.jar.core.databinding.observable}</systemPath></dependency>
+                <dependency><groupId>org.eclipse.platform</groupId><artifactId>core-databinding-property</artifactId><version>1.10.500</version><scope>system</scope><systemPath>${adt.jar.core.databinding.property}</systemPath></dependency>
+                <dependency><groupId>org.eclipse.platform</groupId><artifactId>core-jobs</artifactId><version>3.15.700</version><scope>system</scope><systemPath>${adt.jar.core.jobs}</systemPath></dependency>
+                <dependency><groupId>org.eclipse.platform</groupId><artifactId>core-net</artifactId><version>1.5.800</version><scope>system</scope><systemPath>${adt.jar.core.net}</systemPath></dependency>
+                <dependency><groupId>org.eclipse.platform</groupId><artifactId>equinox-common</artifactId><version>3.20.300</version><scope>system</scope><systemPath>${adt.jar.equinox.common}</systemPath></dependency>
+                <dependency><groupId>org.eclipse.platform</groupId><artifactId>equinox-registry</artifactId><version>3.12.600</version><scope>system</scope><systemPath>${adt.jar.equinox.registry}</systemPath></dependency>
+                <dependency><groupId>org.eclipse.emf</groupId><artifactId>common</artifactId><version>2.45.0</version><scope>system</scope><systemPath>${adt.jar.emf.common}</systemPath></dependency>
+                <dependency><groupId>org.eclipse.emf</groupId><artifactId>ecore</artifactId><version>2.42.0</version><scope>system</scope><systemPath>${adt.jar.emf.ecore}</systemPath></dependency>
+                <dependency><groupId>org.eclipse.emf</groupId><artifactId>ecore-xmi</artifactId><version>2.40.0</version><scope>system</scope><systemPath>${adt.jar.emf.ecore.xmi}</systemPath></dependency>
+                <dependency><groupId>org.eclipse.platform</groupId><artifactId>osgi</artifactId><version>3.24.100</version><scope>system</scope><systemPath>${adt.jar.osgi}</systemPath></dependency>
+                <dependency><groupId>org.eclipse.platform</groupId><artifactId>osgi-util</artifactId><version>3.7.400</version><scope>system</scope><systemPath>${adt.jar.osgi.util}</systemPath></dependency>
+                <dependency><groupId>org.osgi</groupId><artifactId>service.prefs</artifactId><version>1.1.2</version><scope>system</scope><systemPath>${adt.jar.service.prefs}</systemPath></dependency>
             </dependencies>
         </profile>
         <profile>
@@ -81,6 +118,7 @@
                                 <exclude>org/openadt/sap/adt/sdk/AdtSdkClassLoaderFactory.java</exclude>
                                 <exclude>org/openadt/sap/adt/sdk/AdtCommunicationBootstrap.java</exclude>
                                 <exclude>org/openadt/sap/adt/sdk/JCoEclipseBootstrap.java</exclude>
+                                <exclude>org/openadt/sap/adt/sdk/EclipseRegistryBootstrap.java</exclude>
                                 <exclude>org/openadt/sap/adt/destination/EclipseDestinationLoader.java</exclude>
                                 <exclude>org/openadt/sap/adt/destination/SapDestinationResolver.java</exclude>
                                 <exclude>org/openadt/sap/adt/sdk/SapSdkRuntime.java</exclude>

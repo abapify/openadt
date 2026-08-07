@@ -45,7 +45,7 @@ Detectors and outputs: same as legacy setup (see below).
 
 ### openadt config build
 
-Build the full SAP SDK runtime jar into `~/.openadt/runtime/` for `fetch`/`proxy` (Windows; uses `adt_plugins_dir` from config).
+Build the full SAP SDK runtime jar into `~/.openadt/runtime/` for `fetch`/`proxy`, using `adt_plugins_dir` from config. Supported on **Windows, macOS, and Linux**.
 
 ```bash
 openadt config build
@@ -57,6 +57,31 @@ Options:
 
 - `--force` — Rebuild even when the runtime jar already matches the installed OpenADT version
 - `--config, -c <path>` — Config file path
+
+Config resolution matches `openadt config`: a `.openadt/config.toml` in the current directory is used when `--config` is not given. When the resolved config has no usable `adt_plugins_dir`, `ConfigRuntimeBuilder` falls back to the default setup config and builds against the runtime recorded there, so a directory-local config that only overrides destinations does not have to repeat runtime paths.
+
+Behavior:
+
+- Implemented in Java on all platforms; the PowerShell preparation script is no longer invoked. The build itself still runs the Maven wrapper, which is a shell script on macOS and Linux (`mvnw`) and a batch script on Windows (`mvnw.cmd`).
+- Builds from the current git checkout when one is detected (root `pom.xml` + Maven wrapper); otherwise downloads the source archive for the installed version tag
+- Build cache root: `%LOCALAPPDATA%\openadt\build` (Windows), `~/Library/Caches/openadt/build` (macOS), `$XDG_CACHE_HOME/openadt/build` or `~/.cache/openadt/build` (Linux)
+- Runs the Maven wrapper (`mvnw.cmd` on Windows, `./mvnw` elsewhere) for `apps/openadt-cli`
+- Outputs `~/.openadt/runtime/openadt-full.jar`, `~/.openadt/runtime/sap-lib/`, and `~/.openadt/runtime/version.txt`
+- Skips work when `version.txt` already matches the installed version, unless `--force`
+
+Concurrency and publishing: preparation holds an exclusive lock on `~/.openadt/runtime/.prepare.lock` for the whole build, so a second `config build` waits and then reuses the result. `version.txt` is the readiness marker — it is removed before any artifact is replaced and written only once the jar and `sap-lib/` are both in place, each moved in from a staging path. An interrupted run therefore leaves the runtime unmarked and the next run rebuilds it. A runtime counts as ready only with all three present, since the jar's manifest `Class-Path` resolves against `sap-lib/`.
+
+SAP ADT and Eclipse bundles are resolved from `adt_plugins_dir` by bundle prefix, taking the newest version present rather than a fixed filename, so a pool that does not match the baseline version still builds. Resolution outcomes:
+
+| Outcome | Effect |
+| ------- | ------ |
+| Resolved version differs from the tested baseline | reported as a warning; the build proceeds |
+| No match for a bundle | build fails, naming the missing prefixes |
+| The `com.sap.adt.*` bundles resolve to more than one version | build fails, naming each version and its bundles |
+
+The last rule exists because each bundle is otherwise resolved to its own newest version, so a pool holding a partially updated ADT release would produce a classpath mixing levels — a combination SAP does not ship, which can fail at link time rather than at resolution. SAP releases those bundles as one versioned set, so requiring a single version across them is safe. The Eclipse platform and EMF bundles are versioned independently of one another, so no equivalent rule applies to them.
+
+Version drift is only *tolerated*, not always *absorbed*: applying a resolved version requires the source being built to route its `systemPath` entries through the `adt.jar.*` properties. Source archives released before that change pin exact file names, so when drift is present and the selected source lacks the properties, `config build` fails and directs you to build from a checkout that has them.
 
 ---
 

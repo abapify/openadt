@@ -43,10 +43,47 @@ These ADT-specific headers are passed through:
 | ---------------------------- | ---------------------------- |
 | `Accept`                     | Content negotiation          |
 | `Content-Type`               | Request body type            |
-| `X-CSRF-Token`               | CSRF protection              |
+| `X-CSRF-Token`               | CSRF handshake (see below)    |
 | `If-Match` / `If-None-Match` | ETags for optimistic locking |
 | `Accept-Language`            | Language negotiation         |
 | `SAP-Client`                 | SAP client selection         |
+
+## CSRF handshake
+
+SAP clients obtain a CSRF token by sending `GET` or `HEAD` with `X-CSRF-Token: fetch` and reading the `x-csrf-token` response header, then attaching it to writes. A client treats an absent, empty, or literal `Required` value as "no token issued" and aborts before it ever issues its write.
+
+**The proxy answers the handshake itself, but only for the SDK transport.** A transport advertises this
+through `AdtTransportClient.managesCsrfUpstream()`, which defaults to `false`; only
+`AdtSdkTransportClient` returns `true`.
+
+| Request | Behavior (SDK transport) |
+| ------- | -------- |
+| `HEAD` with `X-CSRF-Token: fetch` | answered locally: `200` plus an `x-csrf-token` header, no upstream call |
+| `GET` with `X-CSRF-Token: fetch` | forwarded normally; `x-csrf-token` is set only when the response carries no usable one, so the body is preserved |
+| anything else — including a write tagged `fetch` | untouched; no synthetic token is added |
+
+A token counts as usable when it is present, non-blank, and not the literal `Required`. SAP sends
+`Required` to mean "fetch a token", and a client reads that value as no token at all, so relaying it
+verbatim fails the handshake exactly as an absent header would.
+
+Two reasons the token is minted locally rather than relayed:
+
+- The ADT SDK maintains its own authenticated session and handles CSRF upstream, so a token issued here is never validated against anything. A write carrying an arbitrary token already succeeds.
+- Upstream answers `HEAD` with `400`, so relaying the handshake would fail. `GET` on the same path returns `200`, which places the status upstream rather than in the proxy; `AdtSdkTransportClient` logs the upstream status under `OPENADT_VERBOSE` so this stays checkable.
+
+Neither reason holds for the `rest-rfc` and `http` transports: those forward the client's token to SAP,
+so a locally minted one would be rejected on the first write. For them the handshake is passed through
+untouched — including upstream's `HEAD` status — which is their pre-existing behavior.
+
+Inbound `X-CSRF-Token` is still forwarded on writes (see Headers Preserved); the SDK ignores it.
+
+**The proxy therefore provides no CSRF protection.** The controls are that the listener is loopback-bound and that access is gated by the proxy's own authentication mode below, not by CSRF. This is unchanged behavior — the token was never validated — but it is now stated.
+
+## Bodyless responses
+
+`com.sun.net.httpserver` requires a response length of `-1` when no body is sent. The proxy uses it for a `HEAD` reply, `204`, `304`, and any empty body; passing a length there (including `0`, which selects chunked encoding) announces framing the server cannot then satisfy.
+
+`HEAD` on a proxied path still returns whatever SAP returns, which today is `400` for paths other than the CSRF handshake. Only the handshake is short-circuited; general upstream `HEAD` support is out of scope.
 
 ## Authentication Modes
 

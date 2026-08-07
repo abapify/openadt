@@ -1,11 +1,15 @@
 package org.openadt.sap.adt.services;
 
 import java.lang.reflect.Method;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeSet;
 
+import org.openadt.config.CliLog;
 import org.openadt.config.OpenAdtException;
 import org.openadt.sap.adt.sdk.SdkServiceArgs;
 import org.openadt.sap.adt.sdk.SdkServiceResult;
@@ -51,8 +55,36 @@ public final class SdkServiceRegistry {
         try {
             return invokeHandler(handlerClass, context, args);
         } catch (ReflectiveOperationException error) {
-            throw new OpenAdtException("SDK service invocation failed: " + error.getMessage(), error);
+            // InvocationTargetException carries no message of its own, so reporting getMessage()
+            // directly yields "SDK service invocation failed: null" and hides the real failure.
+            Throwable cause = rootCause(error);
+            if (CliLog.verbose()) {
+                CliLog.sdk("service '" + serviceId + "' failed:");
+                cause.printStackTrace(CliLog.stderr());
+            }
+            throw new OpenAdtException("SDK service invocation failed: " + describe(cause), error);
         }
+    }
+
+    /**
+     * Walks to the innermost cause, tracking visited throwables by identity so a cyclic chain
+     * terminates. A self-reference check alone would still spin on an {@code A -> B -> A} cycle.
+     */
+    private static Throwable rootCause(Throwable error) {
+        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        Throwable current = error;
+        seen.add(current);
+        for (Throwable cause = current.getCause(); cause != null && seen.add(cause); cause = current.getCause()) {
+            current = cause;
+        }
+        return current;
+    }
+
+    private static String describe(Throwable cause) {
+        String message = cause.getMessage();
+        return message == null || message.isBlank()
+            ? cause.getClass().getName()
+            : cause.getClass().getSimpleName() + ": " + message;
     }
 
     private static SdkServiceResult invokeHandler(String handlerClass, Object context, SdkServiceArgs args)

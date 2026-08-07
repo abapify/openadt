@@ -1,6 +1,7 @@
 package org.openadt.bootstrap;
 
 import org.openadt.config.JCoJarCanonicalizer;
+import org.openadt.config.JCoNativeExtractor;
 import org.openadt.config.OpenAdtConfig;
 
 import java.io.IOException;
@@ -26,6 +27,7 @@ public class RuntimeDetector {
     private final List<Path> sapcryptoCandidates;
     private final Path stagedDevcontainerDist;
     private final Path jcoCanonicalCacheDir;
+    private final Path jcoNativeCacheDir;
 
     public RuntimeDetector() {
         this(
@@ -45,22 +47,37 @@ public class RuntimeDetector {
         List<Path> sapcryptoCandidates,
         Path jcoCanonicalCacheDir
     ) {
+        this(jcoJarRoots, nativeSearchRoots, sapcryptoCandidates, jcoCanonicalCacheDir, null);
+    }
+
+    RuntimeDetector(
+        List<Path> jcoJarRoots,
+        List<Path> nativeSearchRoots,
+        List<Path> sapcryptoCandidates,
+        Path jcoCanonicalCacheDir,
+        Path jcoNativeCacheDir
+    ) {
         this.jcoJarRoots = List.copyOf(jcoJarRoots);
         this.nativeSearchRoots = List.copyOf(nativeSearchRoots);
         this.sapcryptoCandidates = List.copyOf(sapcryptoCandidates);
         this.jcoCanonicalCacheDir = jcoCanonicalCacheDir;
+        this.jcoNativeCacheDir = jcoNativeCacheDir;
         this.stagedDevcontainerDist =
             Path.of(System.getProperty("user.dir", ".")).toAbsolutePath().normalize().resolve(".devcontainer/dist");
     }
 
     public OpenAdtConfig.RuntimeConfig detect() {
         Optional<Path> jcoJar = findLatestJcoJar();
-        Optional<Path> nativeLibrary = findJcoNativeLibrary();
         Optional<Path> sapcrypto = findSapcrypto();
         Optional<Path> adtPluginsDir = findAdtPluginsDir();
-        if (jcoJar.isEmpty() && nativeLibrary.isEmpty() && sapcrypto.isEmpty() && adtPluginsDir.isEmpty()) {
+        // A JCo native on its own is not a runtime: nothing can load it without the JCo core jar or the
+        // ADT bundles. Extracting one must therefore not be what makes detection look successful, so the
+        // extraction is only attempted once something usable has been found, and it does not count
+        // towards that decision.
+        if (jcoJar.isEmpty() && sapcrypto.isEmpty() && adtPluginsDir.isEmpty()) {
             return null;
         }
+        Optional<Path> nativeLibrary = findJcoNativeLibrary();
 
         OpenAdtConfig.RuntimeConfig runtime = new OpenAdtConfig.RuntimeConfig();
         jcoJar
@@ -140,7 +157,15 @@ public class RuntimeDetector {
         if (match.isPresent()) {
             return match;
         }
-        return Optional.empty();
+        // On macOS/Linux the native ships inside a platform p2 bundle, so no loose file exists to find.
+        return extractJcoNativeFromBundle();
+    }
+
+    private Optional<Path> extractJcoNativeFromBundle() {
+        if (jcoNativeCacheDir != null) {
+            return JCoNativeExtractor.extractFrom(jcoJarRoots, jcoNativeCacheDir);
+        }
+        return JCoNativeExtractor.extractFrom(jcoJarRoots);
     }
 
     private Optional<Path> findSapcrypto() {

@@ -1,6 +1,14 @@
 import AdmZip from 'adm-zip'
 import { createHash } from 'node:crypto'
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { packageMcpBinary, type FileChecksum } from './mcp-package.ts'
@@ -94,6 +102,11 @@ function writeLaunchers(opts: LaunchersOutput): void {
     join(root, 'packaging/scoop/post-install.ps1'),
     join(opts.base, 'bin/scoop-post-install.ps1')
   )
+  cpSync(
+    join(root, 'packaging/unix/openadt-launcher.sh'),
+    join(opts.base, 'bin/openadt-launcher.sh')
+  )
+  chmodSync(join(opts.base, 'bin/openadt-launcher.sh'), 0o755)
 
   writeFileSync(
     join(opts.base, 'bin/openadt.cmd'),
@@ -112,12 +125,15 @@ exit $LASTEXITCODE
 `
   )
 
+  // Delegates to openadt-launcher.sh, which picks the lite jar or the SDK runtime jar per
+  // subcommand. Running openadt.jar directly would leave SDK transport unavailable.
   writeFileSync(
     join(opts.base, 'bin/openadt'),
     `#!/usr/bin/env bash
-set -euo pipefail
+set -uo pipefail
 OPENADT_HOME="$(cd "$(dirname "$0")/.." && pwd)"
-exec java -jar "$OPENADT_HOME/openadt.jar" "$@"
+export OPENADT_HOME
+exec "$OPENADT_HOME/bin/openadt-launcher.sh" "$@"
 `,
     { mode: 0o755 }
   )

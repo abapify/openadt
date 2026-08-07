@@ -16,6 +16,9 @@ public final class AdtCommunicationBootstrap {
         if (prepared) {
             return;
         }
+        // The registry must exist before the ADT activator and logon run: the SDK's logon path
+        // dereferences Platform.getExtensionRegistry() without a null check.
+        EclipseRegistryBootstrap.prepare();
         JCoEclipseBootstrap.prepare();
         try {
             Class<?> activatorClass = Class.forName("com.sap.adt.communication.internal.Activator");

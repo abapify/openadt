@@ -74,7 +74,7 @@ Full index and verify commands: [specs/README.md](specs/README.md).
 ```bash
 bun scripts/verify-spec-sync.ts
 bun scripts/verify-package-docs.ts
-./mvnw -q verify -Pdistribution
+./mvnw -q verify -Pdistribution -Dopenadt.distribution=true
 bun run openadt:test
 ```
 

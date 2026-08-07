@@ -50,6 +50,15 @@ public class AdtSdkTransportClient implements AdtTransportClient {
     }
 
     /**
+     * The SDK logs on through {@link LogonService} and drives an {@code IStatelessSystemSession}, which
+     * carries SAP's CSRF token itself; the client's token never reaches SAP.
+     */
+    @Override
+    public boolean managesCsrfUpstream() {
+        return true;
+    }
+
+    /**
      * Warms JCo/SDK logon once before the proxy accepts IDE traffic.
      */
     public void warmUp(SystemProfile system) {
@@ -255,6 +264,9 @@ public class AdtSdkTransportClient implements AdtTransportClient {
         String version = sdkResponse.getVersion();
         int statusCode = sdkResponse.getStatus();
         String reasonPhrase = sdkResponse.getReasonPhrase();
+        // Records what SAP actually answered, so a client-visible status can be attributed to
+        // upstream rather than to the proxy.
+        log("upstream status " + statusCode + (reasonPhrase != null ? " " + reasonPhrase : ""));
 
         Map<String, String> fieldMap = new LinkedHashMap<>();
         if (sdkResponse.getHeaders() != null) {

@@ -12,6 +12,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 class RuntimeDetectorTest {
     @Test
@@ -111,5 +112,30 @@ class RuntimeDetectorTest {
                 System.setProperty("user.dir", originalUserDir);
             }
         }
+    }
+
+    @Test
+    void aJcoNativeAloneIsNotAUsableRuntime(@TempDir Path tempDir) throws IOException {
+        // A platform p2 bundle can carry only the native. Without the JCo core jar or the ADT bundles
+        // nothing can load it, so detection must not report a runtime built from the native alone.
+        Path pluginsDir = tempDir.resolve("plugins");
+        Files.createDirectories(pluginsDir);
+        Files.writeString(pluginsDir.resolve("com.sap.conn.jco.macosx.aarch64_3.1.13.jar"), "");
+        Files.writeString(pluginsDir.resolve("com.sap.conn.jco.linux.x86_64_3.1.13.jar"), "");
+        Files.writeString(pluginsDir.resolve("com.sap.conn.jco.win32.x86_64_3.1.13.jar"), "");
+
+        Path nativeDir = tempDir.resolve("loose-native");
+        Files.createDirectories(nativeDir);
+        Files.writeString(nativeDir.resolve("libsapjco3.dylib"), "");
+        Files.writeString(nativeDir.resolve("libsapjco3.so"), "");
+        Files.writeString(nativeDir.resolve("sapjco3.dll"), "");
+
+        RuntimeDetector detector = new RuntimeDetector(
+            List.of(pluginsDir),
+            List.of(nativeDir),
+            List.of()
+        );
+
+        assertNull(detector.detect());
     }
 }

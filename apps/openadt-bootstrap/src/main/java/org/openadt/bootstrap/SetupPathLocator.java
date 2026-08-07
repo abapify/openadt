@@ -1,5 +1,7 @@
 package org.openadt.bootstrap;
 
+import org.openadt.sap.adt.destination.EclipseWorkspacePaths;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -17,6 +19,7 @@ final class SetupPathLocator {
     private static final String SAP_COMMON = "Common";
     private static final String SAPUI_LANDSCAPE = "SAPUILandscape.xml";
     private static final String SAP_BUSINESS_CLIENT = "SAP Business Client";
+    private static final String SECURE_LOGIN_CLIENT_APP = "Secure Login Client.app";
 
     private SetupPathLocator() {
     }
@@ -87,45 +90,39 @@ final class SetupPathLocator {
     }
 
     static List<Path> eclipseWorkspacePaths() {
-        LinkedHashSet<Path> paths = new LinkedHashSet<>();
-        String home = System.getProperty(USER_HOME_PROPERTY, "");
-        if (!home.isBlank()) {
-            paths.add(Path.of(home, "workspace"));
-            paths.add(Path.of(home, "eclipse-workspace"));
-        }
-        for (Path windowsHome : windowsUserHomes()) {
-            paths.add(windowsHome.resolve("eclipse-workspace"));
-            paths.add(windowsHome.resolve("Documents/workspace"));
-            paths.add(windowsHome.resolve("Documents/eclipse-workspace"));
-        }
-        return new ArrayList<>(paths);
+        // Shared with fetch/proxy destination discovery so setup and runtime agree.
+        return EclipseWorkspacePaths.discoverWorkspaceRoots();
     }
 
     static List<Path> jcoJarRoots() {
-        List<Path> paths = new ArrayList<>();
-        for (Path windowsHome : windowsUserHomes()) {
-            paths.add(windowsHome.resolve(".p2/pool/plugins"));
+        LinkedHashSet<Path> paths = new LinkedHashSet<>();
+        // The Eclipse Installer shares bundles through a p2 pool on every platform, not just Windows.
+        for (Path userHome : allUserHomes()) {
+            paths.add(userHome.resolve(".p2/pool/plugins"));
         }
         paths.add(openadtSdkRoot().resolve("dist/p2/plugins"));
         paths.add(stagedDevcontainerDistDir().resolve("jco"));
-        return paths;
+        return new ArrayList<>(paths);
     }
 
     static List<Path> jcoNativeSearchRoots() {
-        List<Path> paths = new ArrayList<>();
+        LinkedHashSet<Path> paths = new LinkedHashSet<>();
         for (Path windowsHome : windowsUserHomes()) {
             paths.add(windowsHome.resolve("Documents"));
             paths.add(windowsHome.resolve("AppData/Local"));
             paths.add(windowsHome.resolve("AppData/Roaming"));
-            paths.add(windowsHome.resolve(".p2"));
             paths.add(windowsHome.resolve("ide-latest-released/eclipse"));
             paths.add(windowsHome.resolve("ide-2025-06/eclipse"));
+        }
+        for (Path userHome : allUserHomes()) {
+            paths.add(userHome.resolve(".p2"));
+            paths.add(userHome.resolve("eclipse"));
         }
         paths.add(openadtSdkRoot().resolve("dist/jco"));
         Path stagedDist = stagedDevcontainerDistDir();
         paths.add(stagedDist.resolve("jco"));
         paths.add(stagedDist.resolve("snc"));
-        return paths;
+        return new ArrayList<>(paths);
     }
 
     private static Path openadtSdkRoot() {
@@ -143,18 +140,37 @@ final class SetupPathLocator {
     }
 
     static List<Path> sapcryptoCandidates() {
-        List<Path> paths = new ArrayList<>();
+        LinkedHashSet<Path> paths = new LinkedHashSet<>();
         for (Path programFilesRoot : windowsProgramFilesRoots()) {
             paths.add(programFilesRoot.resolve("SAP/FrontEnd/SecureLogin/lib/sapcrypto.dll"));
         }
+        for (Path secureLoginRoot : macSecureLoginRoots()) {
+            paths.add(secureLoginRoot.resolve("Contents/MacOS/lib/libsapcrypto.dylib"));
+        }
         paths.add(stagedDevcontainerDistDir().resolve("snc/libsapcrypto.so"));
-        return paths;
+        return new ArrayList<>(paths);
     }
 
     static List<Path> secureLoginInstallPaths() {
-        List<Path> paths = new ArrayList<>();
+        LinkedHashSet<Path> paths = new LinkedHashSet<>();
         for (Path programFilesRoot : windowsProgramFilesRoots()) {
             paths.add(programFilesRoot.resolve("SAP/FrontEnd/SecureLogin"));
+        }
+        paths.addAll(macSecureLoginRoots());
+        return new ArrayList<>(paths);
+    }
+
+    /** SAP Secure Login Client app bundles on macOS (system-wide and per-user installs). */
+    private static List<Path> macSecureLoginRoots() {
+        String os = System.getProperty(OS_NAME_PROPERTY, "").toLowerCase(Locale.ROOT);
+        if (!os.contains("mac")) {
+            return List.of();
+        }
+        List<Path> paths = new ArrayList<>();
+        paths.add(Path.of("/Applications", SECURE_LOGIN_CLIENT_APP));
+        String home = System.getProperty(USER_HOME_PROPERTY, "");
+        if (!home.isBlank()) {
+            paths.add(Path.of(home, "Applications", SECURE_LOGIN_CLIENT_APP));
         }
         return paths;
     }
@@ -169,6 +185,17 @@ final class SetupPathLocator {
         for (Path windowsHome : windowsUserHomes()) {
             paths.add(windowsHome.resolve("AppData/Roaming/SAP/Common/saprules.xml"));
         }
+        return new ArrayList<>(paths);
+    }
+
+    /**
+     * Home directories to search for user-scoped Eclipse artifacts on any platform: the current
+     * user's home plus any reachable Windows homes (native Windows or WSL mounts).
+     */
+    private static List<Path> allUserHomes() {
+        Set<Path> paths = new LinkedHashSet<>();
+        addIfPresent(paths, System.getProperty(USER_HOME_PROPERTY, ""));
+        paths.addAll(windowsUserHomes());
         return new ArrayList<>(paths);
     }
 

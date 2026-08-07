@@ -57,7 +57,7 @@ brew install openadt
 ```bash
 git clone https://github.com/abapify/openadt.git
 cd openadt
-./mvnw -q verify -Pdistribution
+./mvnw -q verify -Pdistribution -Dopenadt.distribution=true
 ```
 
 > You'll also need: **SAP JCo 3.x** (jar + native for your OS). For SNC SSO add **CryptoLib / `sapcrypto`**. Both come from your SAP or corporate install — OpenADT does not bundle them.

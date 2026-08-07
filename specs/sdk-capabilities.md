@@ -51,5 +51,34 @@ Eclipse ADT plugins under `runtime.adt_plugins_dir`, including at minimum:
 - `com.sap.adt.compatibility_*` (discovery)
 - `com.sap.adt.destinations_*` / `destinations.model_*`
 - JCo + Eclipse runtime bundles (see `openadt config build`)
+- EMF (`org.eclipse.emf.common_*`, `ecore_*`, `ecore.xmi_*`) — the discovery document is parsed with EMF
+
+Bundles are resolved from the plugin pool by symbolic prefix, newest version wins; the staged set is written to `~/.openadt/runtime/sap-lib`. The JCo archive keeps its original file name (`com.sap.conn.jco-<version>.jar`) because JCo refuses to initialize from a renamed archive.
+
+Do not build this classpath from every bundle in the pool: a pool commonly holds several versions of the same ADT bundle, and mixing them breaks logon.
+
+## Headless bootstrap
+
+The SDK is written for Eclipse and reaches for OSGi services that do not exist on a plain classpath. `SapSdkRuntime.prepare` therefore calls `AdtCommunicationBootstrap.prepare`, which runs, in order:
+
+1. `EclipseRegistryBootstrap` — installs a standalone extension registry
+2. `JCoEclipseBootstrap` — initializes the JCo Eclipse bridge
+3. the `com.sap.adt.communication` activator itself
+
+### Extension registry
+
+`AdtLogonService.findExtensions()` is effectively:
+
+```java
+Platform.getExtensionRegistry()
+    .getExtensionPoint("com.sap.adt.destinations.logonListeners")
+    .getExtensions()
+```
+
+Outside Eclipse `getExtensionRegistry()` returns `null`, so logon fails with a `NullPointerException`. An empty registry does not help either — `getExtensionPoint` returns `null` for an unknown point and the same chain fails one link later. The extension points must genuinely be declared.
+
+`EclipseRegistryBootstrap` installs a registry via `RegistryFactory` and declares the extension **points** of each SAP bundle on the classpath, read from its `plugin.xml` and deduplicated by bundle symbolic name.
+
+The `<extension>` contributions are **deliberately dropped**. Registering them activates collaborators that only work inside a full Eclipse — notably `LoggingCommunicationListener`, which reads a preference and so reaches `ConfigurationScope.getLocation()`, requiring an OSGi configuration `Location` service that does not exist here. Declaring points alone is what the null-unsafe lookups need: they resolve to a point with zero extensions and logon proceeds.
 
 Distribution JAR loads SDK implementations via reflection (`AdtSdkServiceGateway`) when SAP bundles are on the classpath.

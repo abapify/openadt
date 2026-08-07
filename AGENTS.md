@@ -177,9 +177,11 @@ bunx eslint scripts/ .agents/skills/ --max-warnings 0 --no-error-on-unmatched-pa
 bun scripts/verify-spec-sync.ts
 bun scripts/verify-fixtures-only.ts
 bun scripts/verify-package-docs.ts
-./mvnw -q verify -Pdistribution
+./mvnw -q verify -Pdistribution -Dopenadt.distribution=true
 bun run openadt:test
 ```
+
+Both Maven flags are required. Profile activation on `!openadt.distribution` is matched against `-D` properties only, never against a property set by another profile, so `-Pdistribution` on its own leaves the `sap-sdk` profile active and dependency resolution fails on any machine that has an Eclipse p2 pool. The Nx targets in `apps/openadt-cli/project.json` already pass both.
 
 ## Cursor Cloud specific instructions
 
