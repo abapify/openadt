@@ -32,6 +32,11 @@ public final class SetupRuntimePreparer {
     private static final String OS_NAME_PROPERTY = "os.name";
     private static final String SOURCE_ARCHIVE_TEMPLATE =
         "https://github.com/abapify/openadt/archive/refs/tags/v%s.zip";
+    private static final String RUNTIME_JAR_NAME = "openadt-full.jar";
+    private static final String VERSION_MARKER = "version.txt";
+    private static final String TEMP_SUFFIX = ".tmp";
+    private static final int DOWNLOAD_RETRIES = 3;
+    private static final int RETRY_BACKOFF_MS = 1000;
     private static final int PREPARE_TIMEOUT_MINUTES = 30;
 
     private SetupRuntimePreparer() {
@@ -49,7 +54,7 @@ public final class SetupRuntimePreparer {
             return 1;
         }
         Path runtimeDir = runtimeDir();
-        Path outJar = runtimeDir.resolve("openadt-full.jar");
+        Path outJar = runtimeDir.resolve(RUNTIME_JAR_NAME);
         if (!force && runtimeJarReady(version)) {
             CliLog.info("Runtime jar already prepared: " + outJar);
             return 0;
@@ -178,17 +183,38 @@ public final class SetupRuntimePreparer {
         String url = String.format(SOURCE_ARCHIVE_TEMPLATE, version);
 
         CliLog.info("Downloading OpenADT v" + version + " source...");
-        try (HttpClient client = HttpClient.newBuilder()
+        HttpClient client = HttpClient.newBuilder()
             .followRedirects(HttpClient.Redirect.NORMAL)
             .connectTimeout(Duration.ofSeconds(30))
-            .build()) {
-            HttpRequest request = HttpRequest.newBuilder(URI.create(url)).GET().build();
-            HttpResponse<Path> response = client.send(
-                request,
-                HttpResponse.BodyHandlers.ofFile(zipPath)
-            );
-            if (response.statusCode() != 200) {
+            .build();
+        for (int attempt = 0; attempt <= DOWNLOAD_RETRIES; attempt++) {
+            HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+                .GET()
+                .timeout(Duration.ofMinutes(5))
+                .build();
+            try {
+                HttpResponse<Path> response = client.send(
+                    request,
+                    HttpResponse.BodyHandlers.ofFile(zipPath)
+                );
+                if (response.statusCode() == 200) {
+                    break;
+                }
+                if (response.statusCode() == 429 || response.statusCode() >= 500) {
+                    if (attempt == DOWNLOAD_RETRIES) {
+                        throw new IOException("Download failed after " + (DOWNLOAD_RETRIES + 1) + " attempts (HTTP " + response.statusCode() + "): " + url);
+                    }
+                    CliLog.info("Download attempt " + (attempt + 1) + " returned HTTP " + response.statusCode() + ", retrying...");
+                    Thread.sleep(RETRY_BACKOFF_MS * (attempt + 1L));
+                    continue;
+                }
                 throw new IOException("Download failed (HTTP " + response.statusCode() + "): " + url);
+            } catch (IOException e) {
+                if (attempt == DOWNLOAD_RETRIES) {
+                    throw new IOException("Download failed after " + (DOWNLOAD_RETRIES + 1) + " attempts: " + url, e);
+                }
+                CliLog.info("Download attempt " + (attempt + 1) + " failed (" + e.getMessage() + "), retrying...");
+                Thread.sleep(RETRY_BACKOFF_MS * (attempt + 1L));
             }
         }
 
@@ -337,7 +363,7 @@ public final class SetupRuntimePreparer {
             CliLog.error("Maven build did not produce openadt-*.jar in " + targetDir);
             return 1;
         }
-        Files.copy(built.get(), outJar, StandardCopyOption.REPLACE_EXISTING);
+        publish(built.get(), outJar);
 
         Path sapLib = targetDir.resolve("sap-lib");
         if (Files.isDirectory(sapLib)) {
@@ -347,7 +373,14 @@ public final class SetupRuntimePreparer {
             CliLog.info("Prepared runtime sap-lib: " + runtimeSapLib);
         }
 
-        Files.writeString(runtimeDir.resolve("version.txt"), version, StandardCharsets.UTF_8);
+        Path versionMarker = runtimeDir.resolve(VERSION_MARKER);
+        Path versionTemp = runtimeDir.resolve(VERSION_MARKER + ".writing");
+        Files.writeString(versionTemp, version, StandardCharsets.UTF_8);
+        try {
+            Files.move(versionTemp, versionMarker, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (java.nio.file.AtomicMoveNotSupportedException | java.nio.file.FileAlreadyExistsException unsupported) {
+            Files.move(versionTemp, versionMarker, StandardCopyOption.REPLACE_EXISTING);
+        }
         CliLog.info("Prepared runtime jar: " + outJar);
         return 0;
     }
@@ -442,7 +475,7 @@ public final class SetupRuntimePreparer {
         if (fromJar != null && !fromJar.isBlank()) {
             return normalizeReleaseVersion(fromJar);
         }
-        Path marker = runtimeDir().resolve("version.txt");
+        Path marker = runtimeDir().resolve(VERSION_MARKER);
         if (Files.isRegularFile(marker)) {
             return Files.readString(marker, StandardCharsets.UTF_8).trim();
         }
@@ -460,17 +493,32 @@ public final class SetupRuntimePreparer {
 
     public static boolean runtimeJarReady(String version) {
         Path runtimeDir = runtimeDir();
-        if (!Files.isRegularFile(runtimeDir.resolve("openadt-full.jar"))) {
-            return false;
-        }
-        Path marker = runtimeDir.resolve("version.txt");
+        Path marker = runtimeDir.resolve(VERSION_MARKER);
         if (!Files.isRegularFile(marker)) {
             return false;
         }
         try {
-            return Files.readString(marker, StandardCharsets.UTF_8).trim().equals(version);
+            if (!Files.readString(marker, StandardCharsets.UTF_8).trim().equals(version)) {
+                return false;
+            }
         } catch (IOException e) {
             return false;
+        }
+        return Files.isRegularFile(runtimeDir.resolve(RUNTIME_JAR_NAME));
+    }
+
+    /**
+     * Publishes {@code source} to {@code target} by staging it next to the final path and
+     * atomically moving it into place. This keeps {@code runtimeJarReady} from observing a
+     * partially written jar or version marker.
+     */
+    private static void publish(Path source, Path target) throws IOException {
+        Path staged = target.resolveSibling(target.getFileName() + TEMP_SUFFIX);
+        Files.copy(source, staged, StandardCopyOption.REPLACE_EXISTING);
+        try {
+            Files.move(staged, target, StandardCopyOption.ATOMIC_MOVE);
+        } catch (java.nio.file.AtomicMoveNotSupportedException | java.nio.file.FileAlreadyExistsException unsupported) {
+            Files.move(staged, target, StandardCopyOption.REPLACE_EXISTING);
         }
     }
 
