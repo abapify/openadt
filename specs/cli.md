@@ -58,18 +58,18 @@ Options:
 - `--force` — Rebuild even when the runtime jar already matches the installed OpenADT version
 - `--config, -c <path>` — Config file path
 
-Config resolution matches `openadt config`: a `.openadt/config.toml` in the current directory is used when `--config` is not given.
+Config resolution matches `openadt config`: a `.openadt/config.toml` in the current directory is used when `--config` is not given. If that directory-local config does not contain a usable `adt_plugins_dir`, the default setup config (`~/.openadt/config.toml`) is read and `config build` selects that runtime path.
 
 Behavior:
 
-- Implemented in Java on all platforms; no PowerShell or shell script is invoked
+- Implemented in Java on all platforms; the previous PowerShell preparation logic is replaced by Java, but the Maven wrapper is still invoked (`mvnw.cmd` on Windows, `./mvnw` elsewhere) for `apps/openadt-cli`
 - Builds from the current git checkout when one is detected (root `pom.xml` + Maven wrapper); otherwise downloads the source archive for the installed version tag
 - Build cache root: `%LOCALAPPDATA%\openadt\build` (Windows), `~/Library/Caches/openadt/build` (macOS), `$XDG_CACHE_HOME/openadt/build` or `~/.cache/openadt/build` (Linux)
 - Runs the Maven wrapper (`mvnw.cmd` on Windows, `./mvnw` elsewhere) for `apps/openadt-cli`
 - Outputs `~/.openadt/runtime/openadt-full.jar`, `~/.openadt/runtime/sap-lib/`, and `~/.openadt/runtime/version.txt`
 - Skips work when `version.txt` already matches the installed version, unless `--force`
 
-SAP ADT and Eclipse bundles are resolved from `adt_plugins_dir` by bundle prefix, taking the newest version present rather than a fixed filename, so a pool that does not match the baseline version still builds. Bundles whose resolved version differs from the tested baseline are reported as warnings; a bundle with no match at all fails the build with the missing prefixes named.
+SAP ADT and Eclipse bundles are resolved from `adt_plugins_dir` by bundle prefix, taking the newest version present rather than a fixed filename, so a pool that does not match the baseline version still builds when the selected source supports the `${adt.jar.*}` overrides. If the source pins exact bundle file names and cannot absorb the drift (for example a downloaded release archive), `config build` fails and the fallback is to build from a local checkout that resolves bundles dynamically. Bundles whose resolved version differs from the tested baseline are reported as warnings; a bundle with no match at all fails the build with the missing prefixes named.
 
 ---
 
