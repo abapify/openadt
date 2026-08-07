@@ -23,6 +23,8 @@ public class AdtProxyHandler implements HttpHandler {
 
     static final String CSRF_HEADER = "X-CSRF-Token";
     static final String CSRF_FETCH = "fetch";
+    /** SAP's "you must fetch a token" sentinel; clients read it as no token at all. */
+    static final String CSRF_REQUIRED = "Required";
     /**
      * Token handed back for a local CSRF handshake. Must be non-empty and must not be the literal
      * {@code Required}, which clients read as "no token issued".
@@ -74,11 +76,13 @@ public class AdtProxyHandler implements HttpHandler {
     @Override
     public void handle(HttpExchange exchange) throws IOException {
         try {
-            boolean csrfFetch = isCsrfFetch(exchange);
+            // Only a transport that owns CSRF upstream may have the handshake served locally; for
+            // rest-rfc and http the client's token does reach SAP, so a local one would be rejected.
+            boolean localHandshake = isCsrfFetch(exchange) && transportClient.managesCsrfUpstream();
 
             // A CSRF fetch by HEAD is answered locally: upstream rejects HEAD with 400, and the
             // token is not needed upstream anyway (see answerCsrfFetch).
-            if (csrfFetch && isHead(exchange)) {
+            if (localHandshake && isHead(exchange)) {
                 answerCsrfFetch(exchange);
                 return;
             }
@@ -93,8 +97,10 @@ public class AdtProxyHandler implements HttpHandler {
                 }
             });
 
-            // A CSRF fetch by GET keeps its body; only make sure it comes back with a token.
-            if (csrfFetch && response.getHeader(CSRF_HEADER) == null) {
+            // A CSRF fetch by GET keeps its body; only make sure it comes back with a usable token.
+            // Restricted to GET because the handshake is defined for GET and HEAD only — a write
+            // carrying `fetch` must not have a token invented for its response.
+            if (localHandshake && isGet(exchange) && !isUsableToken(response.getHeader(CSRF_HEADER))) {
                 exchange.getResponseHeaders().set(CSRF_HEADER, LOCAL_CSRF_TOKEN);
             }
 
@@ -108,6 +114,19 @@ public class AdtProxyHandler implements HttpHandler {
 
     static boolean isHead(HttpExchange exchange) {
         return "HEAD".equalsIgnoreCase(exchange.getRequestMethod());
+    }
+
+    static boolean isGet(HttpExchange exchange) {
+        return "GET".equalsIgnoreCase(exchange.getRequestMethod());
+    }
+
+    /**
+     * A client treats an absent, empty, or literal {@code Required} {@code x-csrf-token} as "no token
+     * issued" and aborts before its write. SAP answers with {@code Required} when it wants a token
+     * fetched, so relaying that value verbatim fails the handshake as surely as sending nothing.
+     */
+    static boolean isUsableToken(String value) {
+        return value != null && !value.isBlank() && !CSRF_REQUIRED.equalsIgnoreCase(value.trim());
     }
 
     /** SAP's CSRF handshake: any GET/HEAD carrying {@code X-CSRF-Token: fetch}. */
