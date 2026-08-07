@@ -1,6 +1,7 @@
 package org.openadt.bootstrap;
 
 import org.openadt.config.CliLog;
+import org.openadt.config.JCoJarCanonicalizer;
 
 import java.io.IOException;
 import java.net.URI;
@@ -342,7 +343,7 @@ public final class SetupRuntimePreparer {
         if (Files.isDirectory(sapLib)) {
             Path runtimeSapLib = runtimeDir.resolve("sap-lib");
             deleteRecursively(runtimeSapLib);
-            copyDirectory(sapLib, runtimeSapLib);
+            copySapLib(sapLib, runtimeSapLib);
             CliLog.info("Prepared runtime sap-lib: " + runtimeSapLib);
         }
 
@@ -377,16 +378,25 @@ public final class SetupRuntimePreparer {
         }
     }
 
-    private static void copyDirectory(Path source, Path target) throws IOException {
-        try (Stream<Path> stream = Files.walk(source)) {
-            for (Path path : stream.toList()) {
-                Path destination = target.resolve(source.relativize(path).toString());
-                if (Files.isDirectory(path)) {
-                    Files.createDirectories(destination);
-                } else {
-                    Files.createDirectories(destination.getParent());
-                    Files.copy(path, destination, StandardCopyOption.REPLACE_EXISTING);
-                }
+    /**
+     * Copies the staged SAP bundles, restoring JCo's required archive name.
+     *
+     * <p>Maven names system-scope dependencies from their coordinates, so the JCo jar lands as
+     * {@code jco-<version>.jar}. JCo refuses to initialize from that name — "It is not allowed to
+     * rename or repackage the original archive" — so it is renamed back on the way in, leaving every
+     * consumer of {@code sap-lib} with a directory it can put on the classpath verbatim.
+     */
+    static void copySapLib(Path source, Path target) throws IOException {
+        Files.createDirectories(target);
+        try (Stream<Path> stream = Files.list(source)) {
+            for (Path jar : stream.filter(Files::isRegularFile).toList()) {
+                String name = jar.getFileName().toString();
+                String canonical = JCoJarCanonicalizer.canonicalFileName(name);
+                Files.copy(
+                    jar,
+                    target.resolve(canonical != null ? canonical : name),
+                    StandardCopyOption.REPLACE_EXISTING
+                );
             }
         }
     }

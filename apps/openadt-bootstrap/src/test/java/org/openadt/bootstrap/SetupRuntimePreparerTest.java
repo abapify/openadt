@@ -234,6 +234,27 @@ class SetupRuntimePreparerTest {
     }
 
     @Test
+    void restoresJcoArchiveNameWhenStagingSapLib() throws Exception {
+        Path staged = Files.createDirectories(tempDir.resolve("target/sap-lib"));
+        // Maven names system-scope deps from coordinates, which repackages JCo under a name it rejects.
+        Files.createFile(staged.resolve("jco-3.1.13.jar"));
+        Files.createFile(staged.resolve("jco-eclipse-1.32.0.jar"));
+        Files.createFile(staged.resolve("communication-3.58.0.jar"));
+        Path runtimeSapLib = tempDir.resolve("runtime/sap-lib");
+
+        SetupRuntimePreparer.copySapLib(staged, runtimeSapLib);
+
+        assertTrue(
+            Files.isRegularFile(runtimeSapLib.resolve("com.sap.conn.jco-3.1.13.jar")),
+            "JCo refuses to initialize unless the archive keeps its original name"
+        );
+        assertTrue(Files.notExists(runtimeSapLib.resolve("jco-3.1.13.jar")));
+        // Only the JCo core archive is name-sensitive; everything else is copied verbatim.
+        assertTrue(Files.isRegularFile(runtimeSapLib.resolve("jco-eclipse-1.32.0.jar")));
+        assertTrue(Files.isRegularFile(runtimeSapLib.resolve("communication-3.58.0.jar")));
+    }
+
+    @Test
     void shouldPrepareOnlyWithConfiguredPluginsDir() {
         assertTrue(SetupRuntimePreparer.shouldPrepare("/some/path"));
         assertTrue(!SetupRuntimePreparer.shouldPrepare(null));
