@@ -2,6 +2,7 @@ package org.openadt.config;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -47,7 +48,8 @@ public final class JCoNativeExtractor {
     /** Extract into a caller-supplied directory (for tests or isolated caches). */
     public static Optional<Path> extractFrom(List<Path> pluginRoots, Path cacheDir) {
         String nativeName = nativeLibraryName();
-        if (nativeName == null) {
+        String prefix = bundlePrefix();
+        if (nativeName == null || prefix == null) {
             return Optional.empty();
         }
         Optional<Path> bundle = findPlatformBundle(pluginRoots);
@@ -55,28 +57,40 @@ public final class JCoNativeExtractor {
             return Optional.empty();
         }
         try {
-            return Optional.of(extractNative(bundle.get(), nativeName, cacheDir));
+            String version = bundleVersion(bundle.get(), prefix);
+            return Optional.of(extractNative(bundle.get(), nativeName, cacheDir, version));
         } catch (IOException error) {
             return Optional.empty();
         }
     }
 
-    private static Path extractNative(Path bundle, String nativeName, Path cacheDir) throws IOException {
-        Path target = cacheDir.resolve(nativeName);
+    private static Path extractNative(Path bundle, String nativeName, Path cacheDir, String version) throws IOException {
+        Path targetDir = cacheDir.resolve(version);
+        Path target = targetDir.resolve(nativeName);
         if (!needsExtract(bundle, target)) {
             return target;
         }
-        Files.createDirectories(cacheDir);
+        Files.createDirectories(targetDir);
+        Path temp = targetDir.resolve(nativeName + ".tmp");
         try (ZipFile zip = new ZipFile(bundle.toFile())) {
             ZipEntry entry = findNativeEntry(zip, nativeName);
             if (entry == null) {
                 throw new IOException("Bundle " + bundle.getFileName() + " does not contain " + nativeName);
             }
             try (InputStream input = zip.getInputStream(entry)) {
-                Files.copy(input, target, StandardCopyOption.REPLACE_EXISTING);
+                Files.copy(input, temp, StandardCopyOption.REPLACE_EXISTING);
             }
         }
+        moveAtomically(temp, target);
         return target;
+    }
+
+    private static void moveAtomically(Path source, Path target) throws IOException {
+        try {
+            Files.move(source, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        } catch (AtomicMoveNotSupportedException unsupported) {
+            Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+        }
     }
 
     /**

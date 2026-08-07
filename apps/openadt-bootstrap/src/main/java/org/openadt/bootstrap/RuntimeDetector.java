@@ -71,7 +71,7 @@ public class RuntimeDetector {
         Optional<Path> nativeLibrary = findJcoNativeLibrary();
         Optional<Path> sapcrypto = findSapcrypto();
         Optional<Path> adtPluginsDir = findAdtPluginsDir();
-        if (jcoJar.isEmpty() && nativeLibrary.isEmpty() && sapcrypto.isEmpty() && adtPluginsDir.isEmpty()) {
+        if (jcoJar.isEmpty()) {
             return null;
         }
 

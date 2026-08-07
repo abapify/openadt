@@ -58,7 +58,7 @@ class JCoNativeExtractorTest {
         Optional<Path> extracted = JCoNativeExtractor.extractFrom(List.of(pluginsDir), cacheDir);
 
         assertTrue(extracted.isPresent());
-        assertEquals(cacheDir.resolve(nativeName), extracted.get());
+        assertEquals(cacheDir.resolve("3.1.12").resolve(nativeName), extracted.get());
         assertEquals("native-bytes", Files.readString(extracted.get()));
     }
 
@@ -92,6 +92,7 @@ class JCoNativeExtractorTest {
         Optional<Path> extracted = JCoNativeExtractor.extractFrom(List.of(pluginsDir), cacheDir);
 
         assertTrue(extracted.isPresent());
+        assertEquals("3.1.13", extracted.get().getParent().getFileName().toString());
         assertEquals("newer", Files.readString(extracted.get()));
     }
 
@@ -112,6 +113,28 @@ class JCoNativeExtractorTest {
 
         assertEquals(first, second);
         assertEquals("cached-marker", Files.readString(second));
+    }
+
+    @Test
+    void switchesCacheDirectoryWhenBundleVersionChanges() throws Exception {
+        if (!platformSupported()) {
+            return;
+        }
+        Path pluginsDir = tempDir.resolve("plugins");
+        Path cacheDir = tempDir.resolve("cache");
+        String nativeName = JCoNativeExtractor.nativeLibraryName();
+        Path bundle312 = writeBundle(pluginsDir, "3.1.12", "lib/" + nativeName, "v312");
+
+        Path first = JCoNativeExtractor.extractFrom(List.of(pluginsDir), cacheDir).orElseThrow();
+        assertEquals("v312", Files.readString(first));
+
+        // Even if 3.1.12 has a newer mtime, selecting 3.1.13 must use its own cache.
+        Files.setLastModifiedTime(bundle312, java.nio.file.attribute.FileTime.fromMillis(System.currentTimeMillis() + 60_000));
+        writeBundle(pluginsDir, "3.1.13", "lib/" + nativeName, "v313");
+
+        Path second = JCoNativeExtractor.extractFrom(List.of(pluginsDir), cacheDir).orElseThrow();
+        assertEquals("3.1.13", second.getParent().getFileName().toString());
+        assertEquals("v313", Files.readString(second));
     }
 
     @Test
