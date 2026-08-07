@@ -31,8 +31,23 @@ public final class AdtBundleResolver {
     /** ADT ships its bundles as one versioned set, so they share a baseline. */
     private static final String ADT_BASELINE = "3.58.0";
 
+    /**
+     * Bundles that SAP releases as one versioned set. Every member must resolve to the same version:
+     * mixing, say, {@code com.sap.adt.communication_3.58.0} with
+     * {@code com.sap.adt.destinations_3.60.2} is not a combination SAP ships or tests, and the resulting
+     * classpath can fail at link time rather than at resolution.
+     *
+     * <p>The Eclipse platform and EMF bundles version independently of one another, so no equivalent
+     * rule applies to them and none is invented here.
+     */
+    private static final String FAMILY_ADT = "adt";
+
     /** One {@code sap-sdk} system-scope dependency. */
-    record Bundle(String propertyName, String bundlePrefix, String baselineVersion) {
+    record Bundle(String propertyName, String bundlePrefix, String baselineVersion, String family) {
+        Bundle(String propertyName, String bundlePrefix, String baselineVersion) {
+            this(propertyName, bundlePrefix, baselineVersion, null);
+        }
+
         String fileNameFor(String version) {
             return bundlePrefix + "_" + version + JAR_SUFFIX;
         }
@@ -43,13 +58,13 @@ public final class AdtBundleResolver {
      * {@code apps/openadt-sap-adt/pom.xml}; {@code AdtBundlePomSyncTest} enforces that.
      */
     static final List<Bundle> BUNDLES = List.of(
-        new Bundle("adt.jar.communication", "com.sap.adt.communication", ADT_BASELINE),
-        new Bundle("adt.jar.compatibility", "com.sap.adt.compatibility", ADT_BASELINE),
-        new Bundle("adt.jar.destinations", "com.sap.adt.destinations", ADT_BASELINE),
-        new Bundle("adt.jar.destinations.model", "com.sap.adt.destinations.model", ADT_BASELINE),
-        new Bundle("adt.jar.logging", "com.sap.adt.logging", ADT_BASELINE),
-        new Bundle("adt.jar.util", "com.sap.adt.util", ADT_BASELINE),
-        new Bundle("adt.jar.transport", "com.sap.adt.transport", ADT_BASELINE),
+        new Bundle("adt.jar.communication", "com.sap.adt.communication", ADT_BASELINE, FAMILY_ADT),
+        new Bundle("adt.jar.compatibility", "com.sap.adt.compatibility", ADT_BASELINE, FAMILY_ADT),
+        new Bundle("adt.jar.destinations", "com.sap.adt.destinations", ADT_BASELINE, FAMILY_ADT),
+        new Bundle("adt.jar.destinations.model", "com.sap.adt.destinations.model", ADT_BASELINE, FAMILY_ADT),
+        new Bundle("adt.jar.logging", "com.sap.adt.logging", ADT_BASELINE, FAMILY_ADT),
+        new Bundle("adt.jar.util", "com.sap.adt.util", ADT_BASELINE, FAMILY_ADT),
+        new Bundle("adt.jar.transport", "com.sap.adt.transport", ADT_BASELINE, FAMILY_ADT),
         new Bundle("adt.jar.jco", "com.sap.conn.jco", "3.1.13"),
         new Bundle("adt.jar.jco.eclipse", "com.sap.conn.jco.eclipse", "1.32.0"),
         new Bundle("adt.jar.core.runtime", "org.eclipse.core.runtime", "3.34.200.v20251220-0953"),
@@ -80,10 +95,21 @@ public final class AdtBundleResolver {
         new Bundle("adt.jar.service.prefs", "org.osgi.service.prefs", "1.1.2.202109301733")
     );
 
-    /** Outcome of resolving every bundle against one plugins directory. */
-    public record Resolution(Map<String, Path> properties, List<String> drift, List<String> missing) {
+    /**
+     * Outcome of resolving every bundle against one plugins directory.
+     *
+     * @param drift bundles resolved to a version other than the tested baseline — reported, not fatal
+     * @param missing bundles with no match at all
+     * @param incoherent version-set violations: a release family that did not resolve to one version
+     */
+    public record Resolution(
+        Map<String, Path> properties,
+        List<String> drift,
+        List<String> missing,
+        List<String> incoherent
+    ) {
         public boolean isComplete() {
-            return missing.isEmpty();
+            return missing.isEmpty() && incoherent.isEmpty();
         }
     }
 
@@ -94,6 +120,7 @@ public final class AdtBundleResolver {
         Map<String, Path> properties = new LinkedHashMap<>();
         List<String> drift = new ArrayList<>();
         List<String> missing = new ArrayList<>();
+        Map<String, Map<String, List<String>>> families = new LinkedHashMap<>();
 
         for (Bundle bundle : BUNDLES) {
             Optional<Path> match = findNewest(pluginsDir, bundle.bundlePrefix());
@@ -108,8 +135,36 @@ public final class AdtBundleResolver {
                 drift.add(bundle.bundlePrefix() + ": expected " + bundle.baselineVersion()
                     + ", using " + resolvedVersion);
             }
+            if (bundle.family() != null) {
+                families
+                    .computeIfAbsent(bundle.family(), key -> new LinkedHashMap<>())
+                    .computeIfAbsent(resolvedVersion, key -> new ArrayList<>())
+                    .add(bundle.bundlePrefix());
+            }
         }
-        return new Resolution(properties, drift, missing);
+        return new Resolution(properties, drift, missing, describeIncoherentFamilies(families));
+    }
+
+    /**
+     * Each bundle is resolved to its own newest version, so a pool holding a partially updated release
+     * can otherwise yield a classpath that mixes levels. Any family resolving to more than one version
+     * is rejected here rather than left to fail later at compilation or link time.
+     */
+    private static List<String> describeIncoherentFamilies(Map<String, Map<String, List<String>>> families) {
+        List<String> incoherent = new ArrayList<>();
+        families.forEach((family, byVersion) -> {
+            if (byVersion.size() <= 1) {
+                return;
+            }
+            StringBuilder detail = new StringBuilder(family)
+                .append(" bundles resolved to ")
+                .append(byVersion.size())
+                .append(" different versions:");
+            byVersion.forEach((version, prefixes) ->
+                detail.append("\n      ").append(version).append(" - ").append(String.join(", ", prefixes)));
+            incoherent.add(detail.toString());
+        });
+        return incoherent;
     }
 
     /**

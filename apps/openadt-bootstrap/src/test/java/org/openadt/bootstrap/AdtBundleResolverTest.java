@@ -41,16 +41,27 @@ class AdtBundleResolverTest {
         assertTrue(resolution.missing().stream().anyMatch(name -> name.startsWith("com.sap.adt.communication_")));
     }
 
+    /** Adds the whole ADT release family at one version, as an Eclipse feature update actually would. */
+    private void writeAdtFamilyAt(String version) throws Exception {
+        for (AdtBundleResolver.Bundle bundle : AdtBundleResolver.BUNDLES) {
+            if ("adt".equals(bundle.family())) {
+                Files.createFile(pluginsDir.resolve(bundle.fileNameFor(version)));
+            }
+        }
+    }
+
     @Test
     void picksNewestVersionAndReportsDrift() throws Exception {
         writeBaselinePool();
-        // Mirrors a real pool holding both an older IDE's bundles and a newer update.
-        Files.createFile(pluginsDir.resolve("com.sap.adt.communication_3.60.2.jar"));
+        // Mirrors a real pool holding both an older IDE's bundles and a newer update: an ADT update
+        // ships the whole set, so all family members move together.
+        writeAdtFamilyAt("3.60.2");
         Files.createFile(pluginsDir.resolve("com.sap.adt.communication_3.56.0.jar"));
 
         AdtBundleResolver.Resolution resolution = AdtBundleResolver.resolve(pluginsDir);
 
         assertTrue(resolution.isComplete());
+        assertTrue(resolution.incoherent().isEmpty(), () -> "unexpected: " + resolution.incoherent());
         assertEquals(
             pluginsDir.resolve("com.sap.adt.communication_3.60.2.jar").toAbsolutePath(),
             resolution.properties().get("adt.jar.communication")
@@ -61,6 +72,38 @@ class AdtBundleResolverTest {
                 && d.contains("3.60.2")),
             () -> "expected drift entry for communication, got: " + resolution.drift()
         );
+    }
+
+    @Test
+    void rejectsPartiallyUpdatedAdtReleaseSet() throws Exception {
+        writeBaselinePool();
+        // Only one member updated: resolving each bundle to its own newest version would otherwise
+        // build a classpath mixing ADT 3.58.0 with 3.60.2.
+        Files.createFile(pluginsDir.resolve("com.sap.adt.communication_3.60.2.jar"));
+
+        AdtBundleResolver.Resolution resolution = AdtBundleResolver.resolve(pluginsDir);
+
+        assertFalse(resolution.isComplete(), "a mixed ADT release set must not be built");
+        assertTrue(resolution.missing().isEmpty(), "every bundle was present; the versions disagree");
+        assertEquals(1, resolution.incoherent().size());
+        String problem = resolution.incoherent().get(0);
+        assertTrue(problem.contains("3.60.2") && problem.contains("3.58.0"), problem);
+        assertTrue(problem.contains("com.sap.adt.communication"), problem);
+    }
+
+    @Test
+    void allowsPlatformBundlesToVaryIndependently() throws Exception {
+        writeBaselinePool();
+        // Eclipse platform and EMF bundles are versioned independently of one another, so a newer
+        // org.eclipse.osgi next to baseline peers is normal and must not be rejected.
+        Files.createFile(pluginsDir.resolve("org.eclipse.osgi_3.24.200.v20260515-1403.jar"));
+        Files.createFile(pluginsDir.resolve("org.eclipse.emf.ecore_2.43.0.v20260101-1000.jar"));
+
+        AdtBundleResolver.Resolution resolution = AdtBundleResolver.resolve(pluginsDir);
+
+        assertTrue(resolution.isComplete());
+        assertTrue(resolution.incoherent().isEmpty(), () -> "unexpected: " + resolution.incoherent());
+        assertFalse(resolution.drift().isEmpty(), "the newer platform bundles are still reported as drift");
     }
 
     @Test

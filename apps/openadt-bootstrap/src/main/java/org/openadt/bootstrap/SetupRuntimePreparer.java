@@ -84,10 +84,19 @@ public final class SetupRuntimePreparer {
         PrepareLock lock
     ) throws IOException, InterruptedException {
         AdtBundleResolver.Resolution resolution = AdtBundleResolver.resolve(pluginsDir);
-        if (!resolution.isComplete()) {
+        if (!resolution.missing().isEmpty()) {
             CliLog.error("Missing SAP ADT / Eclipse bundles in " + adtPluginsDir + ":");
             resolution.missing().forEach(missing -> CliLog.error("  - " + missing));
             CliLog.error("Install the ABAP Development Tools feature in Eclipse, then re-run.");
+            return 1;
+        }
+        if (!resolution.incoherent().isEmpty()) {
+            CliLog.error("Inconsistent SAP bundle versions in " + adtPluginsDir + ":");
+            resolution.incoherent().forEach(problem -> CliLog.error("  - " + problem));
+            CliLog.error("");
+            CliLog.error("SAP ships these bundles as one versioned set, so mixing levels is not a");
+            CliLog.error("combination it tests and the build can fail at link time instead. Update the");
+            CliLog.error("ABAP Development Tools feature in Eclipse so the whole set matches, then re-run.");
             return 1;
         }
         resolution.drift()
