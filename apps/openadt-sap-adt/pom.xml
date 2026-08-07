@@ -66,6 +66,9 @@
                 <adt.jar.core.net>${adt.plugins.dir}/org.eclipse.core.net_1.5.800.v20250613-1119.jar</adt.jar.core.net>
                 <adt.jar.equinox.common>${adt.plugins.dir}/org.eclipse.equinox.common_3.20.300.v20251111-0312.jar</adt.jar.equinox.common>
                 <adt.jar.equinox.registry>${adt.plugins.dir}/org.eclipse.equinox.registry_3.12.600.v20250906-0651.jar</adt.jar.equinox.registry>
+                <adt.jar.emf.common>${adt.plugins.dir}/org.eclipse.emf.common_2.45.0.v20260311-1301.jar</adt.jar.emf.common>
+                <adt.jar.emf.ecore>${adt.plugins.dir}/org.eclipse.emf.ecore_2.42.0.v20251210-1145.jar</adt.jar.emf.ecore>
+                <adt.jar.emf.ecore.xmi>${adt.plugins.dir}/org.eclipse.emf.ecore.xmi_2.40.0.v20251210-1145.jar</adt.jar.emf.ecore.xmi>
                 <adt.jar.osgi>${adt.plugins.dir}/org.eclipse.osgi_3.24.100.v20251215-1416.jar</adt.jar.osgi>
                 <adt.jar.osgi.util>${adt.plugins.dir}/org.eclipse.osgi.util_3.7.400.v20250516-0916.jar</adt.jar.osgi.util>
                 <adt.jar.service.prefs>${adt.plugins.dir}/org.osgi.service.prefs_1.1.2.202109301733.jar</adt.jar.service.prefs>
@@ -91,6 +94,9 @@
                 <dependency><groupId>org.eclipse.platform</groupId><artifactId>core-net</artifactId><version>1.5.800</version><scope>system</scope><systemPath>${adt.jar.core.net}</systemPath></dependency>
                 <dependency><groupId>org.eclipse.platform</groupId><artifactId>equinox-common</artifactId><version>3.20.300</version><scope>system</scope><systemPath>${adt.jar.equinox.common}</systemPath></dependency>
                 <dependency><groupId>org.eclipse.platform</groupId><artifactId>equinox-registry</artifactId><version>3.12.600</version><scope>system</scope><systemPath>${adt.jar.equinox.registry}</systemPath></dependency>
+                <dependency><groupId>org.eclipse.emf</groupId><artifactId>common</artifactId><version>2.45.0</version><scope>system</scope><systemPath>${adt.jar.emf.common}</systemPath></dependency>
+                <dependency><groupId>org.eclipse.emf</groupId><artifactId>ecore</artifactId><version>2.42.0</version><scope>system</scope><systemPath>${adt.jar.emf.ecore}</systemPath></dependency>
+                <dependency><groupId>org.eclipse.emf</groupId><artifactId>ecore-xmi</artifactId><version>2.40.0</version><scope>system</scope><systemPath>${adt.jar.emf.ecore.xmi}</systemPath></dependency>
                 <dependency><groupId>org.eclipse.platform</groupId><artifactId>osgi</artifactId><version>3.24.100</version><scope>system</scope><systemPath>${adt.jar.osgi}</systemPath></dependency>
                 <dependency><groupId>org.eclipse.platform</groupId><artifactId>osgi-util</artifactId><version>3.7.400</version><scope>system</scope><systemPath>${adt.jar.osgi.util}</systemPath></dependency>
                 <dependency><groupId>org.osgi</groupId><artifactId>service.prefs</artifactId><version>1.1.2</version><scope>system</scope><systemPath>${adt.jar.service.prefs}</systemPath></dependency>
@@ -112,6 +118,7 @@
                                 <exclude>org/openadt/sap/adt/sdk/AdtSdkClassLoaderFactory.java</exclude>
                                 <exclude>org/openadt/sap/adt/sdk/AdtCommunicationBootstrap.java</exclude>
                                 <exclude>org/openadt/sap/adt/sdk/JCoEclipseBootstrap.java</exclude>
+                                <exclude>org/openadt/sap/adt/sdk/EclipseRegistryBootstrap.java</exclude>
                                 <exclude>org/openadt/sap/adt/destination/EclipseDestinationLoader.java</exclude>
                                 <exclude>org/openadt/sap/adt/destination/SapDestinationResolver.java</exclude>
                                 <exclude>org/openadt/sap/adt/sdk/SapSdkRuntime.java</exclude>

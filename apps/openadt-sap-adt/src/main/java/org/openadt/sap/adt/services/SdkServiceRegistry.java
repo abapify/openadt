@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
 
+import org.openadt.config.CliLog;
 import org.openadt.config.OpenAdtException;
 import org.openadt.sap.adt.sdk.SdkServiceArgs;
 import org.openadt.sap.adt.sdk.SdkServiceResult;
@@ -51,8 +52,30 @@ public final class SdkServiceRegistry {
         try {
             return invokeHandler(handlerClass, context, args);
         } catch (ReflectiveOperationException error) {
-            throw new OpenAdtException("SDK service invocation failed: " + error.getMessage(), error);
+            // InvocationTargetException carries no message of its own, so reporting getMessage()
+            // directly yields "SDK service invocation failed: null" and hides the real failure.
+            Throwable cause = rootCause(error);
+            if (CliLog.verbose()) {
+                CliLog.sdk("service '" + serviceId + "' failed:");
+                cause.printStackTrace(CliLog.stderr());
+            }
+            throw new OpenAdtException("SDK service invocation failed: " + describe(cause), error);
         }
+    }
+
+    private static Throwable rootCause(Throwable error) {
+        Throwable current = error;
+        while (current.getCause() != null && current.getCause() != current) {
+            current = current.getCause();
+        }
+        return current;
+    }
+
+    private static String describe(Throwable cause) {
+        String message = cause.getMessage();
+        return message == null || message.isBlank()
+            ? cause.getClass().getName()
+            : cause.getClass().getSimpleName() + ": " + message;
     }
 
     private static SdkServiceResult invokeHandler(String handlerClass, Object context, SdkServiceArgs args)

@@ -66,6 +66,10 @@ public final class AdtBundleResolver {
         new Bundle("adt.jar.core.net", "org.eclipse.core.net", "1.5.800.v20250613-1119"),
         new Bundle("adt.jar.equinox.common", "org.eclipse.equinox.common", "3.20.300.v20251111-0312"),
         new Bundle("adt.jar.equinox.registry", "org.eclipse.equinox.registry", "3.12.600.v20250906-0651"),
+        // Runtime-only: the discovery document is parsed with EMF (XMLProcessor and friends).
+        new Bundle("adt.jar.emf.common", "org.eclipse.emf.common", "2.45.0.v20260311-1301"),
+        new Bundle("adt.jar.emf.ecore", "org.eclipse.emf.ecore", "2.42.0.v20251210-1145"),
+        new Bundle("adt.jar.emf.ecore.xmi", "org.eclipse.emf.ecore.xmi", "2.40.0.v20251210-1145"),
         new Bundle("adt.jar.osgi", "org.eclipse.osgi", "3.24.100.v20251215-1416"),
         new Bundle("adt.jar.osgi.util", "org.eclipse.osgi.util", "3.7.400.v20250516-0916"),
         new Bundle("adt.jar.service.prefs", "org.osgi.service.prefs", "1.1.2.202109301733")
