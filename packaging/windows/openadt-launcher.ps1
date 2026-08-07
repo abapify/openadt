@@ -74,7 +74,10 @@ function Get-OpenAdtInstallVersion {
 
 function Ensure-SdkRuntimePrepared {
   param([string] $AdtPluginsDir)
-  if (Test-Path $FullJar) {
+  # Mirrors SetupRuntimePreparer.runtimeJarReady: the jar's manifest Class-Path resolves against
+  # sap-lib/, so a jar without it is not a usable runtime and must be rebuilt.
+  $sapLib = Join-Path $env:USERPROFILE ".openadt/runtime/sap-lib"
+  if ((Test-Path $FullJar) -and (Test-Path $sapLib)) {
     $marker = Join-Path $env:USERPROFILE ".openadt/runtime/version.txt"
     if ((Test-Path $marker) -and ((Get-Content $marker -Raw).Trim() -eq (Get-OpenAdtInstallVersion))) {
       return

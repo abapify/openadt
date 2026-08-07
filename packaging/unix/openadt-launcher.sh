@@ -14,10 +14,12 @@ OPENADT_HOME="${OPENADT_HOME:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && 
 export OPENADT_HOME
 
 LITE_JAR="$OPENADT_HOME/openadt.jar"
-RUNTIME_DIR="$HOME/.openadt/runtime"
-FULL_JAR="$RUNTIME_DIR/openadt-full.jar"
-SAP_LIB="$RUNTIME_DIR/sap-lib"
 MAIN_CLASS="org.openadt.cli.OpenAdtCommand"
+
+# Resolved lazily by init_runtime_paths, which needs $JAVA_BIN.
+RUNTIME_DIR=""
+FULL_JAR=""
+SAP_LIB=""
 
 # Commands that reach SAP through the ADT SDK.
 SDK_COMMANDS=" fetch proxy auth discovery sdk transports "
@@ -44,6 +46,22 @@ installed_version() {
   fi
 }
 
+# `openadt config build` writes the runtime under Java's `user.home`, which is not always $HOME:
+# a JVM can resolve it from the passwd database, and `sudo` without -H leaves $HOME pointing at the
+# invoking user while the effective user differs. Reading $HOME here would then send the launcher
+# looking in a directory the build never wrote, re-running the build on every invocation and still
+# not finding the jar. Ask the JVM for the value both sides will use.
+init_runtime_paths() {
+  [[ -n "$RUNTIME_DIR" ]] && return 0
+  local java_user_home
+  java_user_home="$("$JAVA_BIN" -XshowSettings:properties -version 2>&1 \
+    | sed -n 's/^[[:space:]]*user\.home = *//p' | head -1)"
+  [[ -n "$java_user_home" && -d "$java_user_home" ]] || java_user_home="$HOME"
+  RUNTIME_DIR="$java_user_home/.openadt/runtime"
+  FULL_JAR="$RUNTIME_DIR/openadt-full.jar"
+  SAP_LIB="$RUNTIME_DIR/sap-lib"
+}
+
 run_lite() {
   [[ -f "$LITE_JAR" ]] || die "missing $LITE_JAR - reinstall OpenADT"
   exec "$JAVA_BIN" -jar "$LITE_JAR" "$@"
@@ -52,9 +70,12 @@ run_lite() {
 # Build the SDK runtime on first use, or when it was built by a different OpenADT version.
 ensure_runtime_prepared() {
   local version marker prepared
+  init_runtime_paths
   version="$(installed_version)"
   marker="$RUNTIME_DIR/version.txt"
-  if [[ -f "$FULL_JAR" ]]; then
+  # Mirrors SetupRuntimePreparer.runtimeJarReady: the jar's manifest Class-Path resolves against
+  # sap-lib/, so a jar without it is not a usable runtime and must be rebuilt.
+  if [[ -f "$FULL_JAR" && -d "$SAP_LIB" ]]; then
     if [[ -z "$version" ]]; then
       return 0
     fi
@@ -99,6 +120,7 @@ sanitize_alias() {
 # through it rather than opening its own SDK session.
 proxy_active() {
   local registry host port
+  init_runtime_paths
   registry="$RUNTIME_DIR/proxy-$(sanitize_alias "$1").json"
   [[ -f "$registry" ]] || return 1
   port="$(sed -n 's/.*"port"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$registry" | head -1)"

@@ -36,6 +36,10 @@ Both apply the same dispatch:
 - `fetch`, `proxy`, `auth`, `discovery`, `sdk`, `transports` → SDK runtime jar, building it first when missing or built by a different OpenADT version (compared against `VERSION` in the install root)
 - anything else → lite jar
 
+A runtime counts as prepared only when the jar, `sap-lib/`, and a matching `version.txt` are all present — the same condition as `SetupRuntimePreparer.runtimeJarReady`, since the jar's manifest `Class-Path` resolves against `sap-lib/`. A launcher that accepted jar-plus-marker would skip the build and then fail to load SAP classes.
+
+**Locating the runtime directory.** `openadt config build` writes under Java's `user.home`, so a launcher must resolve the same value rather than assume the shell's. The unix launcher asks the JVM (`-XshowSettings:properties`) and falls back to `$HOME`; reading `$HOME` unconditionally diverges under `sudo` without `-H`, or where the JVM takes `user.home` from the passwd database, which would make the launcher rebuild on every invocation and still not find the jar. On Windows `%USERPROFILE%` is what the JVM reports, so the PowerShell launcher uses it directly.
+
 The SDK classpath is the full runtime jar plus `~/.openadt/runtime/sap-lib/*.jar`. It must **not** be assembled from the whole plugin pool: a pool holds several versions of each ADT bundle and mixing them breaks logon (see [sdk-capabilities.md](sdk-capabilities.md#headless-bootstrap)).
 
 The Homebrew formula installs the launcher into `libexec/bin/` and exports `JAVA_HOME`, since `openjdk@21` is keg-only and not on `PATH`.

@@ -81,6 +81,69 @@ describe('openadt-launcher.sh', () => {
     }
   })
 
+  test('locates the runtime under the JVM user.home, not $HOME', () => {
+    // `config build` writes the runtime under Java's user.home. Where that differs from $HOME
+    // (sudo without -H, or a JVM reading the passwd database), reading $HOME would send the
+    // launcher to a directory the build never wrote.
+    const staged = stageInstall()
+    const javaUserHome = join(staged.home, 'jvm-home')
+    const runtime = join(javaUserHome, '.openadt/runtime')
+    mkdirSync(join(runtime, 'sap-lib'), { recursive: true })
+    writeFileSync(join(runtime, 'openadt-full.jar'), 'full')
+    writeFileSync(join(runtime, 'version.txt'), '9.9.9\n')
+    // A java stub that reports a user.home different from $HOME.
+    writeFileSync(
+      join(staged.home, 'jdk/bin/java'),
+      `#!/usr/bin/env bash\nif [[ "$*" == *-XshowSettings:properties* ]]; then\n  echo "    user.home = ${javaUserHome}" >&2\n  exit 0\nfi\necho "JAVA_ARGS: $*"\n`
+    )
+    chmodSync(join(staged.home, 'jdk/bin/java'), 0o755)
+    try {
+      const result = spawnSync(
+        'bash',
+        [join(staged.binDir, 'openadt-launcher.sh'), 'discovery', 'DEV'],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, ...staged.env, HOME: staged.home },
+        }
+      )
+      const output = `${result.stdout ?? ''}${result.stderr ?? ''}`
+      // Runtime found where the JVM says it is, so no rebuild and the jar is on the classpath.
+      expect(output).not.toContain('preparing SAP SDK runtime')
+      expect(output).toContain(join(runtime, 'openadt-full.jar'))
+    } finally {
+      rmSync(staged.home, { recursive: true, force: true })
+    }
+  })
+
+  test('rebuilds when sap-lib is missing even if the jar and marker are present', () => {
+    // Mirrors SetupRuntimePreparer.runtimeJarReady: the jar's manifest Class-Path needs sap-lib/.
+    const staged = stageInstall()
+    const runtime = join(staged.home, '.openadt/runtime')
+    mkdirSync(runtime, { recursive: true })
+    writeFileSync(join(runtime, 'openadt-full.jar'), 'full')
+    writeFileSync(join(runtime, 'version.txt'), '9.9.9\n')
+    try {
+      const result = spawnSync(
+        'bash',
+        [join(staged.binDir, 'openadt-launcher.sh'), 'discovery', 'DEV'],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, ...staged.env, HOME: staged.home },
+        }
+      )
+      const output = `${result.stdout ?? ''}${result.stderr ?? ''}`
+      expect(output).toContain('preparing SAP SDK runtime')
+    } finally {
+      rmSync(staged.home, { recursive: true, force: true })
+    }
+  })
+
+  test('falls back to $HOME when the JVM does not report user.home', () => {
+    // The java stub in stageInstall echoes its arguments and never prints user.home.
+    const output = run(['discovery', 'DEV'])
+    expect(output).toContain('preparing SAP SDK runtime')
+  })
+
   test('dispatches the same subcommands to the SDK as the Windows launcher', () => {
     // Parity guard: the two launchers must not drift apart.
     const ps1 = readFileSync(windowsLauncher, 'utf8')
