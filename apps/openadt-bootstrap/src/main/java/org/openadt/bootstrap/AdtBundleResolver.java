@@ -26,6 +26,12 @@ import java.util.stream.Stream;
  * silently accepted.
  */
 public final class AdtBundleResolver {
+    /**
+     * ADT bundle baseline shared by the com.sap.adt.* plugins. Kept in one place so every ADT
+     * bundle is locked to the same tested version.
+     */
+    private static final String ADT_BASELINE_VERSION = "3.58.0";
+
     /** One {@code sap-sdk} system-scope dependency. */
     record Bundle(String propertyName, String bundlePrefix, String baselineVersion) {
         String fileNameFor(String version) {
@@ -38,13 +44,13 @@ public final class AdtBundleResolver {
      * {@code apps/openadt-sap-adt/pom.xml}; {@code AdtBundlePomSyncTest} enforces that.
      */
     static final List<Bundle> BUNDLES = List.of(
-        new Bundle("adt.jar.communication", "com.sap.adt.communication", "3.58.0"),
-        new Bundle("adt.jar.compatibility", "com.sap.adt.compatibility", "3.58.0"),
-        new Bundle("adt.jar.destinations", "com.sap.adt.destinations", "3.58.0"),
-        new Bundle("adt.jar.destinations.model", "com.sap.adt.destinations.model", "3.58.0"),
-        new Bundle("adt.jar.logging", "com.sap.adt.logging", "3.58.0"),
-        new Bundle("adt.jar.util", "com.sap.adt.util", "3.58.0"),
-        new Bundle("adt.jar.transport", "com.sap.adt.transport", "3.58.0"),
+        adt("adt.jar.communication", "com.sap.adt.communication"),
+        adt("adt.jar.compatibility", "com.sap.adt.compatibility"),
+        adt("adt.jar.destinations", "com.sap.adt.destinations"),
+        adt("adt.jar.destinations.model", "com.sap.adt.destinations.model"),
+        adt("adt.jar.logging", "com.sap.adt.logging"),
+        adt("adt.jar.util", "com.sap.adt.util"),
+        adt("adt.jar.transport", "com.sap.adt.transport"),
         new Bundle("adt.jar.jco", "com.sap.conn.jco", "3.1.13"),
         new Bundle("adt.jar.jco.eclipse", "com.sap.conn.jco.eclipse", "1.32.0"),
         new Bundle("adt.jar.core.runtime", "org.eclipse.core.runtime", "3.34.200.v20251220-0953"),
@@ -83,6 +89,10 @@ public final class AdtBundleResolver {
     }
 
     private AdtBundleResolver() {
+    }
+
+    private static Bundle adt(String propertyName, String bundlePrefix) {
+        return new Bundle(propertyName, bundlePrefix, ADT_BASELINE_VERSION);
     }
 
     public static Resolution resolve(Path pluginsDir) {
