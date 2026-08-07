@@ -59,11 +59,11 @@ Do not build this classpath from every bundle in the pool: a pool commonly holds
 
 ## Headless bootstrap
 
-The SDK is written for Eclipse and reaches for OSGi services that do not exist on a plain classpath. `SapSdkRuntime.prepare` therefore runs, in order:
+The SDK is written for Eclipse and reaches for OSGi services that do not exist on a plain classpath. `SapSdkRuntime.prepare` therefore calls `AdtCommunicationBootstrap.prepare`, which runs, in order:
 
 1. `EclipseRegistryBootstrap` — installs a standalone extension registry
 2. `JCoEclipseBootstrap` — initializes the JCo Eclipse bridge
-3. `AdtCommunicationBootstrap` — starts the `com.sap.adt.communication` activator
+3. the `com.sap.adt.communication` activator itself
 
 ### Extension registry
 

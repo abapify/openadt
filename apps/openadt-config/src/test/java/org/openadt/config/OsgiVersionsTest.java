@@ -8,8 +8,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class OsgiVersionsTest {
     @Test
     void comparesMicroSegmentNumericallyNotLexicographically() {
-        // "3.24.0" vs "3.24.200": string comparison would rank "3.24.0" higher because '2' > '0'.
-        assertTrue(OsgiVersions.compare("3.24.200.v20260515-1403", "3.24.0.v20251126-0427") > 0);
+        // The two orderings must actually disagree for this to prove anything, and for
+        // "3.24.0" vs "3.24.200" they do not — string comparison also ranks "3.24.200" higher.
+        // "3.24.9" vs "3.24.10" does disagree: as strings '9' > '1', but numerically 10 > 9.
+        assertTrue(OsgiVersions.compare("3.24.10.v20260515-1403", "3.24.9.v20251126-0427") > 0);
+        assertTrue(OsgiVersions.compare("3.24.9.v20251126-0427", "3.24.10.v20260515-1403") < 0);
+        // The same disagreement one order of magnitude up: "3.24.99" sorts above "3.24.200".
+        assertTrue(OsgiVersions.compare("3.24.200", "3.24.99") > 0);
     }
 
     @Test

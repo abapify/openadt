@@ -17,7 +17,7 @@ description: Spec-driven development for OpenADT — spec, test, code, verify-sp
 ```bash
 bun scripts/verify-spec-sync.ts
 bun scripts/verify-package-docs.ts
-mvnw -q verify -Pdistribution -Dopenadt.distribution=true
+./mvnw -q verify -Pdistribution -Dopenadt.distribution=true
 bun run openadt:test
 ```
 

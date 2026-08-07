@@ -12,7 +12,7 @@
 
 - [ ] `bun scripts/verify-spec-sync.ts`
 - [ ] `bun scripts/verify-package-docs.ts`
-- [ ] `mvnw -q verify -Pdistribution` (from repo root or affected modules)
+- [ ] `./mvnw -q verify -Pdistribution -Dopenadt.distribution=true` (from repo root or affected modules)
 - [ ] `bun run openadt:test` (or documented skip reason)
 
 ## Package map (if Java moved)

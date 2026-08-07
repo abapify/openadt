@@ -109,8 +109,10 @@ class AdtBundleResolverTest {
     @Test
     void ordersEclipseQualifiersByNumericSegments() throws Exception {
         writeBaselinePool();
+        // 3.24.99 sorts above 3.24.200 as a string, so picking 3.24.200 shows the comparison is
+        // numeric. A 3.24.0-vs-3.24.200 pair would pass either way and prove nothing.
         Files.createFile(pluginsDir.resolve("org.eclipse.osgi_3.24.200.v20260515-1403.jar"));
-        Files.createFile(pluginsDir.resolve("org.eclipse.osgi_3.24.0.v20251126-0427.jar"));
+        Files.createFile(pluginsDir.resolve("org.eclipse.osgi_3.24.99.v20251126-0427.jar"));
 
         AdtBundleResolver.Resolution resolution = AdtBundleResolver.resolve(pluginsDir);
 
