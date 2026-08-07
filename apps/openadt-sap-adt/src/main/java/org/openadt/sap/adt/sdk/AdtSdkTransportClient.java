@@ -255,6 +255,9 @@ public class AdtSdkTransportClient implements AdtTransportClient {
         String version = sdkResponse.getVersion();
         int statusCode = sdkResponse.getStatus();
         String reasonPhrase = sdkResponse.getReasonPhrase();
+        // Records what SAP actually answered, so a client-visible status can be attributed to
+        // upstream rather than to the proxy.
+        log("upstream status " + statusCode + (reasonPhrase != null ? " " + reasonPhrase : ""));
 
         Map<String, String> fieldMap = new LinkedHashMap<>();
         if (sdkResponse.getHeaders() != null) {

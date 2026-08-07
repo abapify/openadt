@@ -21,6 +21,14 @@ public class AdtProxyHandler implements HttpHandler {
     );
     private static final Set<String> STRIPPED_RESPONSE_HEADERS = Set.of("set-cookie", "set-cookie2");
 
+    static final String CSRF_HEADER = "X-CSRF-Token";
+    static final String CSRF_FETCH = "fetch";
+    /**
+     * Token handed back for a local CSRF handshake. Must be non-empty and must not be the literal
+     * {@code Required}, which clients read as "no token issued".
+     */
+    static final String LOCAL_CSRF_TOKEN = "openadt-local-proxy";
+
     private final SystemProfile systemProfile;
     private final AdtTransportClient transportClient;
 
@@ -66,6 +74,15 @@ public class AdtProxyHandler implements HttpHandler {
     @Override
     public void handle(HttpExchange exchange) throws IOException {
         try {
+            boolean csrfFetch = isCsrfFetch(exchange);
+
+            // A CSRF fetch by HEAD is answered locally: upstream rejects HEAD with 400, and the
+            // token is not needed upstream anyway (see answerCsrfFetch).
+            if (csrfFetch && isHead(exchange)) {
+                answerCsrfFetch(exchange);
+                return;
+            }
+
             ProxyRequest request = buildProxyRequest(exchange);
             ProxyResponse response = transportClient.execute(systemProfile, request);
 
@@ -76,18 +93,61 @@ public class AdtProxyHandler implements HttpHandler {
                 }
             });
 
-            byte[] body = response.body() != null ? response.body() : new byte[0];
-            exchange.sendResponseHeaders(response.statusCode(), body.length);
-            try (var os = exchange.getResponseBody()) {
-                os.write(body);
+            // A CSRF fetch by GET keeps its body; only make sure it comes back with a token.
+            if (csrfFetch && response.getHeader(CSRF_HEADER) == null) {
+                exchange.getResponseHeaders().set(CSRF_HEADER, LOCAL_CSRF_TOKEN);
             }
+
+            byte[] body = response.body() != null ? response.body() : new byte[0];
+            writeResponse(exchange, response.statusCode(), body);
         } catch (Exception e) {
             String msg = e.getMessage() != null ? e.getMessage() : "Internal Server Error";
-            byte[] errorBody = msg.getBytes(StandardCharsets.UTF_8);
-            exchange.sendResponseHeaders(500, errorBody.length);
-            try (var os = exchange.getResponseBody()) {
-                os.write(errorBody);
-            }
+            writeResponse(exchange, 500, msg.getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
+    static boolean isHead(HttpExchange exchange) {
+        return "HEAD".equalsIgnoreCase(exchange.getRequestMethod());
+    }
+
+    /** SAP's CSRF handshake: any GET/HEAD carrying {@code X-CSRF-Token: fetch}. */
+    static boolean isCsrfFetch(HttpExchange exchange) {
+        String value = exchange.getRequestHeaders().getFirst(CSRF_HEADER);
+        return value != null && CSRF_FETCH.equalsIgnoreCase(value.trim());
+    }
+
+    /**
+     * Completes a CSRF handshake without contacting SAP.
+     *
+     * <p>The ADT SDK keeps its own authenticated session and manages CSRF upstream, so a token
+     * minted here is never checked against anything — a write carrying an arbitrary token already
+     * succeeds. The handshake only has to satisfy the client, which requires a non-empty
+     * {@code x-csrf-token} that is not the literal {@code Required}.
+     *
+     * <p>Answering locally also side-steps upstream returning 400 for HEAD, which otherwise breaks
+     * every client that fetches its token that way before issuing writes.
+     */
+    private void answerCsrfFetch(HttpExchange exchange) throws IOException {
+        exchange.getResponseHeaders().set(CSRF_HEADER, LOCAL_CSRF_TOKEN);
+        writeResponse(exchange, 200, new byte[0]);
+    }
+
+    /**
+     * {@code com.sun.net.httpserver} demands {@code sendResponseHeaders(status, -1)} for a response
+     * that carries no body — a HEAD reply, 204, 304, or simply an empty body. Passing a length there
+     * (including {@code 0}, which selects chunked encoding) makes it emit a framing it then cannot
+     * satisfy.
+     */
+    private static void writeResponse(HttpExchange exchange, int statusCode, byte[] body)
+        throws IOException {
+        if (isHead(exchange) || statusCode == 204 || statusCode == 304 || body.length == 0) {
+            exchange.sendResponseHeaders(statusCode, -1);
+            exchange.close();
+            return;
+        }
+        exchange.sendResponseHeaders(statusCode, body.length);
+        try (var os = exchange.getResponseBody()) {
+            os.write(body);
         }
     }
 }

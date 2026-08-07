@@ -120,6 +120,173 @@ class AdtProxyHandlerTest {
         );
     }
 
+    // --- CSRF handshake -----------------------------------------------------
+
+    @Test
+    void headCsrfFetchIsAnsweredLocallyWithAToken() throws IOException {
+        TestExchange exchange = new TestExchange("HEAD", "/sap/bc/adt/core/discovery", new byte[0]);
+        exchange.requestHeaders.add("X-CSRF-Token", "fetch");
+
+        // Upstream rejects HEAD with 400, so the handshake must not reach it at all.
+        AdtProxyHandler handler = new AdtProxyHandler(
+            new SystemProfile(),
+            (system, request) -> {
+                throw new AssertionError("upstream must not be called for a HEAD CSRF fetch");
+            }
+        );
+        handler.handle(exchange);
+
+        assertEquals(200, exchange.sentCode);
+        String token = exchange.getResponseHeaders().getFirst("X-CSRF-Token");
+        assertNotNull(token);
+        assertFalse(token.isBlank());
+        // Clients treat the literal "Required" as "no token issued".
+        assertNotEquals("Required", token);
+    }
+
+    @Test
+    void headCsrfFetchSendsNoBody() throws IOException {
+        TestExchange exchange = new TestExchange("HEAD", "/sap/bc/adt/core/discovery", new byte[0]);
+        exchange.requestHeaders.add("X-CSRF-Token", "fetch");
+
+        newHandler().handle(exchange);
+
+        // com.sun.net.httpserver requires -1 for a bodyless reply.
+        assertEquals(-1L, exchange.sentLength);
+        assertEquals(0, exchange.responseBody.size());
+    }
+
+    @Test
+    void csrfFetchIsCaseInsensitiveAndToleratesWhitespace() throws IOException {
+        TestExchange exchange = new TestExchange("HEAD", "/sap/bc/adt/core/discovery", new byte[0]);
+        exchange.requestHeaders.add("x-csrf-token", " Fetch ");
+
+        newHandler().handle(exchange);
+
+        assertEquals(200, exchange.sentCode);
+        assertNotNull(exchange.getResponseHeaders().getFirst("X-CSRF-Token"));
+    }
+
+    @Test
+    void getCsrfFetchKeepsItsBodyAndGainsAToken() throws IOException {
+        TestExchange exchange = new TestExchange("GET", "/sap/bc/adt/core/discovery", new byte[0]);
+        exchange.requestHeaders.add("X-CSRF-Token", "fetch");
+
+        AdtProxyHandler handler = new AdtProxyHandler(
+            new SystemProfile(),
+            (system, request) -> new ProxyResponse(
+                "HTTP/1.1", 200, "OK", Map.of("Content-Type", "application/xml"), "<discovery/>".getBytes()
+            )
+        );
+        handler.handle(exchange);
+
+        assertEquals(200, exchange.sentCode);
+        assertEquals("<discovery/>", exchange.responseBody.toString());
+        assertNotNull(exchange.getResponseHeaders().getFirst("X-CSRF-Token"));
+    }
+
+    @Test
+    void upstreamCsrfTokenIsNotOverwritten() throws IOException {
+        TestExchange exchange = new TestExchange("GET", "/sap/bc/adt/core/discovery", new byte[0]);
+        exchange.requestHeaders.add("X-CSRF-Token", "fetch");
+
+        AdtProxyHandler handler = new AdtProxyHandler(
+            new SystemProfile(),
+            (system, request) -> new ProxyResponse(
+                "HTTP/1.1", 200, "OK", Map.of("X-CSRF-Token", "real-upstream-token"), new byte[0]
+            )
+        );
+        handler.handle(exchange);
+
+        assertEquals("real-upstream-token", exchange.getResponseHeaders().getFirst("X-CSRF-Token"));
+    }
+
+    @Test
+    void ordinaryRequestGetsNoSyntheticToken() throws IOException {
+        TestExchange exchange = new TestExchange("GET", "/sap/bc/adt/discovery", new byte[0]);
+
+        newHandler().handle(exchange);
+
+        assertNull(exchange.getResponseHeaders().getFirst("X-CSRF-Token"));
+    }
+
+    // --- bodyless response framing -----------------------------------------
+
+    @Test
+    void headWithoutCsrfFetchStillSendsNoBody() throws IOException {
+        TestExchange exchange = new TestExchange("HEAD", "/sap/bc/adt/discovery", new byte[0]);
+
+        AdtProxyHandler handler = new AdtProxyHandler(
+            new SystemProfile(),
+            (system, request) -> new ProxyResponse(
+                "HTTP/1.1", 200, "OK", Map.of(), "body-that-must-be-dropped".getBytes()
+            )
+        );
+        handler.handle(exchange);
+
+        assertEquals(200, exchange.sentCode);
+        assertEquals(-1L, exchange.sentLength);
+        assertEquals(0, exchange.responseBody.size());
+    }
+
+    @Test
+    void noContentStatusSendsNoBody() throws IOException {
+        TestExchange exchange = new TestExchange("DELETE", "/sap/bc/adt/programs/programs/P", new byte[0]);
+
+        AdtProxyHandler handler = new AdtProxyHandler(
+            new SystemProfile(),
+            (system, request) -> new ProxyResponse("HTTP/1.1", 204, "No Content", Map.of(), new byte[0])
+        );
+        handler.handle(exchange);
+
+        assertEquals(204, exchange.sentCode);
+        assertEquals(-1L, exchange.sentLength);
+    }
+
+    @Test
+    void notModifiedStatusSendsNoBody() throws IOException {
+        TestExchange exchange = new TestExchange("GET", "/sap/bc/adt/programs/programs/P", new byte[0]);
+
+        AdtProxyHandler handler = new AdtProxyHandler(
+            new SystemProfile(),
+            (system, request) -> new ProxyResponse("HTTP/1.1", 304, "Not Modified", Map.of(), new byte[0])
+        );
+        handler.handle(exchange);
+
+        assertEquals(304, exchange.sentCode);
+        assertEquals(-1L, exchange.sentLength);
+    }
+
+    @Test
+    void responseWithBodyKeepsItsContentLength() throws IOException {
+        TestExchange exchange = new TestExchange("GET", "/sap/bc/adt/discovery", new byte[0]);
+
+        AdtProxyHandler handler = new AdtProxyHandler(
+            new SystemProfile(),
+            (system, request) -> new ProxyResponse("HTTP/1.1", 200, "OK", Map.of(), "12345".getBytes())
+        );
+        handler.handle(exchange);
+
+        assertEquals(5L, exchange.sentLength);
+        assertEquals("12345", exchange.responseBody.toString());
+    }
+
+    @Test
+    void upstreamFailureBecomesFiveHundredWithMessage() throws IOException {
+        TestExchange exchange = new TestExchange("GET", "/sap/bc/adt/discovery", new byte[0]);
+
+        AdtProxyHandler handler = new AdtProxyHandler(
+            new SystemProfile(),
+            (system, request) -> {
+                throw new IllegalStateException("logon exploded");
+            }
+        );
+        handler.handle(exchange);
+
+        assertEquals(500, exchange.sentCode);
+        assertEquals("logon exploded", exchange.responseBody.toString());
+    }
+
     private static class TestExchange extends HttpExchange {
         private final Headers requestHeaders = new Headers();
         private final Headers responseHeaders = new Headers();
@@ -142,8 +309,16 @@ class AdtProxyHandlerTest {
         @Override public void close() { /* test double noop */ }
         @Override public InputStream getRequestBody() { return new ByteArrayInputStream(requestBody); }
         @Override public OutputStream getResponseBody() { return responseBody; }
-        @Override public void sendResponseHeaders(int responseCode, long responseLength) { /* test double noop */ }
-        @Override public int getResponseCode() { return 0; }
+
+        private int sentCode = -1;
+        private long sentLength = Long.MIN_VALUE;
+
+        @Override public void sendResponseHeaders(int responseCode, long responseLength) {
+            this.sentCode = responseCode;
+            this.sentLength = responseLength;
+        }
+
+        @Override public int getResponseCode() { return sentCode; }
         @Override public InetSocketAddress getRemoteAddress() { return null; }
         @Override public InetSocketAddress getLocalAddress() { return null; }
         @Override public String getProtocol() { return "HTTP/1.1"; }
