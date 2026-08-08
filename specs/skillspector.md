@@ -13,7 +13,7 @@ in those skills.
 | Aspect        | Value                                                                                       |
 | ------------- | ------------------------------------------------------------------------------------------- |
 | Scan target   | `.agents/skills/` (and any first-party skill at the repo root that follows the `SKILL.md` + assets layout) |
-| Tool          | `skillspector` CLI, pinned to a release tag (`v2.8.1`, see [SkillSpector pin](packaging.md#skillspector-pin)) |
+| Tool          | `skillspector` CLI `v2.8.1` (immutable commit `0a1546b03827b08035eb011d525770c7bb29d6c2`, see [SkillSpector pin](packaging.md#skillspector-pin)) |
 | Analysis mode | `--no-llm` (static only; no API keys, deterministic, fast)                                 |
 | Baseline      | `.skillspector-baseline.yaml` — accepted false positives with rationale                    |
 | SARIF filter  | `scripts/strip-skillspector-suppressions.py` — removes suppressed results before upload    |
@@ -107,20 +107,35 @@ that exists by design, not on a defect.
 
 ### How to verify suppression holds
 
-1. Run SkillSpector locally with the baseline:
+1. Run SkillSpector locally with the baseline (fail-closed):
    ```bash
-   skillspector scan .agents/skills/ --no-llm --baseline .skillspector-baseline.yaml --format sarif --output skillspector-raw.sarif
+   set -euo pipefail
+   rm -f skillspector-raw.sarif skillspector.sarif
+   scan_status=0
+   skillspector scan .agents/skills/ \
+     --no-llm \
+     --baseline .skillspector-baseline.yaml \
+     --format sarif \
+     --output skillspector-raw.sarif || scan_status=$?
+   if [ "$scan_status" -gt 1 ]; then
+     exit "$scan_status"
+   fi
    python scripts/strip-skillspector-suppressions.py skillspector-raw.sarif skillspector.sarif
+   jq -e '(.runs | type == "array") and ([.runs[] | (.results // [])[]] | length == 0)' skillspector.sarif
+   if [ "$scan_status" -eq 1 ]; then
+     exit 1
+   fi
    ```
-   The stripped `skillspector.sarif` must contain zero `results`.
+   This removes stale SARIF files, preserves SkillSpector's `0`/`1`/`>1` exit
+   semantics, and asserts the stripped `skillspector.sarif` contains zero `results`.
 2. Any new `error` or `warning` finding not covered by `.skillspector-baseline.yaml`
    must be fixed in the same PR or added to this table (and the YAML) with a
    rationale — never silently bypassed.
 
 ## Maintenance
 
-- Bump the pinned SkillSpector release tag when upstream ships a new minor
-  version with relevant pattern additions.
+- Bump the pinned SkillSpector release tag **and** immutable commit SHA when
+  upstream ships a new minor version with relevant pattern additions.
 - Re-baseline the SARIF category if the tool's rule IDs change in a way that
   suppresses historical findings.
 - SkillSpector is Apache-2.0; it is **not** vendored in the repo. The

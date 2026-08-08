@@ -1,15 +1,11 @@
 #!/usr/bin/env python3
-"""Strip SARIF results that carry a non-empty ``suppressions`` array.
+"""Strip accepted external SARIF suppressions before GitHub upload.
 
 SkillSpector's ``--baseline`` flag marks accepted findings with a SARIF
-``suppressions`` property so they remain in the audit trail but do not count
-toward the risk score. GitHub Code Scanning does not honor SARIF
-``suppressions`` natively, so those results would still appear as open alerts.
-This filter removes them before ``github/codeql-action/upload-sarif`` while
-preserving the tool metadata, rules, and all other SARIF structure.
-
-Usage:
-    python scripts/strip-skillspector-suppressions.py <input.sarif> <output.sarif>
+``suppressions`` object whose ``kind`` is ``external``. GitHub Code Scanning
+does not honor SARIF ``suppressions`` natively, so this filter removes only
+accepted external baseline suppressions before ``upload-sarif``. Rejected,
+under-review, or in-source suppressions are preserved.
 """
 
 from __future__ import annotations
@@ -20,23 +16,50 @@ from pathlib import Path
 
 
 def strip_suppressed(sarif: dict) -> dict:
-    """Return *sarif* with suppressed results removed from every run."""
+    """Return *sarif* with accepted external baseline-suppressed results removed."""
     if not isinstance(sarif, dict):
         raise ValueError("SARIF input must be a JSON object")
-    for run in sarif.get("runs") or []:
+
+    runs = sarif.get("runs")
+    if not isinstance(runs, list):
+        raise ValueError("SARIF 'runs' must be an array")
+
+    for run in runs:
         if not isinstance(run, dict):
+            raise ValueError("Each SARIF run must be an object")
+
+        results = run.get("results")
+        if results is None:
             continue
-        results = run.get("results") or []
+        if not isinstance(results, list):
+            raise ValueError("SARIF run 'results' must be an array")
+        if not all(isinstance(r, dict) for r in results):
+            raise ValueError("Each SARIF result must be an object")
+
         run["results"] = [r for r in results if not _is_suppressed(r)]
+
     return sarif
 
 
 def _is_suppressed(result: object) -> bool:
-    """Return True when a SARIF result has a non-empty suppressions list."""
+    """Return True when a SARIF result has an accepted external suppression."""
     if not isinstance(result, dict):
         return False
+
     suppressions = result.get("suppressions")
-    return isinstance(suppressions, list) and len(suppressions) > 0
+    if not isinstance(suppressions, list):
+        return False
+
+    for entry in suppressions:
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("kind") != "external":
+            continue
+        status = entry.get("status", "accepted")
+        if status == "accepted":
+            return True
+
+    return False
 
 
 def main(argv: list[str]) -> int:
@@ -46,8 +69,10 @@ def main(argv: list[str]) -> int:
             file=sys.stderr,
         )
         return 2
+
     input_path = Path(argv[1])
     output_path = Path(argv[2])
+
     try:
         data = json.loads(input_path.read_text(encoding="utf-8"))
         data = strip_suppressed(data)
@@ -67,6 +92,7 @@ def main(argv: list[str]) -> int:
     except OSError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
+
     return 0
 
 
