@@ -1,0 +1,68 @@
+# SkillSpector baseline for OpenADT .agents/skills/
+#
+# These findings are accepted false positives in first-party skill assets.
+# The CI workflow passes this file to SkillSpector with --baseline, then runs
+# scripts/strip-skillspector-suppressions.py before uploading SARIF to GitHub
+# Code Scanning (GitHub does not honor the SARIF suppressions property).
+#
+# Generated against SkillSpector v2.8.1 (commit 0a1546b03827b08035eb011d525770c7bb29d6c2).
+version: 2
+scanner_version: "2.8.1"
+rules:
+  # AS3: Skill Enumeration — cross-references between first-party OpenADT
+  # skills are intentional and documented in DESIGN.md / AGENTS.md. Each entry is
+  # scoped to the exact file and referenced skill path to avoid hiding future
+  # unauthorized skill enumeration.
+  - id: "AS3"
+    path: "act/scripts/review-debt-cli.ts"
+    message: "skills/harvest/SKILL.md"
+    reason: "First-party cross-reference from act script to harvest skill."
+
+  - id: "AS3"
+    path: "backlog/SKILL.md"
+    message: "skills/harvest/SKILL.md"
+    reason: "First-party cross-reference from backlog skill to harvest skill."
+
+  - id: "AS3"
+    path: "codacy/SKILL.md"
+    message: "skills/act/SKILL.md"
+    reason: "First-party cross-reference from codacy skill to act skill."
+
+  - id: "AS3"
+    path: "e2e/scripts/framework/dispatch.ts"
+    message: "skills/e2e/SKILL.md"
+    reason: "First-party cross-reference from e2e dispatcher to e2e skill."
+
+  # RP1: the codacy skill documents a locally-built Docker image for running PMD
+  # locally; it is not an unpinned MCP server install.
+  - id: "RP1"
+    path: "codacy/SKILL.md"
+    message: "Docker image referenced without tag or digest: 'docker run*"
+    reason: "The docker command references a locally-built codacy-java image used for local PMD reproduction, not an MCP server rug-pull risk."
+
+  # E1: the codacy skill example downloads a pinned PMD release archive to a local
+  # tmp path; there is no data exfiltration.
+  - id: "E1"
+    path: "codacy/SKILL.md"
+    message: "*github.com/pmd/pmd/releases/download*pmd-dist*"
+    reason: "The documentation example uses curl to download a pinned PMD distribution archive into a local tmp directory; it does not transmit data to an external endpoint."
+
+  # PE3: the codescene skill documents the name of the org-level CodeScene PAT
+  # secret; the value is never written to disk by OpenADT.
+  - id: "PE3"
+    path: "codescene/SKILL.md"
+    message: "*Access Token*"
+    reason: "The skill documents the org-level CS_ACCESS_TOKEN secret name for rotation/troubleshooting; the secret value lives in GitHub Actions secrets and is never written to disk."
+
+  # TM3: the harvest skill uses an ignore_authors deny-list to classify bot review
+  # comments. Each entry is scoped to the exact file(s) where the config field
+  # appears so the wildcard does not mask new, non-config occurrences.
+  - id: "TM3"
+    path: "harvest/SKILL.md"
+    message: "ignore_auth"
+    reason: "The harvest config field ignore_authors appears in documentation; the rule matches the substring 'ignore_auth'."
+
+  - id: "TM3"
+    path: "harvest/scripts/review-debt-lib.ts"
+    message: "ignore_auth"
+    reason: "The TypeScript harvest library declares and uses the ignore_authors deny-list field; the rule matches the substring 'ignore_auth'."

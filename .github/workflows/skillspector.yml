@@ -28,13 +28,12 @@ jobs:
         with:
           python-version: "3.12"
 
-      # Pin both the upstream commit SHA and the version label it resolves to
-      # (v2.1.4 per upstream pyproject at that SHA). Bump together in
-      # specs/skillspector.md when a new release is published.
+      # Pin to an upstream release tag and immutable commit SHA. Bump together
+      # with .skillspector-baseline.yaml and specs/skillspector.md.
       - name: Install SkillSpector
         env:
-          SKILLSPECTOR_COMMIT: cff7ecc4f2881d9e23ea4bb801a6353e1dbe39e6
-          SKILLSPECTOR_VERSION: 2.1.4
+          SKILLSPECTOR_VERSION: 2.8.1
+          SKILLSPECTOR_COMMIT: 0a1546b03827b08035eb011d525770c7bb29d6c2
         run: |
           python -m pip install --upgrade pip
           python -m pip install \
@@ -46,21 +45,28 @@ jobs:
           set +e
           skillspector scan .agents/skills/ \
             --no-llm \
+            --baseline .skillspector-baseline.yaml \
             --format sarif \
-            --output skillspector.sarif
+            --output skillspector-raw.sarif
           ec=$?
           set -e
-          if [ ! -f skillspector.sarif ]; then
-            echo "::error::SkillSpector did not produce skillspector.sarif (exit ${ec})"
+          if [ ! -f skillspector-raw.sarif ]; then
+            echo "::error::SkillSpector did not produce skillspector-raw.sarif (exit ${ec})"
             exit 1
           fi
           if [ "${ec}" -gt 1 ]; then
             exit "${ec}"
           fi
-          # exit 1 = findings only; upload SARIF and do not fail the workflow
+          # exit 1 = findings only; filter and upload SARIF, do not fail the workflow
+
+      - name: Strip baseline-suppressed findings from SARIF
+        id: strip-skillspector
+        run: |
+          set -e
+          python scripts/strip-skillspector-suppressions.py skillspector-raw.sarif skillspector.sarif
 
       - name: Upload SARIF to GitHub Code Scanning
-        if: always() && hashFiles('skillspector.sarif') != ''
+        if: always() && steps.strip-skillspector.outcome == 'success' && hashFiles('skillspector.sarif') != ''
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: skillspector.sarif
