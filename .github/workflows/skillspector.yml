@@ -59,11 +59,13 @@ jobs:
           # exit 1 = findings only; filter and upload SARIF, do not fail the workflow
 
       - name: Strip baseline-suppressed findings from SARIF
+        id: strip-skillspector
         run: |
+          set -e
           python scripts/strip-skillspector-suppressions.py skillspector-raw.sarif skillspector.sarif
 
       - name: Upload SARIF to GitHub Code Scanning
-        if: always() && hashFiles('skillspector.sarif') != ''
+        if: always() && steps.strip-skillspector.outcome == 'success' && hashFiles('skillspector.sarif') != ''
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: skillspector.sarif

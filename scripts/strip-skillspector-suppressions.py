@@ -48,12 +48,25 @@ def main(argv: list[str]) -> int:
         return 2
     input_path = Path(argv[1])
     output_path = Path(argv[2])
-    data = json.loads(input_path.read_text(encoding="utf-8"))
-    data = strip_suppressed(data)
-    output_path.write_text(
-        json.dumps(data, indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
+    try:
+        data = json.loads(input_path.read_text(encoding="utf-8"))
+        data = strip_suppressed(data)
+        output_path.write_text(
+            json.dumps(data, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+    except FileNotFoundError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    except json.JSONDecodeError as e:
+        print(f"Error: Invalid JSON in {argv[1]}: {e}", file=sys.stderr)
+        return 1
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    except OSError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
     return 0
 
 
