@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-// @ts-ignore - workspace package without types yet
+// @ts-expect-error - workspace package without types yet
 import { mcpTools } from '@openadt/adt-lsp-mcp-tools'
 import { ADT_LSP_WORKFLOW_PROMPT, guidancePromptDefs } from './guidance/guidance'
 

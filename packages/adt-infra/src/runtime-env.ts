@@ -12,7 +12,7 @@ import type {
   WorkspacePath,
 } from './env'
 
-// @ts-ignore - Bun global
+// @ts-expect-error - Bun global
 declare const Bun: {
   TOML: {
     parse(text: string): unknown
