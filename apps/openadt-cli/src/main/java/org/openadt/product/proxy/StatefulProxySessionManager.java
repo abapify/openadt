@@ -92,9 +92,6 @@ final class StatefulProxySessionManager implements AutoCloseable {
         StatefulAdtTransportSession session,
         boolean executionFailed
     ) {
-        if (session == null) {
-            return;
-        }
         boolean close = shouldClose(request) || (executionFailed && newSessionId != null);
         if (!close) {
             return;
