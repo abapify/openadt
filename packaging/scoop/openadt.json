@@ -1,16 +1,16 @@
 {
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "Local bridge for SAP ADT traffic",
   "homepage": "https://github.com/abapify/openadt",
   "license": "Apache-2.0",
   "notes": "Requires Java 21 on PATH. `openadt mcp` also requires Bun at runtime (https://bun.sh). MCP launcher is bundled as a single file.",
   "architecture": {
     "64bit": {
-      "url": "https://github.com/abapify/openadt/releases/download/v3.0.0/openadt-3.0.0.zip",
+      "url": "https://github.com/abapify/openadt/releases/download/v3.0.1/openadt-3.0.1.zip",
       "hash": "PLACEHOLDER_RUN_PACKAGE_RELEASE"
     }
   },
-  "extract_dir": "openadt-3.0.0",
+  "extract_dir": "openadt-3.0.1",
   "bin": "openadt.exe",
   "suggest": {
     "JDK 21": "java/openjdk21",
