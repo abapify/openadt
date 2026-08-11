@@ -12,13 +12,6 @@ import type {
   WorkspacePath,
 } from './env'
 
-// @ts-expect-error - Bun global
-declare const Bun: {
-  TOML: {
-    parse(text: string): unknown
-  }
-}
-
 export type OpenAdtRuntimePaths = {
   jcoNativeDir?: string
   sapcrypto?: string

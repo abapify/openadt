@@ -33,10 +33,12 @@ public class AdtProxyHandler implements HttpHandler {
 
     private final SystemProfile systemProfile;
     private final AdtTransportClient transportClient;
+    private final StatefulProxySessionManager statefulSessions;
 
     public AdtProxyHandler(SystemProfile systemProfile, AdtTransportClient transportClient) {
         this.systemProfile = systemProfile;
         this.transportClient = transportClient;
+        this.statefulSessions = new StatefulProxySessionManager(transportClient);
     }
 
     public ProxyRequest buildProxyRequest(HttpExchange exchange) throws IOException {
@@ -88,7 +90,20 @@ public class AdtProxyHandler implements HttpHandler {
             }
 
             ProxyRequest request = buildProxyRequest(exchange);
-            ProxyResponse response = transportClient.execute(systemProfile, request);
+            StatefulProxySessionManager.Result result = statefulSessions.execute(
+                systemProfile,
+                request,
+                readCookie(exchange, StatefulProxySessionManager.SESSION_COOKIE)
+            );
+            ProxyResponse response = result.response();
+
+            if (result.newSessionId() != null) {
+                exchange.getResponseHeaders().add(
+                    "Set-Cookie",
+                    StatefulProxySessionManager.SESSION_COOKIE + "=" + result.newSessionId()
+                        + "; Path=/; HttpOnly; SameSite=Strict"
+                );
+            }
 
             response.headers().forEach((key, value) -> {
                 if (isValidResponseHeaderName(key)
@@ -114,6 +129,24 @@ public class AdtProxyHandler implements HttpHandler {
 
     static boolean isHead(HttpExchange exchange) {
         return "HEAD".equalsIgnoreCase(exchange.getRequestMethod());
+    }
+
+    void close() {
+        statefulSessions.close();
+    }
+
+    private static String readCookie(HttpExchange exchange, String name) {
+        String header = exchange.getRequestHeaders().getFirst("Cookie");
+        if (header == null) {
+            return null;
+        }
+        for (String cookie : header.split(";")) {
+            String[] pair = cookie.trim().split("=", 2);
+            if (pair.length == 2 && name.equals(pair[0])) {
+                return pair[1];
+            }
+        }
+        return null;
     }
 
     static boolean isGet(HttpExchange exchange) {

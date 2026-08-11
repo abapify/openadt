@@ -8,6 +8,7 @@ import com.sap.adt.communication.message.IRequest;
 import com.sap.adt.communication.message.IRequestFactory;
 import com.sap.adt.communication.message.IResponse;
 import com.sap.adt.communication.session.AdtSystemSessionFactory;
+import com.sap.adt.communication.session.IStatefulSystemSession;
 import com.sap.adt.communication.session.IStatelessSystemSession;
 import com.sap.adt.communication.session.ISystemSessionFactory;
 import com.sap.adt.destinations.model.AdtDestinationDataFactory;
@@ -58,6 +59,11 @@ public class AdtSdkTransportClient implements AdtTransportClient {
         return true;
     }
 
+    @Override
+    public boolean supportsStatefulSessions() {
+        return true;
+    }
+
     /**
      * Warms JCo/SDK logon once before the proxy accepts IDE traffic.
      */
@@ -94,6 +100,22 @@ public class AdtSdkTransportClient implements AdtTransportClient {
         }
     }
 
+    @Override
+    public StatefulAdtTransportSession openStatefulSession(SystemProfile system) {
+        if (openAdtConfig == null) {
+            throw new IllegalStateException("ADT SDK transport requires OpenAdt config (use AdtTransportFactory.create)");
+        }
+        try {
+            SapSdkRuntime.prepare(openAdtConfig);
+            SapDestinationResolver.ResolvedDestination resolved = SapDestinationResolver.resolve(system);
+            return openStatefulDestination(resolved.destinationData(), resolved.authenticationToken());
+        } catch (RuntimeException error) {
+            throw error;
+        } catch (Exception error) {
+            throw new OpenAdtException("Failed to open stateful ADT SDK session: " + error.getMessage(), error);
+        }
+    }
+
     private ProxyResponse executeDestination(
         IDestinationData destinationData,
         IAuthenticationToken authenticationToken,
@@ -111,6 +133,43 @@ public class AdtSdkTransportClient implements AdtTransportClient {
         log("session.sendRequest " + request.method() + " " + request.uri());
         IResponse sdkResponse = session.sendRequest(monitor, sdkRequest);
         return toProxyResponse(sdkResponse);
+    }
+
+    private StatefulAdtTransportSession openStatefulDestination(
+        IDestinationData destinationData,
+        IAuthenticationToken authenticationToken
+    ) throws Exception {
+        String destinationId = destinationData.getId();
+        LogonService.ensureLoggedOnForTransport(destinationData, authenticationToken);
+        ISystemSessionFactory sessionFactory = AdtSystemSessionFactory.createSystemSessionFactory();
+        IStatefulSystemSession session = sessionFactory.createStatefulSession(destinationId);
+        return new StatefulSdkSession(session);
+    }
+
+    private final class StatefulSdkSession implements StatefulAdtTransportSession {
+        private final IStatefulSystemSession session;
+
+        private StatefulSdkSession(IStatefulSystemSession session) {
+            this.session = session;
+        }
+
+        @Override
+        public synchronized ProxyResponse execute(ProxyRequest request) {
+            IProgressMonitor monitor = new NullProgressMonitor();
+            IResponse response = session.sendRequest(monitor, createSdkRequest(request));
+            try {
+                return toProxyResponse(response);
+            } catch (IOException error) {
+                throw new OpenAdtException("Failed to read stateful ADT SDK response", error);
+            }
+        }
+
+        @Override
+        public synchronized void close() {
+            if (session.isOpen()) {
+                session.close();
+            }
+        }
     }
 
     public static IDestinationData buildDestinationData(SystemProfile system) {

@@ -48,6 +48,26 @@ These ADT-specific headers are passed through:
 | `Accept-Language`            | Language negotiation         |
 | `SAP-Client`                 | SAP client selection         |
 
+## Stateful ADT request sequences
+
+An ADT client starts a stateful sequence by sending
+`X-sap-adt-sessiontype: stateful`. For an SDK transport, the proxy creates one
+opaque, HttpOnly, host-only OpenADT cookie and maps it to one SDK
+`IStatefulSystemSession`. The cookie is scoped to the proxy's configured bind
+address (default `127.0.0.1`), so clients only send it back to that host.
+Subsequent requests that also carry `X-sap-adt-sessiontype: stateful` and
+return that cookie reuse the same SDK session until either:
+
+- the ADT request carries `_action=UNLOCK`,
+- the client explicitly requests `X-sap-adt-sessiontype: stateless`, or
+- the proxy stops.
+
+The proxy does not forward this cookie to SAP, nor does it forward SAP response
+cookies. Non-stateful requests (no `X-sap-adt-sessiontype: stateful` header)
+ignore any session cookie and use the stateless SDK session path. This
+preserves the backend lock context for `LOCK → PUT → UNLOCK` without exposing
+SAP authentication/session material to the local client.
+
 ## CSRF handshake
 
 SAP clients obtain a CSRF token by sending `GET` or `HEAD` with `X-CSRF-Token: fetch` and reading the `x-csrf-token` response header, then attaching it to writes. A client treats an absent, empty, or literal `Required` value as "no token issued" and aborts before it ever issues its write.
