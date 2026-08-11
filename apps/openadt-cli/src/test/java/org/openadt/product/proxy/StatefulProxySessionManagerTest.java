@@ -11,6 +11,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class StatefulProxySessionManagerTest {
     private final SystemProfile system = new SystemProfile();
@@ -84,6 +85,38 @@ class StatefulProxySessionManagerTest {
     }
 
     @Test
+    void closesSessionWhenInitialStatefulRequestFails() {
+        RecordingTransport transport = new RecordingTransport();
+        transport.session.toThrow = new RuntimeException("lock failed");
+        StatefulProxySessionManager manager = new StatefulProxySessionManager(transport);
+
+        assertThrows(RuntimeException.class, () -> manager.execute(
+            system, stateful("POST", "/sap/bc/adt/oo/classes/ZCL_TEST?_action=LOCK"), null));
+
+        assertEquals(1, transport.openedSessions);
+        assertEquals(1, transport.session.closed);
+        assertEquals(0, manager.activeSessionCount());
+    }
+
+    @Test
+    void closesSessionWhenUnlockFails() {
+        RecordingTransport transport = new RecordingTransport();
+        StatefulProxySessionManager manager = new StatefulProxySessionManager(transport);
+
+        StatefulProxySessionManager.Result lock = manager.execute(
+            system, stateful("POST", "/sap/bc/adt/oo/classes/ZCL_TEST?_action=LOCK"), null);
+
+        transport.session.toThrow = new RuntimeException("unlock failed");
+        assertThrows(RuntimeException.class, () -> manager.execute(
+            system, stateful("POST", "/sap/bc/adt/oo/classes/ZCL_TEST?_action=UNLOCK&lockHandle=abc"),
+            lock.newSessionId()));
+
+        assertEquals(1, transport.openedSessions);
+        assertEquals(1, transport.session.closed);
+        assertEquals(0, manager.activeSessionCount());
+    }
+
+    @Test
     void replacesAnUnknownCookieWithANewStatefulSession() {
         RecordingTransport transport = new RecordingTransport();
         StatefulProxySessionManager manager = new StatefulProxySessionManager(transport);
@@ -131,10 +164,14 @@ class StatefulProxySessionManagerTest {
     private static final class RecordingStatefulSession implements StatefulAdtTransportSession {
         private int calls;
         private int closed;
+        private RuntimeException toThrow;
 
         @Override
         public ProxyResponse execute(ProxyRequest request) {
             calls++;
+            if (toThrow != null) {
+                throw toThrow;
+            }
             return ok();
         }
 

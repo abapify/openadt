@@ -14,7 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Maps an opaque local cookie to an SDK stateful ADT session.
  *
- * <p>The cookie stays at the loopback proxy; it is never included in the SAP request.
+ * <p>The cookie stays at the proxy host; it is never included in the SAP request.
  * Only requests carrying {@code X-sap-adt-sessiontype: stateful} use a stateful session.
  * Non-stateful requests ignore any session cookie and use the stateless transport path.
  */
@@ -33,11 +33,16 @@ final class StatefulProxySessionManager implements AutoCloseable {
     Result execute(SystemProfile system, ProxyRequest request, String suppliedSessionId) {
         StatefulAdtTransportSession session = sessionFor(system, request, suppliedSessionId);
         String newSessionId = session == null ? null : registeredSessionId(suppliedSessionId, session);
-        ProxyResponse response = session == null
-            ? transportClient.execute(system, request)
-            : session.execute(request);
-        closeAfter(request, suppliedSessionId, newSessionId, session);
-        return new Result(response, newSessionId);
+        boolean executionFailed = true;
+        try {
+            ProxyResponse response = session == null
+                ? transportClient.execute(system, request)
+                : session.execute(request);
+            executionFailed = false;
+            return new Result(response, newSessionId);
+        } finally {
+            closeAfter(request, suppliedSessionId, newSessionId, session, executionFailed);
+        }
     }
 
     int activeSessionCount() {
@@ -84,9 +89,14 @@ final class StatefulProxySessionManager implements AutoCloseable {
         ProxyRequest request,
         String suppliedSessionId,
         String newSessionId,
-        StatefulAdtTransportSession session
+        StatefulAdtTransportSession session,
+        boolean executionFailed
     ) {
-        if (!shouldClose(request)) {
+        if (session == null) {
+            return;
+        }
+        boolean close = shouldClose(request) || (executionFailed && newSessionId != null);
+        if (!close) {
             return;
         }
         StatefulAdtTransportSession sessionToClose = session;
@@ -110,7 +120,20 @@ final class StatefulProxySessionManager implements AutoCloseable {
         if ("stateless".equalsIgnoreCase(request.getHeader(SESSION_TYPE_HEADER))) {
             return true;
         }
-        return request.uri().matches("(?i).*([?&]_action=UNLOCK)(&.*)?$");
+        String uri = request.uri();
+        int queryStart = uri.indexOf('?');
+        if (queryStart < 0) {
+            return false;
+        }
+        for (String parameter : uri.substring(queryStart + 1).split("&")) {
+            String[] keyValue = parameter.split("=", 2);
+            if (keyValue.length == 2
+                && "_action".equalsIgnoreCase(keyValue[0])
+                && "UNLOCK".equalsIgnoreCase(keyValue[1])) {
+                return true;
+            }
+        }
+        return false;
     }
 
     record Result(ProxyResponse response, String newSessionId) { }

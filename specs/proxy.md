@@ -52,10 +52,11 @@ These ADT-specific headers are passed through:
 
 An ADT client starts a stateful sequence by sending
 `X-sap-adt-sessiontype: stateful`. For an SDK transport, the proxy creates one
-opaque, HttpOnly, loopback-only OpenADT cookie and maps it to one SDK
-`IStatefulSystemSession`. Subsequent requests that also carry
-`X-sap-adt-sessiontype: stateful` and return that cookie reuse the same SDK
-session until either:
+opaque, HttpOnly, host-only OpenADT cookie and maps it to one SDK
+`IStatefulSystemSession`. The cookie is scoped to the proxy's configured bind
+address (default `127.0.0.1`), so clients only send it back to that host.
+Subsequent requests that also carry `X-sap-adt-sessiontype: stateful` and
+return that cookie reuse the same SDK session until either:
 
 - the ADT request carries `_action=UNLOCK`,
 - the client explicitly requests `X-sap-adt-sessiontype: stateless`, or
