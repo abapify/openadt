@@ -5,6 +5,16 @@ import org.openadt.config.SystemProfile;
 public interface AdtTransportClient {
     ProxyResponse execute(SystemProfile system, ProxyRequest request);
 
+    /** Whether this transport can retain an ADT lock context across proxy requests. */
+    default boolean supportsStatefulSessions() {
+        return false;
+    }
+
+    /** Opens a caller-owned stateful ADT session when {@link #supportsStatefulSessions()} is true. */
+    default StatefulAdtTransportSession openStatefulSession(SystemProfile system) {
+        throw new UnsupportedOperationException("This ADT transport does not support stateful sessions");
+    }
+
     /**
      * Whether this transport keeps its own authenticated session and satisfies SAP's CSRF protection
      * upstream, so a token handed to the local client is never checked against anything.

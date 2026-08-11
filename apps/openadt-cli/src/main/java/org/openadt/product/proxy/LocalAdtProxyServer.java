@@ -13,6 +13,7 @@ public class LocalAdtProxyServer {
 
     private final AdtTransportClient transportClient;
     private HttpServer server;
+    private AdtProxyHandler handler;
 
     public LocalAdtProxyServer(AdtTransportClient transportClient) {
         this.transportClient = transportClient;
@@ -37,7 +38,7 @@ public class LocalAdtProxyServer {
             exchange.sendResponseHeaders(204, -1);
             exchange.close();
         });
-        AdtProxyHandler handler = new AdtProxyHandler(system, transportClient);
+        handler = new AdtProxyHandler(system, transportClient);
 
         var context = server.createContext("/", handler);
 
@@ -58,6 +59,9 @@ public class LocalAdtProxyServer {
     public void stop() {
         if (server != null) {
             server.stop(0);
+        }
+        if (handler != null) {
+            handler.close();
         }
     }
 
