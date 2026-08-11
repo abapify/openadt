@@ -53,7 +53,8 @@ These ADT-specific headers are passed through:
 An ADT client starts a stateful sequence by sending
 `X-sap-adt-sessiontype: stateful`. For an SDK transport, the proxy creates one
 opaque, HttpOnly, loopback-only OpenADT cookie and maps it to one SDK
-`IStatefulSystemSession`. Requests that return that cookie use the same SDK
+`IStatefulSystemSession`. Subsequent requests that also carry
+`X-sap-adt-sessiontype: stateful` and return that cookie reuse the same SDK
 session until either:
 
 - the ADT request carries `_action=UNLOCK`,
@@ -61,7 +62,8 @@ session until either:
 - the proxy stops.
 
 The proxy does not forward this cookie to SAP, nor does it forward SAP response
-cookies. Non-stateful requests keep using the stateless SDK session path. This
+cookies. Non-stateful requests (no `X-sap-adt-sessiontype: stateful` header)
+ignore any session cookie and use the stateless SDK session path. This
 preserves the backend lock context for `LOCK → PUT → UNLOCK` without exposing
 SAP authentication/session material to the local client.
 

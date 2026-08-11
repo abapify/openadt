@@ -47,6 +47,43 @@ class StatefulProxySessionManagerTest {
     }
 
     @Test
+    void ignoresStatefulCookieForNonStatefulRequests() {
+        RecordingTransport transport = new RecordingTransport();
+        StatefulProxySessionManager manager = new StatefulProxySessionManager(transport);
+
+        StatefulProxySessionManager.Result lock = manager.execute(
+            system, stateful("POST", "/sap/bc/adt/oo/classes/ZCL_TEST?_action=LOCK"), null);
+
+        StatefulProxySessionManager.Result discovery = manager.execute(system,
+            new ProxyRequest("GET", "/sap/bc/adt/discovery", "HTTP/1.1", Map.of(), new byte[0]),
+            lock.newSessionId());
+
+        assertNull(discovery.newSessionId());
+        assertEquals(1, transport.statelessCalls);
+        assertEquals(1, transport.openedSessions);
+        assertEquals(1, manager.activeSessionCount());
+    }
+
+    @Test
+    void closesStatefulSessionOnExplicitStatelessHeader() {
+        RecordingTransport transport = new RecordingTransport();
+        StatefulProxySessionManager manager = new StatefulProxySessionManager(transport);
+
+        StatefulProxySessionManager.Result lock = manager.execute(
+            system, stateful("POST", "/sap/bc/adt/oo/classes/ZCL_TEST?_action=LOCK"), null);
+
+        StatefulProxySessionManager.Result clear = manager.execute(system,
+            new ProxyRequest("POST", "/sap/bc/adt/oo/classes/ZCL_TEST", "HTTP/1.1",
+                Map.of("X-sap-adt-sessiontype", "stateless"), new byte[0]),
+            lock.newSessionId());
+
+        assertNull(clear.newSessionId());
+        assertEquals(1, transport.statelessCalls);
+        assertEquals(1, transport.session.closed);
+        assertEquals(0, manager.activeSessionCount());
+    }
+
+    @Test
     void replacesAnUnknownCookieWithANewStatefulSession() {
         RecordingTransport transport = new RecordingTransport();
         StatefulProxySessionManager manager = new StatefulProxySessionManager(transport);
